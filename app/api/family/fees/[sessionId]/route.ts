@@ -7,11 +7,11 @@ import { eq } from 'drizzle-orm'
 
 export async function GET(
   request: Request,
-  { params }: { params: { sessionId: string } }
+  { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
     const session = await getAuthenticatedUser()
-    const { sessionId } = params
+    const { sessionId } = await params
 
     // Get guardian info to find family
     const guardian = await db

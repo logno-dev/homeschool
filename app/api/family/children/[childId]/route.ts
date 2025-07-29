@@ -6,11 +6,11 @@ import { eq, and } from 'drizzle-orm'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { childId: string } }
+  { params }: { params: Promise<{ childId: string }> }
 ) {
   try {
     const session = await getAuthenticatedUser()
-    const { childId } = params
+    const { childId } = await params
     const body = await request.json()
 
     // Verify the child belongs to the user's family
