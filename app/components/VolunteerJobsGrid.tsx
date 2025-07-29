@@ -98,7 +98,8 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
           <p className="mt-2 text-gray-600">Click on any available volunteer job to sign up a parent/guardian.</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow border overflow-hidden">
+        {/* Desktop Table View - Hidden on mobile */}
+        <div className="hidden lg:block bg-white rounded-lg shadow border overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead className="bg-gray-50">
@@ -169,6 +170,66 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
               </tbody>
             </table>
           </div>
+        </div>
+
+        {/* Mobile Card View - Visible only on mobile */}
+        <div className="lg:hidden space-y-6">
+          {volunteerJobs.map((job) => (
+            <div key={job.id} className="bg-white rounded-lg shadow border overflow-hidden">
+              <div className="bg-gray-50 px-4 py-3 border-b">
+                <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
+                <p className="text-sm text-gray-600 mt-1">{job.description}</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  {job.quantityAvailable} position{job.quantityAvailable === 1 ? '' : 's'} per period
+                </p>
+              </div>
+              
+              <div className="p-4 space-y-4">
+                {PERIODS.map((period) => {
+                  const currentAssignment = getVolunteerAssignmentForPeriod(period.id.toString())
+                  const isAssigned = currentAssignment && currentAssignment.sessionVolunteerJobId === job.sessionVolunteerJobId
+                  
+                  return (
+                    <div key={period.id} className="border rounded-lg overflow-hidden">
+                      <div className="bg-gray-50 px-3 py-2 border-b">
+                        <h4 className="text-sm font-medium text-gray-900">{period.name}</h4>
+                      </div>
+                      <div className="p-3">
+                        <div
+                          onClick={() => !isAssigned && handleJobClick(job, period.id)}
+                          className={`rounded-md p-4 transition-colors border-2 ${
+                            isAssigned
+                              ? 'bg-green-50 border-green-200'
+                              : 'bg-blue-50 border-blue-200 active:bg-blue-100 cursor-pointer touch-manipulation'
+                          }`}
+                        >
+                          {isAssigned ? (
+                            <div className="text-center">
+                              <div className="text-base font-medium text-green-800 mb-1">
+                                {currentAssignment.guardianName}
+                              </div>
+                              <div className="text-sm text-green-600">✓ Assigned</div>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <div className="text-base font-medium text-blue-800 mb-1">Available</div>
+                              <div className="text-sm text-blue-600">Tap to assign volunteer →</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+          
+          {volunteerJobs.length === 0 && (
+            <div className="bg-white rounded-lg shadow border p-6 text-center">
+              <p className="text-gray-500">No volunteer jobs available.</p>
+            </div>
+          )}
         </div>
       </div>
 

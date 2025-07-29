@@ -255,7 +255,8 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow border overflow-hidden">
+      {/* Desktop Table View - Hidden on mobile */}
+      <div className="hidden lg:block bg-white rounded-lg shadow border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50">
@@ -341,6 +342,99 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Card View - Visible only on mobile */}
+      <div className="lg:hidden space-y-6">
+        {PERIODS.map((period) => (
+          <div key={period.id} className="bg-white rounded-lg shadow border overflow-hidden">
+            <div className="bg-gray-50 px-4 py-3 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">{period.name}</h3>
+            </div>
+            <div className="p-4 space-y-4">
+              {classrooms.map((classroom) => {
+                const schedule = groupedSchedules[period.id]?.[classroom.id]
+                
+                return (
+                  <div key={classroom.id} className="border rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-3 py-2 border-b">
+                      <div className="text-sm font-medium text-gray-900">{classroom.name}</div>
+                      {classroom.description && (
+                        <div className="text-xs text-gray-500">{classroom.description}</div>
+                      )}
+                    </div>
+                    <div className="p-3">
+                      {schedule ? (
+                        <div
+                          onClick={() => handleClassClick(schedule)}
+                          className={`rounded-md p-4 transition-colors border-2 ${
+                            isScheduleConflicted(schedule.schedule.id)
+                              ? 'bg-red-50 border-red-300 active:bg-red-100'
+                              : getEffectiveAvailableSpots(schedule) > 0
+                              ? 'bg-blue-50 border-blue-200 active:bg-blue-100'
+                              : 'bg-gray-50 border-gray-200 opacity-60'
+                          } ${
+                            getEffectiveAvailableSpots(schedule) > 0 || isScheduleConflicted(schedule.schedule.id)
+                              ? 'cursor-pointer touch-manipulation'
+                              : 'cursor-not-allowed'
+                          }`}
+                        >
+                          <div className="space-y-2">
+                            <h4 className={`font-semibold text-base ${
+                              isScheduleConflicted(schedule.schedule.id) 
+                                ? 'text-red-900' 
+                                : 'text-blue-900'
+                            }`}>
+                              {isScheduleConflicted(schedule.schedule.id) && '⚠️ '}
+                              {schedule.classTeachingRequest.className}
+                            </h4>
+                            <div className="grid grid-cols-1 gap-1 text-sm">
+                              <p className="text-blue-700">
+                                <span className="font-medium">Teacher:</span> {schedule.teacher.firstName} {schedule.teacher.lastName}
+                              </p>
+                              <p className="text-blue-700">
+                                <span className="font-medium">Grade:</span> {schedule.classTeachingRequest.gradeRange}
+                              </p>
+                              <p className="text-blue-600">
+                                <span className="font-medium">Available:</span> {getEffectiveAvailableSpots(schedule)} of {schedule.classTeachingRequest.maxStudents} spots
+                              </p>
+                              {schedule.classTeachingRequest.requiresFee && (
+                                <p className="text-red-600 font-medium">
+                                  Fee: ${schedule.classTeachingRequest.feeAmount}
+                                </p>
+                              )}
+                            </div>
+                            {getEffectiveAvailableSpots(schedule) > 0 && (
+                              <div className="pt-2 border-t border-blue-200">
+                                <p className="text-xs text-blue-600 font-medium">
+                                  Tap to register →
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border-2 border-dashed border-gray-300 rounded-md p-4 text-center">
+                          <p className="text-sm text-gray-400">No class scheduled</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+              {classrooms.length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No classrooms available for this period.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+        {classrooms.length === 0 && (
+          <div className="bg-white rounded-lg shadow border p-6 text-center">
+            <p className="text-gray-500">No classrooms available.</p>
+          </div>
+        )}
       </div>
 
       {/* Registration Modal */}

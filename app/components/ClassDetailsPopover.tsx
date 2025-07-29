@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 import Popover from './Popover'
 
@@ -40,6 +40,18 @@ const PopoverSkeleton = () => (
 )
 
 export default function ClassDetailsPopover({ classRequest, children, isDragging = false }: ClassDetailsPopoverProps) {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString()
   }
@@ -174,8 +186,8 @@ export default function ClassDetailsPopover({ classRequest, children, isDragging
   return (
     <Popover
       content={popoverContent}
-      trigger="hover"
-      delay={100} // Reduced delay for better responsiveness
+      trigger={isMobile ? "click" : "hover"}
+      delay={isMobile ? 0 : 100} // No delay for click, reduced delay for hover
       placement="top"
       disabled={isDragging}
     >

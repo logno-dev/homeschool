@@ -195,11 +195,11 @@ export default function SessionManagement({ initialSessions }: SessionManagement
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h2 className="text-2xl font-bold text-gray-900">Session Management</h2>
         <button
           onClick={() => setShowForm(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+          className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 sm:py-2 rounded-md text-sm font-medium transition-colors min-h-[44px] flex items-center justify-center"
         >
           Add New Session
         </button>
@@ -321,18 +321,18 @@ export default function SessionManagement({ initialSessions }: SessionManagement
               </label>
             </div>
 
-            <div className="flex justify-end space-x-3">
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-3 sm:space-x-3">
               <button
                 type="button"
                 onClick={resetForm}
-                className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
+                className="bg-gray-300 hover:bg-gray-400 active:bg-gray-500 text-gray-700 px-4 py-3 sm:py-2 rounded-md text-sm font-medium transition-colors min-h-[44px] flex items-center justify-center"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isLoading}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+                className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 sm:py-2 rounded-md text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
               >
                 {isLoading ? 'Saving...' : editingSession ? 'Update Session' : 'Create Session'}
               </button>
@@ -349,9 +349,11 @@ export default function SessionManagement({ initialSessions }: SessionManagement
             </li>
           ) : (
             sessions.map((session) => (
-              <li key={session.id} className="px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
+              <li key={session.id} className="px-4 sm:px-6 py-4">
+                {/* Mobile-first layout: stack everything vertically */}
+                <div className="space-y-4">
+                  {/* Session header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center">
                       <h3 className="text-lg font-medium text-gray-900">
                         {session.name}
@@ -362,68 +364,84 @@ export default function SessionManagement({ initialSessions }: SessionManagement
                         )}
                       </h3>
                     </div>
-                    {session.description && (
-                      <p className="mt-1 text-sm text-gray-600">{session.description}</p>
-                    )}
-                    <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600">
-                      <div>
-                        <span className="font-medium">Session:</span><br />
+                  </div>
+
+                  {/* Description */}
+                  {session.description && (
+                    <p className="text-sm text-gray-600">{session.description}</p>
+                  )}
+
+                  {/* Session info - stacked vertically on mobile, grid on larger screens */}
+                  <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 text-sm text-gray-600">
+                    <div className="flex flex-col sm:block">
+                      <span className="font-medium text-gray-900">Session Dates</span>
+                      <span className="mt-1">
                         {formatDate(session.startDate)} - {formatDate(session.endDate)}
-                      </div>
-                      <div>
-                        <span className="font-medium">Registration:</span><br />
+                      </span>
+                    </div>
+                    <div className="flex flex-col sm:block">
+                      <span className="font-medium text-gray-900">Registration Period</span>
+                      <span className="mt-1">
                         {formatDate(session.registrationStartDate)} - {formatDate(session.registrationEndDate)}
-                      </div>
-                      {session.teacherRegistrationStartDate && (
-                        <div>
-                          <span className="font-medium">Teacher Early:</span><br />
+                      </span>
+                    </div>
+                    {session.teacherRegistrationStartDate && (
+                      <div className="flex flex-col sm:block">
+                        <span className="font-medium text-gray-900">Teacher Early Access</span>
+                        <span className="mt-1">
                           {formatDate(session.teacherRegistrationStartDate)}
-                        </div>
-                      )}
-                      <div>
-                        <span className="font-medium">Created:</span><br />
-                        {formatDate(session.createdAt)}
+                        </span>
                       </div>
+                    )}
+                    <div className="flex flex-col sm:block">
+                      <span className="font-medium text-gray-900">Created</span>
+                      <span className="mt-1">
+                        {formatDate(session.createdAt)}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => router.push(`/admin/schedule/${session.id}`)}
-                      disabled={isLoading}
-                      className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50"
-                    >
-                      Schedule
-                    </button>
-                    <button
-                      onClick={() => router.push(`/admin/sessions/${session.id}/fees`)}
-                      disabled={isLoading}
-                      className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50"
-                    >
-                      Fee Config
-                    </button>
-                    {!session.isActive && (
+
+                  {/* Action buttons - stacked on mobile, horizontal on larger screens */}
+                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 pt-2 border-t border-gray-100 sm:border-t-0">
+                    <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-2">
                       <button
-                        onClick={() => handleSetActive(session.id)}
+                        onClick={() => router.push(`/admin/schedule/${session.id}`)}
                         disabled={isLoading}
-                        className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50"
+                        className="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
                       >
-                        Set Active
+                        Schedule
                       </button>
-                    )}
-                    <button
-                      onClick={() => handleEdit(session)}
-                      disabled={isLoading}
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteClick(session)}
-                      disabled={isLoading}
-                      className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50"
-                    >
-                      Delete
-                    </button>
+                      <button
+                        onClick={() => router.push(`/admin/sessions/${session.id}/fees`)}
+                        disabled={isLoading}
+                        className="bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
+                      >
+                        Fee Config
+                      </button>
+                      {!session.isActive && (
+                        <button
+                          onClick={() => handleSetActive(session.id)}
+                          disabled={isLoading}
+                          className="bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
+                        >
+                          Set Active
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleEdit(session)}
+                        disabled={isLoading}
+                        className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClick(session)}
+                        disabled={isLoading}
+                        className="bg-red-600 hover:bg-red-700 active:bg-red-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center col-span-2 sm:col-span-1"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               </li>

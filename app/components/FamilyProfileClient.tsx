@@ -59,6 +59,7 @@ export default function FamilyProfileClient({ family, guardians, children: initi
     emergencyPhone: ''
   })
   const [loading, setLoading] = useState(false)
+  const [expandedChildren, setExpandedChildren] = useState<Set<string>>(new Set())
   const { showSuccess, showError } = useToast()
 
   const openEditModal = (child: Child) => {
@@ -99,6 +100,17 @@ export default function FamilyProfileClient({ family, guardians, children: initi
       emergencyContact: '',
       emergencyPhone: ''
     })
+  }
+
+  const toggleChildExpansion = (childId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const newExpanded = new Set(expandedChildren)
+    if (newExpanded.has(childId)) {
+      newExpanded.delete(childId)
+    } else {
+      newExpanded.add(childId)
+    }
+    setExpandedChildren(newExpanded)
   }
 
   const handleInputChange = (field: keyof Child, value: string) => {
@@ -198,35 +210,88 @@ export default function FamilyProfileClient({ family, guardians, children: initi
           <p className="text-gray-500">No children registered yet. Click "Add Child" to get started.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {children.map((child) => (
-              <div 
-                key={child.id} 
-                className="border border-gray-200 rounded-lg p-4 cursor-pointer hover:border-blue-300 hover:shadow-sm transition-all duration-200"
-                onClick={() => openEditModal(child)}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-medium text-gray-900">
-                    {child.firstName} {child.lastName}
-                  </h3>
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
+            {children.map((child) => {
+              const isExpanded = expandedChildren.has(child.id)
+              const hasAdditionalInfo = child.allergies || child.medicalNotes || child.emergencyContact
+              
+              return (
+                <div 
+                  key={child.id} 
+                  className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-sm transition-all duration-200"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <h3 className="font-medium text-gray-900">
+                      {child.firstName} {child.lastName}
+                    </h3>
+                    <div className="flex items-center space-x-2">
+                      {hasAdditionalInfo && (
+                        <button
+                          onClick={(e) => toggleChildExpansion(child.id, e)}
+                          className="p-1 hover:bg-gray-100 rounded transition-colors"
+                          aria-label={isExpanded ? 'Show less' : 'Show more'}
+                        >
+                          <svg 
+                            className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => openEditModal(child)}
+                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                        aria-label="Edit child"
+                      >
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Always visible basic info */}
+                  <div className="space-y-1 text-sm text-gray-700">
+                    <p><span className="font-medium text-gray-900">Grade:</span> {child.grade}</p>
+                    <p><span className="font-medium text-gray-900">DOB:</span> {new Date(child.dateOfBirth).toLocaleDateString()}</p>
+                  </div>
+                  
+                  {/* Collapsible additional info */}
+                  {hasAdditionalInfo && (
+                    <div className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-96 mt-2' : 'max-h-0'}`}>
+                      <div className="space-y-1 text-sm text-gray-700 pt-2 border-t border-gray-100">
+                        {child.allergies && (
+                          <p><span className="font-medium text-gray-900">Allergies:</span> {child.allergies}</p>
+                        )}
+                        {child.medicalNotes && (
+                          <p><span className="font-medium text-gray-900">Medical:</span> {child.medicalNotes}</p>
+                        )}
+                        {child.emergencyContact && (
+                          <p><span className="font-medium text-gray-900">Emergency:</span> {child.emergencyContact} {child.emergencyPhone && `(${child.emergencyPhone})`}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Show more indicator for mobile */}
+                  {hasAdditionalInfo && !isExpanded && (
+                    <div className="mt-2 md:hidden">
+                      <button
+                        onClick={(e) => toggleChildExpansion(child.id, e)}
+                        className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+                      >
+                        <span>Show additional info</span>
+                        <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-1 text-sm text-gray-700">
-                  <p><span className="font-medium text-gray-900">Grade:</span> {child.grade}</p>
-                  <p><span className="font-medium text-gray-900">DOB:</span> {new Date(child.dateOfBirth).toLocaleDateString()}</p>
-                  {child.allergies && (
-                    <p><span className="font-medium text-gray-900">Allergies:</span> {child.allergies}</p>
-                  )}
-                  {child.medicalNotes && (
-                    <p><span className="font-medium text-gray-900">Medical:</span> {child.medicalNotes}</p>
-                  )}
-                  {child.emergencyContact && (
-                    <p><span className="font-medium text-gray-900">Emergency:</span> {child.emergencyContact} {child.emergencyPhone && `(${child.emergencyPhone})`}</p>
-                  )}
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

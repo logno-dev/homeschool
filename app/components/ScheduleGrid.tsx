@@ -7,6 +7,7 @@ import ConfirmModal from './ConfirmModal'
 import ClassDetailsPopover from './ClassDetailsPopover'
 import DraftManagement from './DraftManagement'
 import Modal from './Modal'
+import LoadingSpinner, { SkeletonCard, SkeletonTable } from './LoadingSpinner'
 
 interface ScheduleGridProps {
   sessionId: string
@@ -40,6 +41,9 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
   const [scheduleStatus, setScheduleStatus] = useState<'draft' | 'submitted' | 'published'>('draft')
   const [isDragging, setIsDragging] = useState(false)
   const [hoveredDropZone, setHoveredDropZone] = useState<string | null>(null)
+  const [selectedClass, setSelectedClass] = useState<ClassTeachingRequest | null>(null)
+  const [selectedFromSlot, setSelectedFromSlot] = useState<string | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
   const [showPullBackModal, setShowPullBackModal] = useState(false)
   const [showPublishModal, setShowPublishModal] = useState(false)
   const [showDraftManagement, setShowDraftManagement] = useState(false)
@@ -56,6 +60,16 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
   useEffect(() => {
     initializeSchedule()
   }, [sessionId])
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
 
   const initializeSchedule = async () => {
     setIsLoading(true)
@@ -241,6 +255,60 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
 
     setDraftSchedule(newSchedule)
     handleDragEnd()
+  }
+
+  // Touch interaction handlers for mobile
+  const handleClassSelect = (classRequest: ClassTeachingRequest, fromSlot?: string) => {
+    if (scheduleStatus === 'submitted' || scheduleStatus === 'published') return
+    
+    if (selectedClass?.id === classRequest.id && selectedFromSlot === fromSlot) {
+      // Deselect if clicking the same class
+      setSelectedClass(null)
+      setSelectedFromSlot(null)
+    } else {
+      // Select the class
+      setSelectedClass(classRequest)
+      setSelectedFromSlot(fromSlot || null)
+    }
+  }
+
+  const handleSlotTap = (classroomId: string, period: string) => {
+    if (scheduleStatus === 'submitted' || scheduleStatus === 'published') return
+    
+    const slotKey = getSlotKey(classroomId, period)
+    const existingClass = getClassInSlot(classroomId, period)
+    
+    if (selectedClass) {
+      // Place selected class in this slot
+      const newSchedule = { ...draftSchedule }
+      
+      // Remove class from previous slot if it was moved from a slot
+      if (selectedFromSlot) {
+        newSchedule[selectedFromSlot] = null
+      }
+      
+      // Add class to new slot
+      newSchedule[slotKey] = selectedClass.id
+      
+      setDraftSchedule(newSchedule)
+      setSelectedClass(null)
+      setSelectedFromSlot(null)
+    } else if (existingClass) {
+      // Select the existing class in this slot
+      handleClassSelect(existingClass, slotKey)
+    }
+  }
+
+  const handlePoolTap = () => {
+    if (selectedClass && selectedFromSlot) {
+      // Remove selected class from schedule
+      const newSchedule = { ...draftSchedule }
+      newSchedule[selectedFromSlot] = null
+      
+      setDraftSchedule(newSchedule)
+      setSelectedClass(null)
+      setSelectedFromSlot(null)
+    }
   }
 
   const getClassInSlot = (classroomId: string, period: string) => {
@@ -528,9 +596,39 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
 
   if (isLoading) {
     return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-2 text-gray-600">Loading schedule...</p>
+      <div className="space-y-6">
+        {/* Header skeleton */}
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-48 mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-32"></div>
+          </div>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="animate-pulse h-10 bg-gray-200 rounded w-20"></div>
+            <div className="animate-pulse h-10 bg-gray-200 rounded w-32"></div>
+            <div className="animate-pulse h-10 bg-gray-200 rounded w-28"></div>
+          </div>
+        </div>
+
+        {/* Classes pool skeleton */}
+        <div className="bg-white p-6 rounded-lg shadow border">
+          <div className="animate-pulse">
+            <div className="h-6 bg-gray-200 rounded w-64 mb-4"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Schedule grid skeleton */}
+        <SkeletonTable rows={4} />
+        
+        {/* Mobile loading indicator */}
+        <div className="md:hidden text-center">
+          <LoadingSpinner text="Loading schedule..." />
+        </div>
       </div>
     )
   }
@@ -654,26 +752,42 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
       <div 
         className={`bg-white p-6 rounded-lg shadow border transition-colors ${
           hoveredDropZone === 'pool' && draggedFromSlot ? 'bg-gray-100 border-gray-400' : ''
-        }`}
+        } ${selectedClass && selectedFromSlot ? 'ring-2 ring-red-300' : ''}`}
         onDragOver={handleDragOver}
         onDragEnter={(e) => handleDragEnter(e, 'pool')}
         onDragLeave={handleDragLeave}
         onDrop={handleDropToPool}
+        onClick={isMobile ? handlePoolTap : undefined}
       >
-        <h3 className="text-lg font-medium text-gray-900 mb-4">
-          Approved Classes Pool ({unscheduledClasses.length} unscheduled)
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4">
+          <h3 className="text-lg font-medium text-gray-900">
+            Approved Classes Pool ({unscheduledClasses.length} unscheduled)
+          </h3>
+          {isMobile && selectedClass && (
+            <div className="text-sm text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+              {selectedFromSlot ? 'Tap here to remove from schedule' : 'Selected: ' + selectedClass.className}
+            </div>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 min-h-[100px]">
           {unscheduledClasses.map((classRequest) => (
             <ClassDetailsPopover key={`pool-${classRequest.id}`} classRequest={classRequest} isDragging={isDragging}>
               <div
-                draggable={scheduleStatus !== 'submitted'}
+                draggable={!isMobile && scheduleStatus !== 'submitted' && scheduleStatus !== 'published'}
                 onDragStart={(e) => handleDragStart(e, classRequest)}
                 onDragEnd={handleDragEnd}
-                className={`bg-blue-50 border border-blue-200 rounded-md p-3 transition-colors ${
+                onClick={isMobile ? (e) => {
+                  e.stopPropagation()
+                  handleClassSelect(classRequest)
+                } : undefined}
+                className={`bg-blue-50 border rounded-md p-3 transition-all min-h-[44px] ${
                   scheduleStatus === 'submitted' || scheduleStatus === 'published'
-                    ? 'cursor-not-allowed opacity-60' 
-                    : 'cursor-move hover:bg-blue-100'
+                    ? 'cursor-not-allowed opacity-60 border-blue-200' 
+                    : selectedClass?.id === classRequest.id && !selectedFromSlot
+                      ? 'border-blue-500 bg-blue-100 ring-2 ring-blue-300 cursor-pointer'
+                      : isMobile 
+                        ? 'cursor-pointer hover:bg-blue-100 border-blue-200 active:bg-blue-200'
+                        : 'cursor-move hover:bg-blue-100 border-blue-200'
                 }`}
               >
                 <h4 className="font-medium text-blue-900">{classRequest.className}</h4>
@@ -687,7 +801,8 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
            {unscheduledClasses.length === 0 && (
              <div className="col-span-full text-center text-gray-500 py-8">
                {hoveredDropZone === 'pool' && draggedFromSlot ? 'Drop here to remove from schedule' : 
-                isDragging && draggedFromSlot ? 'Drop here to remove from schedule' : 
+                isDragging && draggedFromSlot ? 'Drop here to remove from schedule' :
+                isMobile && selectedClass && selectedFromSlot ? 'Tap here to remove from schedule' :
                 'All approved classes have been scheduled'}
              </div>
            )}        </div>
@@ -695,7 +810,8 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
 
       {/* Schedule Grid */}
       <div className="bg-white rounded-lg shadow border overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
@@ -737,8 +853,10 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
                          onDrop={(e) => handleDrop(e, classroom.id, period.id)}
                        >
                          {scheduledClass ? (
-                            <ClassDetailsPopover key={`scheduled-${scheduledClass.id}-${slotKey}`} classRequest={scheduledClass} isDragging={isDragging}>                             <div 
-                draggable={scheduleStatus !== 'submitted' && scheduleStatus !== 'published'}                               onDragStart={(e) => handleDragStart(e, scheduledClass, slotKey)}
+                            <ClassDetailsPopover key={`scheduled-${scheduledClass.id}-${slotKey}`} classRequest={scheduledClass} isDragging={isDragging}>
+                             <div 
+                               draggable={scheduleStatus !== 'submitted' && scheduleStatus !== 'published'}
+                               onDragStart={(e) => handleDragStart(e, scheduledClass, slotKey)}
                                onDragEnd={handleDragEnd}
                                className={`rounded-md p-3 transition-colors ${
                                  scheduleStatus === 'submitted' || scheduleStatus === 'published'
@@ -769,7 +887,8 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
                            }`}>
                              {isHovered && isValidDropZone ? 'Drop class here' : 'Drop class here'}
                            </div>
-                         )}                      </td>
+                         )}
+                       </td>
                     )
                   })}
                 </tr>
@@ -783,6 +902,92 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden p-4 space-y-6">
+          {PERIODS.map((period) => (
+            <div key={period.id} className="space-y-3">
+              <h3 className="text-lg font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                {period.name}
+              </h3>
+              <div className="space-y-3">
+                {scheduleData.classrooms.map((classroom) => {
+                  const scheduledClass = getClassInSlot(classroom.id, period.id)
+                  const slotKey = getSlotKey(classroom.id, period.id)
+                  const isSelected = selectedClass && selectedFromSlot === slotKey
+                  
+                  return (
+                    <div key={classroom.id} className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h4 className="font-medium text-gray-900">{classroom.name}</h4>
+                          {classroom.description && (
+                            <p className="text-sm text-gray-500">{classroom.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div 
+                        onClick={() => handleSlotTap(classroom.id, period.id)}
+                        className={`border-2 rounded-lg p-4 min-h-[80px] transition-all ${
+                          scheduledClass 
+                            ? selectedClass?.id === scheduledClass.id && selectedFromSlot === slotKey
+                              ? 'border-green-500 bg-green-100 ring-2 ring-green-300'
+                              : 'border-green-200 bg-green-50 hover:bg-green-100 active:bg-green-200'
+                            : selectedClass
+                              ? 'border-blue-400 bg-blue-50 border-dashed hover:bg-blue-100 active:bg-blue-200'
+                              : 'border-gray-300 bg-white border-dashed hover:bg-gray-50 active:bg-gray-100'
+                        } ${
+                          scheduleStatus === 'submitted' || scheduleStatus === 'published'
+                            ? 'cursor-not-allowed opacity-60'
+                            : 'cursor-pointer'
+                        }`}
+                      >
+                        {scheduledClass ? (
+                          <ClassDetailsPopover key={`mobile-${scheduledClass.id}-${slotKey}`} classRequest={scheduledClass} isDragging={false}>
+                            <div>
+                              <h5 className="font-medium text-green-900">
+                                {scheduledClass.className}
+                              </h5>
+                              <p className="text-sm text-green-700">
+                                Grade: {scheduledClass.gradeRange}
+                              </p>
+                              {scheduledClass.coTeacher && (
+                                <p className="text-sm text-green-700">
+                                  Co-teacher: {scheduledClass.coTeacher}
+                                </p>
+                              )}
+                              {isSelected && (
+                                <p className="text-xs text-green-600 mt-2 font-medium">
+                                  Selected - Tap another slot to move
+                                </p>
+                              )}
+                            </div>
+                          </ClassDetailsPopover>
+                        ) : (
+                          <div className="flex items-center justify-center h-full text-center">
+                            <p className="text-sm text-gray-500">
+                              {selectedClass 
+                                ? `Tap to place "${selectedClass.className}" here`
+                                : 'Tap a class above to schedule here'
+                              }
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+          
+          {scheduleData.classrooms.length === 0 && (
+            <div className="text-center text-gray-500 py-8">
+              No classrooms available. Please add classrooms first.
+            </div>
+          )}
         </div>
       </div>
     </div>

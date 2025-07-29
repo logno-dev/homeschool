@@ -142,7 +142,8 @@ export default function UserManagementTable({
           </div>
         )}
 
-        <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
+        {/* Desktop Table View - Hidden on mobile */}
+        <div className="hidden md:block overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
           <table className="min-w-full divide-y divide-gray-300">
             <thead className="bg-gray-50">
               <tr>
@@ -222,6 +223,83 @@ export default function UserManagementTable({
           
           {isLoading && (
             <div className="text-center py-8 text-gray-500">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-2">Loading users...</p>
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Card View - Visible only on mobile */}
+        <div className="md:hidden space-y-4">
+          {users.map((user) => (
+            <div key={user.id} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+              <div className="p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-medium text-gray-900 truncate">
+                      {user.firstName} {user.lastName}
+                    </h3>
+                    <p className="text-sm text-gray-600 truncate">{user.email}</p>
+                  </div>
+                  <div className="flex-shrink-0 ml-4">
+                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                      Active
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <span className="text-sm text-gray-500">Current Role:</span>
+                    <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
+                      {user.role}
+                    </span>
+                  </div>
+                </div>
+
+                {user.id !== currentUserId && (
+                  <div className="space-y-3 pt-3 border-t border-gray-200">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Change Role:
+                      </label>
+                      <select
+                        value={user.role}
+                        onChange={(e) => updateUserRole(user.id, e.target.value)}
+                        className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="user">User</option>
+                        <option value="member">Member</option>
+                        <option value="moderator">Moderator</option>
+                        <option value="admin">Admin</option>
+                      </select>
+                    </div>
+                    <button
+                      onClick={() => deactivateUser(user.id)}
+                      className="w-full bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-md text-sm font-medium hover:bg-red-100 focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+                    >
+                      Deactivate User
+                    </button>
+                  </div>
+                )}
+                
+                {user.id === currentUserId && (
+                  <div className="pt-3 border-t border-gray-200">
+                    <p className="text-sm text-gray-500 text-center">This is your account</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          
+          {users.length === 0 && !isLoading && (
+            <div className="text-center py-8 text-gray-500 bg-white border border-gray-200 rounded-lg">
+              <p>No users found</p>
+            </div>
+          )}
+          
+          {isLoading && (
+            <div className="text-center py-8 text-gray-500 bg-white border border-gray-200 rounded-lg">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
               <p className="mt-2">Loading users...</p>
             </div>
