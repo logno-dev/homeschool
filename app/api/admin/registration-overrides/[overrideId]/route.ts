@@ -16,7 +16,7 @@ import { randomUUID } from 'crypto'
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { overrideId: string } }
+  { params }: { params: Promise<{ overrideId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -43,7 +43,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
     }
 
-    const { overrideId } = params
+    const { overrideId } = await params
     const body = await request.json()
     const { action, reason } = body // action: 'approve' | 'deny', reason: string
 
