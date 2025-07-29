@@ -444,7 +444,7 @@ export default function SessionManagement({ initialSessions }: SessionManagement
             : ''
         }
         confirmText="Delete Session"
-        confirmButtonClass="bg-red-600 hover:bg-red-700 text-white"
+        confirmVariant="danger"
         isLoading={isLoading}
       />
     </div>
