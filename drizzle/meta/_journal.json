@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1753581622268,
+      "tag": "0000_pink_monster_badoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1753584724192,
+      "tag": "0001_workable_aaron_stack",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1753585910350,
+      "tag": "0002_dashing_shape",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1753587131415,
+      "tag": "0003_misty_james_howlett",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1753587662038,
+      "tag": "0004_useful_iron_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1753589182834,
+      "tag": "0005_stale_sleepwalker",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1753680498067,
+      "tag": "0006_polite_galactus",
+      "breakpoints": true
+    }
+  ]
+}

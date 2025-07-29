@@ -1,0 +1,22 @@
+CREATE TABLE `class_teaching_requests` (
+	`id` text PRIMARY KEY NOT NULL,
+	`session_id` text NOT NULL,
+	`guardian_id` text NOT NULL,
+	`class_name` text NOT NULL,
+	`description` text NOT NULL,
+	`grade_range` text NOT NULL,
+	`co_teacher` text,
+	`classroom_needs` text,
+	`requires_fee` integer DEFAULT false NOT NULL,
+	`fee_amount` real,
+	`scheduling_requirements` text,
+	`status` text DEFAULT 'pending' NOT NULL,
+	`reviewed_by` text,
+	`reviewed_at` text,
+	`review_notes` text,
+	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	FOREIGN KEY (`session_id`) REFERENCES `sessions`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`guardian_id`) REFERENCES `guardians`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`reviewed_by`) REFERENCES `guardians`(`id`) ON UPDATE no action ON DELETE no action
+);

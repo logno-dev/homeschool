@@ -1,0 +1,20 @@
+CREATE TABLE `events` (
+	`id` text PRIMARY KEY NOT NULL,
+	`title` text NOT NULL,
+	`description` text,
+	`start_date` text NOT NULL,
+	`end_date` text,
+	`start_time` text,
+	`end_time` text,
+	`is_all_day` integer DEFAULT false NOT NULL,
+	`event_type` text DEFAULT 'general' NOT NULL,
+	`session_id` text,
+	`location` text,
+	`color` text DEFAULT '#3b82f6' NOT NULL,
+	`is_public` integer DEFAULT true NOT NULL,
+	`created_by` text NOT NULL,
+	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	FOREIGN KEY (`session_id`) REFERENCES `sessions`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`created_by`) REFERENCES `guardians`(`id`) ON UPDATE no action ON DELETE cascade
+);
