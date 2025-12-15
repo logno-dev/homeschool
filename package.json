@@ -12,21 +12,21 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@libsql/client": "^0.15.10",
+    "@libsql/client": "^0.15.15",
     "date-fns": "^4.1.0",
-    "drizzle-orm": "^0.44.3",
-    "next": "15.4.4",
-    "next-auth": "^4.24.11",
+    "drizzle-orm": "^0.44.7",
+    "next": "16.0.10",
+    "next-auth": "^4.24.13",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "drizzle-kit": "^0.31.4",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "^20.19.27",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "drizzle-kit": "^0.31.8",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5.9.3"
   }
 }
