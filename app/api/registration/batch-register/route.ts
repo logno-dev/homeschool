@@ -606,20 +606,22 @@ export async function POST(request: Request) {
       await db.transaction(async (tx) => {
         // Check if child is already registered for a class in this period
         console.log('Checking existing registration...')
-        const existingRegistration = await tx
-          .select()
-          .from(classRegistrations)
-          .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
-          .where(and(
-            eq(classRegistrations.childId, registration.childId),
-            eq(classRegistrations.sessionId, sessionId),
-            eq(schedules.period, registration.period)
-          ))
-          .limit(1)
-        console.log('Existing registration check complete')
+        if (registration.status !== 'waitlisted') {
+          const existingRegistration = await tx
+            .select()
+            .from(classRegistrations)
+            .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
+            .where(and(
+              eq(classRegistrations.childId, registration.childId),
+              eq(classRegistrations.sessionId, sessionId),
+              eq(schedules.period, registration.period)
+            ))
+            .limit(1)
+          console.log('Existing registration check complete')
 
-        if (existingRegistration.length > 0) {
-          throw new Error(`Child is already registered for a class in the ${registration.period} period`)
+          if (existingRegistration.length > 0) {
+            throw new Error(`Child is already registered for a class in the ${registration.period} period`)
+          }
         }
 
         // Get class details and check capacity

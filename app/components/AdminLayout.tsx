@@ -7,7 +7,7 @@ import Link from 'next/link'
 
 interface AdminLayoutProps {
   userName: string
-  activeTab: 'users' | 'sessions' | 'class-requests' | 'classrooms' | 'volunteer-jobs' | 'registration-overrides' | 'events' | 'payments'
+  activeTab: 'users' | 'sessions' | 'class-requests' | 'classrooms' | 'volunteer-jobs' | 'registration-overrides' | 'events' | 'payments' | 'registrations' | 'settings'
   children: React.ReactNode
 }
 
@@ -34,6 +34,16 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      )
+    },
+    {
+      name: 'Registrations',
+      href: '/admin/registrations',
+      key: 'registrations',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       )
     },
@@ -94,6 +104,17 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+        </svg>
+      )
+    }
+    ,
+    {
+      name: 'Settings',
+      href: '/admin/settings',
+      key: 'settings',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.983 12.001a1.5 1.5 0 10.003 3 1.5 1.5 0 00-.003-3zm6.939 1.5a7.472 7.472 0 01-.121.999l2.122 1.65-2 3.464-2.527-.954a7.47 7.47 0 01-.847.494l-.39 2.61h-4l-.39-2.61a7.473 7.473 0 01-.847-.494l-2.527.954-2-3.464 2.122-1.65a7.472 7.472 0 01-.121-.999 7.472 7.472 0 01.121-.999l-2.122-1.65 2-3.464 2.527.954c.266-.175.548-.34.847-.494l.39-2.61h4l.39 2.61c.299.154.581.319.847.494l2.527-.954 2 3.464-2.122 1.65c.083.33.123.663.121.999z" />
         </svg>
       )
     }

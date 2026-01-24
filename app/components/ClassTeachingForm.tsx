@@ -1,15 +1,24 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { Session } from '@/lib/schema'
+import type { ClassTeachingRequest, Session } from '@/lib/schema'
 import { GRADE_ORDER, getGradeRangeFromLabel } from '@/lib/grades'
 
 interface ClassTeachingFormProps {
   onSuccess: () => void
   onCancel: () => void
+  initialRequest?: ClassTeachingRequest & { session?: Session }
+  mode?: 'create' | 'edit'
 }
 
-export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeachingFormProps) {
+const GRADE_OPTIONS = ['K-2', '3-5', '6-8', '9-12', 'All Ages']
+
+export default function ClassTeachingForm({
+  onSuccess,
+  onCancel,
+  initialRequest,
+  mode = 'create'
+}: ClassTeachingFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [currentSession, setCurrentSession] = useState<Session | null>(null)
   const [formData, setFormData] = useState({
@@ -30,6 +39,33 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
   const [gradeRangeError, setGradeRangeError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (initialRequest) {
+      const fallbackRange = getGradeRangeFromLabel(initialRequest.gradeRange)
+      const fromIndex = initialRequest.gradeRangeFrom ?? fallbackRange.from
+      const toIndex = initialRequest.gradeRangeTo ?? fallbackRange.to
+      const fromLabel = typeof fromIndex === 'number' ? GRADE_ORDER[fromIndex] ?? '' : ''
+      const toLabel = typeof toIndex === 'number' ? GRADE_ORDER[toIndex] ?? '' : ''
+      const isCustomRange = !GRADE_OPTIONS.includes(initialRequest.gradeRange)
+
+      setUseCustomGradeRange(isCustomRange)
+      setCurrentSession(initialRequest.session || null)
+      setFormData({
+        className: initialRequest.className || '',
+        description: initialRequest.description || '',
+        gradeRange: isCustomRange ? '' : initialRequest.gradeRange,
+        gradeRangeFrom: isCustomRange ? fromLabel : '',
+        gradeRangeTo: isCustomRange ? toLabel : '',
+        maxStudents: String(initialRequest.maxStudents ?? 20),
+        helpersNeeded: String(initialRequest.helpersNeeded ?? 1),
+        coTeacher: initialRequest.coTeacher || '',
+        classroomNeeds: initialRequest.classroomNeeds || '',
+        requiresFee: Boolean(initialRequest.requiresFee),
+        feeAmount: initialRequest.requiresFee ? String(initialRequest.feeAmount ?? '') : '',
+        schedulingRequirements: initialRequest.schedulingRequirements || ''
+      })
+      return
+    }
+
     // Fetch current session info
     const fetchSession = async () => {
       try {
@@ -43,7 +79,7 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
       }
     }
     fetchSession()
-  }, [])
+  }, [initialRequest])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,13 +118,16 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
         feeAmount: formData.requiresFee ? parseFloat(formData.feeAmount) : null
       }
 
-      const response = await fetch('/api/class-teaching-requests', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(submitData),
-      })
+      const response = await fetch(
+        initialRequest ? `/api/class-teaching-requests/${initialRequest.id}` : '/api/class-teaching-requests',
+        {
+          method: initialRequest ? 'PATCH' : 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(submitData),
+        }
+      )
 
       if (!response.ok) {
         const error = await response.json()
@@ -105,19 +144,22 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
     }
   }
 
-  const gradeOptions = [
-    'K-2',
-    '3-5',
-    '6-8',
-    '9-12',
-    'All Ages'
-  ]
-
   return (
     <div className="bg-white p-4 sm:p-6 rounded-lg shadow border">
       <h3 className="text-lg sm:text-xl font-medium text-gray-900 mb-2">
-        Register to Teach a Class
+        {mode === 'edit' ? 'Edit Class Request' : 'Register to Teach a Class'}
       </h3>
+      {initialRequest?.reviewNotes && (
+        <div className="mb-4 rounded-md border border-yellow-200 bg-yellow-50 p-4">
+          <p className="text-sm font-medium text-yellow-900">Staff Feedback</p>
+          <p className="mt-1 text-sm text-yellow-800">{initialRequest.reviewNotes}</p>
+          {initialRequest.reviewedAt && (
+            <p className="mt-2 text-xs text-yellow-700">
+              Reviewed on {new Date(initialRequest.reviewedAt).toLocaleDateString()}
+            </p>
+          )}
+        </div>
+      )}
       {currentSession && (
         <div className="bg-blue-50 border border-blue-200 rounded-md p-3 sm:p-4 mb-4">
           <h4 className="text-sm font-medium text-blue-900 mb-2">
@@ -134,7 +176,9 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
         </div>
       )}
       <p className="text-sm text-gray-600 mb-6">
-        Submit your class teaching request before regular registration opens. Administrators will review and approve classes before the registration period begins.
+        {mode === 'edit'
+          ? 'Update your class request while it is still pending review. Administrators will see your latest changes.'
+          : 'Submit your class teaching request before regular registration opens. Administrators will review and approve classes before the registration period begins.'}
       </p>
       
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -185,7 +229,7 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
                 className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Select grade range</option>
-                {gradeOptions.map(grade => (
+                {GRADE_OPTIONS.map(grade => (
                   <option key={grade} value={grade}>{grade}</option>
                 ))}
                 <option value="custom">Custom Grade Range</option>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import ClassTeachingForm from './ClassTeachingForm'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 
@@ -8,6 +8,8 @@ export default function ClassTeachingRequests() {
   const [requests, setRequests] = useState<(ClassTeachingRequest & { session: Session })[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [editingRequest, setEditingRequest] = useState<(ClassTeachingRequest & { session: Session }) | null>(null)
+  const formRef = useRef<HTMLDivElement | null>(null)
   const [registrationStatus, setRegistrationStatus] = useState<{
     isOpen: boolean
     reason?: string
@@ -48,7 +50,14 @@ export default function ClassTeachingRequests() {
     // Refresh the requests to get the session info
     fetchRequests()
     setShowForm(false)
+    setEditingRequest(null)
   }
+
+  useEffect(() => {
+    if ((showForm || editingRequest) && formRef.current) {
+      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [showForm, editingRequest])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -62,6 +71,12 @@ export default function ClassTeachingRequests() {
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
             Rejected
+          </span>
+        )
+      case 'changes_requested':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+            Changes Requested
           </span>
         )
       default:
@@ -104,11 +119,18 @@ export default function ClassTeachingRequests() {
         )}
       </div>
 
-      {showForm && (
-        <ClassTeachingForm
-          onSuccess={handleFormSuccess}
-          onCancel={() => setShowForm(false)}
-        />
+      {(showForm || editingRequest) && (
+        <div ref={formRef}>
+          <ClassTeachingForm
+            onSuccess={handleFormSuccess}
+            onCancel={() => {
+              setShowForm(false)
+              setEditingRequest(null)
+            }}
+            initialRequest={editingRequest || undefined}
+            mode={editingRequest ? 'edit' : 'create'}
+          />
+        </div>
       )}
 
       {requests.length === 0 ? (
@@ -144,7 +166,21 @@ export default function ClassTeachingRequests() {
                       <h3 className="text-lg font-medium text-gray-900">
                         {request.className}
                       </h3>
-                      {getStatusBadge(request.status)}
+                      <div className="flex items-center gap-3">
+                        {(request.status === 'pending' || request.status === 'changes_requested') && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowForm(true)
+                              setEditingRequest(request)
+                            }}
+                            className="text-sm font-medium text-blue-600 hover:text-blue-700 cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {getStatusBadge(request.status)}
+                      </div>
                     </div>
                     <p className="mt-1 text-sm text-gray-600">
                       Grade Range: {request.gradeRange}

@@ -68,17 +68,24 @@ export async function PATCH(
 
     // If action is provided, handle approval/rejection
     if (action) {
-      if (!['approve', 'reject'].includes(action)) {
+      if (!['approve', 'reject', 'request_changes'].includes(action)) {
         return NextResponse.json(
-          { error: 'Valid action (approve or reject) is required' },
+          { error: 'Valid action (approve, reject, or request_changes) is required' },
           { status: 400 }
         )
       }
 
       if (action === 'approve') {
         updatedRequest = await approveClassTeachingRequest(requestId, reviewer.id, reviewNotes)
-      } else {
+      } else if (action === 'reject') {
         updatedRequest = await rejectClassTeachingRequest(requestId, reviewer.id, reviewNotes)
+      } else {
+        updatedRequest = await updateClassTeachingRequest(requestId, {
+          status: 'changes_requested',
+          reviewedBy: reviewer.id,
+          reviewedAt: new Date().toISOString(),
+          reviewNotes: reviewNotes?.trim() || null
+        })
       }
     } else {
       // Handle editing the request fields

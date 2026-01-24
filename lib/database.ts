@@ -1,7 +1,8 @@
 import { eq, and, or, desc, asc, isNull, isNotNull, sql } from 'drizzle-orm'
 import { db, client, hasDatabaseConnection } from './db'
-import { families, guardians, children, feePayments, users, sessions, classrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments } from './schema'
+import { families, guardians, children, feePayments, users, sessions, classrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments, globalSettings } from './schema'
 import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, Schedule, ScheduleDraft, ScheduleDraftEntry, ClassTeachingRequest, ScheduleComment, NewFamily, NewGuardian, NewChild, NewFeePayment, NewUser, NewSession, NewClassroom, NewSchedule, NewScheduleDraft, NewScheduleDraftEntry, NewClassTeachingRequest, NewScheduleComment } from './schema'
+import { incrementGradeValue } from './grades'
 
 // Helper function to generate sharing codes
 function generateSharingCode(): string {
@@ -16,6 +17,7 @@ function generateId(): string {
 let guardiansTableAvailable: boolean | null = null
 let usersTableAvailable: boolean | null = null
 let sessionsTableAvailable: boolean | null = null
+let globalSettingsTableAvailable: boolean | null = null
 
 export async function hasGuardiansTable(): Promise<boolean> {
   if (guardiansTableAvailable !== null) {
@@ -93,6 +95,87 @@ export async function hasSessionsTable(): Promise<boolean> {
   }
 
   return sessionsTableAvailable
+}
+
+export async function hasGlobalSettingsTable(): Promise<boolean> {
+  if (globalSettingsTableAvailable !== null) {
+    return globalSettingsTableAvailable
+  }
+
+  if (!await hasDatabaseConnection()) {
+    globalSettingsTableAvailable = false
+    return globalSettingsTableAvailable
+  }
+
+  try {
+    const result = await client.execute(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='global_settings'"
+    )
+    globalSettingsTableAvailable = result.rows.length > 0
+  } catch (error) {
+    const message = String(error)
+    if (!message.includes('HTTP status 404')) {
+      console.error('Error checking global settings table:', error)
+    }
+    globalSettingsTableAvailable = false
+  }
+
+  return globalSettingsTableAvailable
+}
+
+export async function getGlobalSetting(key: string): Promise<string | null> {
+  if (!await hasGlobalSettingsTable()) {
+    return null
+  }
+
+  const result = await db
+    .select({ value: globalSettings.value })
+    .from(globalSettings)
+    .where(eq(globalSettings.key, key))
+    .limit(1)
+
+  return result[0]?.value ?? null
+}
+
+export async function setGlobalSetting(key: string, value: string | null): Promise<void> {
+  if (!await hasGlobalSettingsTable()) {
+    return
+  }
+
+  const now = new Date().toISOString()
+
+  await db
+    .insert(globalSettings)
+    .values({
+      key,
+      value,
+      createdAt: now,
+      updatedAt: now
+    })
+    .onConflictDoUpdate({
+      target: globalSettings.key,
+      set: {
+        value,
+        updatedAt: now
+      }
+    })
+}
+
+export async function getGradeIncrementSettings() {
+  const [incrementDate, lastRun] = await Promise.all([
+    getGlobalSetting('grade_increment_date'),
+    getGlobalSetting('grade_increment_last_run')
+  ])
+
+  return { incrementDate, lastRun }
+}
+
+export async function setGradeIncrementDate(value: string | null) {
+  await setGlobalSetting('grade_increment_date', value)
+}
+
+export async function setGradeIncrementLastRun(value: string | null) {
+  await setGlobalSetting('grade_increment_last_run', value)
 }
 
 // Family management functions
@@ -329,6 +412,36 @@ export async function getSessions(): Promise<Session[]> {
     }
     return []
   }
+}
+
+export async function incrementAllStudentGrades(): Promise<{ updated: number }> {
+  if (!await hasDatabaseConnection()) {
+    return { updated: 0 }
+  }
+
+  const allChildren = await db.select({ id: children.id, grade: children.grade }).from(children)
+  if (!allChildren.length) {
+    return { updated: 0 }
+  }
+
+  let updatedCount = 0
+  const now = new Date().toISOString()
+
+  await db.transaction(async (tx) => {
+    for (const child of allChildren) {
+      const nextGrade = incrementGradeValue(child.grade)
+      if (!nextGrade || nextGrade === child.grade) {
+        continue
+      }
+      await tx
+        .update(children)
+        .set({ grade: nextGrade, updatedAt: now })
+        .where(eq(children.id, child.id))
+      updatedCount += 1
+    }
+  })
+
+  return { updated: updatedCount }
 }
 
 export async function getSessionById(id: string): Promise<Session | null> {

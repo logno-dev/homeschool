@@ -14,7 +14,7 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
   const [isEditMode, setIsEditMode] = useState(false)
   const [editFormData, setEditFormData] = useState<Partial<ClassTeachingRequest>>({})
   const [reviewNotes, setReviewNotes] = useState('')
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'changes_requested'>('pending')
   const [sessionFilter, setSessionFilter] = useState<string>('all')
 
   const filteredRequests = requests.filter(request => {
@@ -28,7 +28,7 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
     new Set(requests.map(r => r.session?.id).filter(Boolean))
   ).map(sessionId => requests.find(r => r.session?.id === sessionId)?.session).filter((session): session is Session => Boolean(session))
 
-  const handleReview = async (requestId: string, action: 'approve' | 'reject') => {
+  const handleReview = async (requestId: string, action: 'approve' | 'reject' | 'request_changes') => {
     setIsLoading(true)
     try {
       const response = await fetch(`/api/admin/class-teaching-requests/${requestId}`, {
@@ -109,6 +109,12 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
             Rejected
           </span>
         )
+      case 'changes_requested':
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+            Changes Requested
+          </span>
+        )
       default:
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -127,6 +133,7 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
       pending: requests.filter(r => r.status === 'pending').length,
       approved: requests.filter(r => r.status === 'approved').length,
       rejected: requests.filter(r => r.status === 'rejected').length,
+      changesRequested: requests.filter(r => r.status === 'changes_requested').length,
       total: requests.length
     }
   }
@@ -151,7 +158,7 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
             ))}
           </select>
           <div className="text-sm text-gray-600">
-            {counts.pending} pending • {counts.approved} approved • {counts.rejected} rejected • {counts.total} total
+            {counts.pending} pending • {counts.changesRequested} changes • {counts.approved} approved • {counts.rejected} rejected • {counts.total} total
           </div>
         </div>
       </div>
@@ -161,6 +168,7 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
         <nav className="-mb-px flex space-x-8">
           {[
             { key: 'pending', label: 'Pending', count: counts.pending },
+            { key: 'changes_requested', label: 'Changes Requested', count: counts.changesRequested },
             { key: 'approved', label: 'Approved', count: counts.approved },
             { key: 'rejected', label: 'Rejected', count: counts.rejected },
             { key: 'all', label: 'All', count: counts.total }
@@ -199,7 +207,7 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
                       </h3>
                       <div className="flex items-center space-x-2">
                         {getStatusBadge(request.status)}
-                        {request.status === 'pending' && (
+                        {(request.status === 'pending' || request.status === 'changes_requested') && (
                           <button
                             onClick={() => {
                               setSelectedRequest(request)
@@ -554,24 +562,31 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
                 />
               </div>
 
-              <div className="flex justify-end space-x-3">
-                <button
-                  onClick={() => {
-                    setSelectedRequest(null)
-                    setReviewNotes('')
-                    setIsEditMode(false)
-                  }}
-                  className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleReview(selectedRequest.id, 'reject')}
-                  disabled={isLoading || isEditMode}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
-                >
-                  {isLoading ? 'Processing...' : 'Reject'}
-                </button>
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => {
+                      setSelectedRequest(null)
+                      setReviewNotes('')
+                      setIsEditMode(false)
+                    }}
+                    className="bg-gray-300 hover:bg-gray-400 text-gray-700 px-4 py-2 rounded-md text-sm font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => handleReview(selectedRequest.id, 'request_changes')}
+                    disabled={isLoading || isEditMode}
+                    className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+                  >
+                    {isLoading ? 'Processing...' : 'Request Changes'}
+                  </button>
+                  <button
+                    onClick={() => handleReview(selectedRequest.id, 'reject')}
+                    disabled={isLoading || isEditMode}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
+                  >
+                    {isLoading ? 'Processing...' : 'Reject'}
+                  </button>
                 <button
                   onClick={() => handleReview(selectedRequest.id, 'approve')}
                   disabled={isLoading || isEditMode}

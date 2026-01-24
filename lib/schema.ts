@@ -47,6 +47,13 @@ export const children = sqliteTable('children', {
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const globalSettings = sqliteTable('global_settings', {
+  key: text('key').primaryKey(),
+  value: text('value'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
+})
+
 // Sessions table (for school sessions like Fall, Spring, Winter)
 export const sessions = sqliteTable('sessions', {
   id: text('id').primaryKey(),

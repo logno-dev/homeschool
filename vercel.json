@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/grade-increment",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}
