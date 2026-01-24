@@ -12,11 +12,11 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@libsql/client": "^0.15.15",
+    "@libsql/client": "^0.17.0",
+    "@workos-inc/authkit-nextjs": "^2.13.0",
     "date-fns": "^4.1.0",
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.1",
     "next": "16.0.10",
-    "next-auth": "^4.24.13",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },
@@ -25,6 +25,7 @@
     "@types/node": "^20.19.27",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "dotenv": "^17.2.3",
     "drizzle-kit": "^0.31.8",
     "tailwindcss": "^4.1.18",
     "typescript": "^5.9.3"

@@ -1,11 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 
 export default function FamilyJoinPage() {
-  const { data: session, status } = useSession()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -14,11 +14,11 @@ export default function FamilyJoinPage() {
   const [phone, setPhone] = useState('')
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (!authLoading && !user) {
       router.push('/signin')
       return
     }
-  }, [status, router])
+  }, [authLoading, user, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,7 +58,7 @@ export default function FamilyJoinPage() {
     }
   }
 
-  if (status === 'loading') {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-lg">Loading...</div>
@@ -66,7 +66,7 @@ export default function FamilyJoinPage() {
     )
   }
 
-  if (!session) {
+  if (!user) {
     return null
   }
 

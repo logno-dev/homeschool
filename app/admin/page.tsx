@@ -1,26 +1,26 @@
 'use client'
 
 import { useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 
 export default function AdminPage() {
-  const { data: session, status } = useSession()
+  const { user, loading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (loading) return
 
-    if (!session) {
+    if (!user) {
       router.push('/signin')
       return
     }
 
     // Redirect to users page by default
     router.push('/admin/users')
-  }, [session, status, router])
+  }, [user, loading, router])
 
-  if (status === 'loading') {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

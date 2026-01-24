@@ -37,12 +37,17 @@ export default function FeesSummary() {
       const response = await fetch('/api/family/fees')
       console.log('Response status:', response.status)
       
+      if (response.status === 404 || response.status === 400) {
+        setFees([])
+        return
+      }
+
       if (!response.ok) {
         const errorText = await response.text()
         console.error('API Error:', errorText)
         throw new Error(`Failed to fetch fees: ${response.status}`)
       }
-      
+
       const data = await response.json()
       console.log('Fees data:', data)
       setFees(data.fees || [])

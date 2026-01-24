@@ -1,12 +1,13 @@
 'use client'
 
-import { signOut } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 
 interface DashboardNavProps {
   userName: string
 }
 
 export default function DashboardNav({ userName }: DashboardNavProps) {
+  const { signOut } = useAuth()
   return (
     <nav className="bg-white shadow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -21,7 +22,9 @@ export default function DashboardNav({ userName }: DashboardNavProps) {
               Welcome, {userName}
             </span>
             <button
-              onClick={() => signOut({ callbackUrl: '/', redirect: true })}
+              onClick={() => {
+                void signOut({ returnTo: '/' })
+              }}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
             >
               Sign Out

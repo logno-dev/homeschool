@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { getFamilySessionFeeStatus } from '@/lib/fee-calculation'
-import { db } from '@/lib/db'
-import { guardians } from '@/lib/schema'
-import { eq } from 'drizzle-orm'
+import { getGuardianById } from '@/lib/database'
 
 export async function GET(
   request: Request,
@@ -14,17 +12,13 @@ export async function GET(
     const { sessionId } = await params
 
     // Get guardian info to find family
-    const guardian = await db
-      .select()
-      .from(guardians)
-      .where(eq(guardians.id, session.user.id))
-      .limit(1)
+    const guardian = await getGuardianById(session.user.id)
 
-    if (guardian.length === 0) {
+    if (!guardian) {
       return NextResponse.json({ error: 'User not associated with a family' }, { status: 400 })
     }
 
-    const feeStatus = await getFamilySessionFeeStatus(sessionId, guardian[0].familyId)
+    const feeStatus = await getFamilySessionFeeStatus(sessionId, guardian.familyId)
 
     return NextResponse.json({
       success: true,

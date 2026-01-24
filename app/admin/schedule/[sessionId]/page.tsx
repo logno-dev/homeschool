@@ -1,67 +1,40 @@
-'use client'
-
-import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
-import { useRouter, useParams } from 'next/navigation'
+import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import AdminLayout from '@/app/components/AdminLayout'
 import ScheduleGrid from '@/app/components/ScheduleGrid'
-import type { Session } from '@/lib/schema'
+import { requireAdminAccess } from '@/lib/server-auth'
+import { getApprovedClassesForSession, getClassrooms, getScheduleWithDetails, getSessionById } from '@/lib/database'
 
-export default function AdminSchedulePage() {
-  const { data: session, status } = useSession()
-  const router = useRouter()
-  const params = useParams()
-  const sessionId = params.sessionId as string
-  const [sessionData, setSessionData] = useState<Session | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+interface AdminSchedulePageProps {
+  params: Promise<{ sessionId: string }>
+}
 
-  useEffect(() => {
-    if (status === 'loading') return
+export default async function AdminSchedulePage({ params }: AdminSchedulePageProps) {
+  const session = await requireAdminAccess()
+  const { sessionId } = await params
+  const sessionData = await getSessionById(sessionId)
 
-    if (!session) {
-      router.push('/signin')
-      return
-    }
-
-    // Fetch session data to display session name
-    const fetchSessionData = async () => {
-      try {
-        const response = await fetch(`/api/admin/sessions/${sessionId}`)
-        if (response.ok) {
-          const data = await response.json()
-          setSessionData(data.session)
-        }
-      } catch (error) {
-        console.error('Error fetching session data:', error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (sessionId) {
-      fetchSessionData()
-    }
-  }, [session, status, router, sessionId])
-
-  if (status === 'loading' || isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
+  if (!sessionData) {
+    notFound()
   }
 
-  if (!session) {
-    return null
-  }
+  const [scheduleEntries, approvedClasses, classrooms] = await Promise.all([
+    getScheduleWithDetails(sessionId),
+    getApprovedClassesForSession(sessionId),
+    getClassrooms()
+  ])
+
+  const rawStatus = scheduleEntries[0]?.status
+  const initialScheduleStatus = rawStatus === 'submitted' || rawStatus === 'published'
+    ? rawStatus
+    : 'draft'
+  const initialScheduleData = { approvedClasses, classrooms }
+
+  const userName = [session.user.firstName, session.user.lastName].filter(Boolean).join(' ') || session.user.email
 
   return (
     <AdminLayout 
-      userName={session.user.name || 'Admin'} 
+      userName={userName || 'Admin'} 
       activeTab="sessions"
     >
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -80,7 +53,11 @@ export default function AdminSchedulePage() {
             )}
           </div>
           
-          <ScheduleGrid sessionId={sessionId} />
+          <ScheduleGrid
+            sessionId={sessionId}
+            initialScheduleData={initialScheduleData}
+            initialScheduleStatus={initialScheduleStatus}
+          />
         </div>
       </main>
     </AdminLayout>

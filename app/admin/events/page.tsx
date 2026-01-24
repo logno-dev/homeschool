@@ -5,14 +5,16 @@ import EventManagement from '@/app/components/EventManagement'
 
 export default async function EventsAdminPage() {
   const session = await getAuthenticatedUser()
-  const isAdmin = await checkAdminRole(session.user.id)
+  const isAdmin = await checkAdminRole(session)
   
   if (!isAdmin) {
     redirect('/dashboard')
   }
 
+  const userName = [session.user.firstName, session.user.lastName].filter(Boolean).join(' ') || session.user.email
+
   return (
-    <AdminLayout userName={session.user.name || 'Admin'} activeTab="events">
+    <AdminLayout userName={userName || 'Admin'} activeTab="events">
       <div className="space-y-6 p-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Event Management</h1>

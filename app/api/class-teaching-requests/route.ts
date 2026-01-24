@@ -9,6 +9,7 @@ import {
   isClassTeachingRegistrationOpen
 } from '@/lib/database'
 import type { NewClassTeachingRequest } from '@/lib/schema'
+import { getGradeRangeFromLabel } from '@/lib/grades'
 
 export async function GET() {
   try {
@@ -94,6 +95,8 @@ export async function POST(request: Request) {
       className,
       description,
       gradeRange,
+      gradeRangeFrom,
+      gradeRangeTo,
       maxStudents,
       helpersNeeded,
       coTeacher,
@@ -107,6 +110,16 @@ export async function POST(request: Request) {
     if (!className || !description || !gradeRange || !maxStudents) {
       return NextResponse.json(
         { error: 'Class name, description, grade range, and max students are required' },
+        { status: 400 }
+      )
+    }
+
+    const fallbackRange = getGradeRangeFromLabel(gradeRange)
+    const resolvedFrom = typeof gradeRangeFrom === 'number' ? gradeRangeFrom : fallbackRange.from
+    const resolvedTo = typeof gradeRangeTo === 'number' ? gradeRangeTo : fallbackRange.to
+    if (resolvedFrom !== null && resolvedTo !== null && resolvedFrom > resolvedTo) {
+      return NextResponse.json(
+        { error: 'Grade range start must be lower than end.' },
         { status: 400 }
       )
     }
@@ -142,6 +155,8 @@ export async function POST(request: Request) {
       className: className.trim(),
       description: description.trim(),
       gradeRange: gradeRange.trim(),
+      gradeRangeFrom: resolvedFrom,
+      gradeRangeTo: resolvedTo,
       maxStudents: parseInt(maxStudents),
       helpersNeeded: finalHelpersNeeded,
       coTeacher: coTeacher?.trim() || null,

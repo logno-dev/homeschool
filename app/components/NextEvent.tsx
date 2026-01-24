@@ -1,58 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import type { CalendarEvent } from '@/lib/events';
 
-interface Event {
-  id: string;
-  title: string;
-  description: string | null;
-  startDate: string;
-  endDate: string | null;
-  startTime: string | null;
-  endTime: string | null;
-  eventType: string;
-  color: string;
+interface NextEventProps {
+  nextEvent: CalendarEvent | null;
 }
 
-export default function NextEvent() {
-  const [nextEvent, setNextEvent] = useState<Event | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function NextEvent({ nextEvent }: NextEventProps) {
   const router = useRouter();
-
-  useEffect(() => {
-    const fetchNextEvent = async () => {
-      try {
-        const response = await fetch('/api/events');
-        if (response.ok) {
-          const events: Event[] = await response.json();
-          
-          const now = new Date();
-          const upcomingEvents = events
-            .filter(event => new Date(event.startDate) >= now)
-            .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-          
-          setNextEvent(upcomingEvents[0] || null);
-        }
-      } catch (error) {
-        console.error('Error fetching next event:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchNextEvent();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="animate-pulse">
-        <div className="h-4 bg-gray-200 rounded mb-2"></div>
-        <div className="h-3 bg-gray-200 rounded mb-4"></div>
-        <div className="h-8 bg-gray-200 rounded"></div>
-      </div>
-    );
-  }
 
   if (!nextEvent) {
     return (

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { 
   feePayments, 
@@ -13,10 +12,9 @@ import { randomUUID } from 'crypto'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await getAuthenticatedAdmin()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
     // Query to get all payment data with family and session information
@@ -70,10 +68,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await getAuthenticatedAdmin()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
     const { familyId, sessionId, amount, paymentDate, paymentMethod, notes } = await request.json()

@@ -1,42 +1,11 @@
-'use client'
+import Link from 'next/link'
+import { getActiveSessions } from '@/lib/database'
 
-import { useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
-import Button from '@/app/components/Button'
-
-interface Session {
-  id: string
-  name: string
-  isActive: boolean
-}
-
-export default function RegistrationPage() {
-  const router = useRouter()
-  const [activeSessions, setActiveSessions] = useState<Session[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    fetchActiveSessions()
-  }, [])
-
-  const fetchActiveSessions = async () => {
-    try {
-      const response = await fetch('/api/sessions/active')
-      if (response.ok) {
-        const data = await response.json()
-        const active = data.sessions?.filter((session: Session) => session.isActive) || []
-        setActiveSessions(active)
-      }
-    } catch (error) {
-      console.error('Error fetching active sessions:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
+export default async function RegistrationPage() {
+  const activeSessions = await getActiveSessions()
 
   return (
     <div className="min-h-screen bg-gray-50">
-
       <main className="max-w-4xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="bg-white rounded-lg shadow p-8">
@@ -45,12 +14,7 @@ export default function RegistrationPage() {
               Select a session below to register your children for classes.
             </p>
 
-            {isLoading ? (
-              <div className="space-y-4">
-                <div className="h-20 bg-gray-200 animate-pulse rounded-lg"></div>
-                <div className="h-20 bg-gray-200 animate-pulse rounded-lg"></div>
-              </div>
-            ) : activeSessions.length > 0 ? (
+            {activeSessions.length > 0 ? (
               <div className="space-y-4">
                 {activeSessions.map((session) => (
                   <div
@@ -66,13 +30,12 @@ export default function RegistrationPage() {
                           Registration is currently open for this session.
                         </p>
                       </div>
-                      <Button
-                        onClick={() => router.push(`/registration/${session.id}`)}
-                        variant="primary"
-                        className="bg-orange-600 hover:bg-orange-700"
+                      <Link
+                        href={`/registration/${session.id}`}
+                        className="inline-flex items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-orange-600 text-white hover:bg-orange-700 active:bg-orange-800 focus:ring-orange-500 px-4 py-2 text-sm min-h-[36px]"
                       >
                         Register Now
-                      </Button>
+                      </Link>
                     </div>
                   </div>
                 ))}
@@ -88,15 +51,15 @@ export default function RegistrationPage() {
                   No Active Sessions
                 </h3>
                 <p className="text-gray-600 mb-6">
-                  There are currently no active sessions available for registration. 
+                  There are currently no active sessions available for registration.
                   Please check back later or contact the administrator.
                 </p>
-                <Button
-                  onClick={() => router.push('/dashboard')}
-                  variant="outline"
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 active:bg-gray-100 focus:ring-blue-500 px-4 py-2 text-sm min-h-[36px]"
                 >
                   Back to Dashboard
-                </Button>
+                </Link>
               </div>
             )}
           </div>

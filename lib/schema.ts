@@ -114,6 +114,8 @@ export const classTeachingRequests = sqliteTable('class_teaching_requests', {
   className: text('class_name').notNull(),
   description: text('description').notNull(),
   gradeRange: text('grade_range').notNull(), // e.g., "K-2", "3-5", "6-8", or custom input
+  gradeRangeFrom: integer('grade_range_from'),
+  gradeRangeTo: integer('grade_range_to'),
   maxStudents: integer('max_students').notNull().default(20), // Maximum number of students allowed
   helpersNeeded: integer('helpers_needed').notNull().default(1), // Number of parent helpers needed (min 1 if no co-teacher)
   coTeacher: text('co_teacher'), // Optional co-teacher name

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 
 interface Child {
@@ -16,7 +16,7 @@ interface Child {
 }
 
 export default function FamilyRegisterPage() {
-  const { data: session, status } = useSession()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -44,15 +44,15 @@ export default function FamilyRegisterPage() {
   }])
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
+    if (!authLoading && !user) {
       router.push('/signin')
       return
     }
 
-    if (session?.user?.email) {
-      setEmail(session.user.email)
+    if (user?.email) {
+      setEmail(user.email)
     }
-  }, [status, session, router])
+  }, [authLoading, user, router])
 
   const addChild = () => {
     setChildren([...children, {
@@ -125,7 +125,7 @@ export default function FamilyRegisterPage() {
     }
   }
 
-  if (status === 'loading') {
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-lg">Loading...</div>
@@ -133,7 +133,7 @@ export default function FamilyRegisterPage() {
     )
   }
 
-  if (!session) {
+  if (!user) {
     return null
   }
 

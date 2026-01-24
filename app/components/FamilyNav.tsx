@@ -1,6 +1,6 @@
 'use client'
 
-import { signOut } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 
 interface FamilyNavProps {
@@ -9,6 +9,7 @@ interface FamilyNavProps {
 
 export default function FamilyNav({ familyName }: FamilyNavProps) {
   const router = useRouter()
+  const { signOut } = useAuth()
 
   return (
     <nav className="bg-white shadow">
@@ -27,7 +28,9 @@ export default function FamilyNav({ familyName }: FamilyNavProps) {
               Back to Dashboard
             </button>
             <button
-              onClick={() => signOut({ callbackUrl: '/', redirect: true })}
+              onClick={() => {
+                void signOut({ returnTo: '/' })
+              }}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
             >
               Sign Out

@@ -12,6 +12,7 @@ import {
 } from '@/lib/schema'
 import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { isGradeWithinRange } from '@/lib/grades'
 
 export async function POST(request: Request) {
   try {
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
       childId, 
       helperGuardianId, // Optional: guardian signing up as helper
       volunteerType, // 'helper' if signing up as helper
+      waitlist = false
     } = body
 
     // Get the guardian's family information
@@ -81,23 +83,39 @@ export async function POST(request: Request) {
     }
 
     const { schedule, classTeachingRequest } = scheduleData[0]
+    const childRecord = child[0]
 
-    // Check if child is already registered for a class in this period
-    const existingRegistration = await db
-      .select()
-      .from(classRegistrations)
-      .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
-      .where(and(
-        eq(classRegistrations.childId, childId),
-        eq(classRegistrations.sessionId, sessionId),
-        eq(schedules.period, schedule.period)
-      ))
-      .limit(1)
+    const isEligible = isGradeWithinRange(
+      childRecord.grade,
+      classTeachingRequest.gradeRangeFrom,
+      classTeachingRequest.gradeRangeTo,
+      classTeachingRequest.gradeRange
+    )
 
-    if (existingRegistration.length > 0) {
-      return NextResponse.json({ 
-        error: `Child is already registered for a class in the ${schedule.period} period` 
-      }, { status: 400 })
+    if (!isEligible) {
+      return NextResponse.json(
+        { error: 'Child grade is outside the allowed range for this class.' },
+        { status: 400 }
+      )
+    }
+
+    if (!waitlist) {
+      const existingRegistration = await db
+        .select()
+        .from(classRegistrations)
+        .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
+        .where(and(
+          eq(classRegistrations.childId, childId),
+          eq(classRegistrations.sessionId, sessionId),
+          eq(schedules.period, schedule.period)
+        ))
+        .limit(1)
+
+      if (existingRegistration.length > 0) {
+        return NextResponse.json({ 
+          error: `Child is already registered for a class in the ${schedule.period} period` 
+        }, { status: 400 })
+      }
     }
 
     // Check class capacity
@@ -106,7 +124,7 @@ export async function POST(request: Request) {
       .from(classRegistrations)
       .where(eq(classRegistrations.scheduleId, scheduleId))
 
-    if (currentRegistrations.length >= classTeachingRequest.maxStudents) {
+    if (!waitlist && currentRegistrations.length >= classTeachingRequest.maxStudents) {
       return NextResponse.json({ error: 'Class is full' }, { status: 400 })
     }
 
@@ -121,7 +139,7 @@ export async function POST(request: Request) {
         childId,
         familyId,
         registeredBy: session.user.id,
-        status: 'registered'
+        status: waitlist ? 'waitlisted' : 'registered'
       })
 
       // If helper signup is requested, add volunteer assignment

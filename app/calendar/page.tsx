@@ -1,28 +1,10 @@
-'use client';
+import { getAuthenticatedUser } from '@/lib/server-auth'
+import { fetchCalendarEvents } from '@/lib/events'
+import Calendar from '../components/Calendar'
 
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import Calendar from '../components/Calendar';
-
-export default function CalendarPage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (status === 'loading') return;
-    if (!session) {
-      router.push('/signin');
-    }
-  }, [session, status, router]);
-
-  if (status === 'loading') {
-    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
-  }
-
-  if (!session) {
-    return null;
-  }
+export default async function CalendarPage() {
+  await getAuthenticatedUser()
+  const events = await fetchCalendarEvents()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -33,10 +15,10 @@ export default function CalendarPage() {
           </div>
           
           <div className="bg-white rounded-lg shadow">
-            <Calendar />
+            <Calendar events={events} />
           </div>
         </div>
       </main>
     </div>
-  );
+  )
 }

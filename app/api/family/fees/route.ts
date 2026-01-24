@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { familySessionFees, sessions, guardians } from '@/lib/schema'
+import { familySessionFees, sessions } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
+import { getGuardianById } from '@/lib/database'
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,16 +11,15 @@ export async function GET(request: NextRequest) {
     const session = await getAuthenticatedUser()
     console.log('Session user ID:', session.user.id)
     
-    // Get current guardian to find family ID
-    const currentGuardian = await db.select().from(guardians).where(eq(guardians.id, session.user.id)).limit(1)
-    console.log('Guardian found:', currentGuardian.length > 0 ? 'Yes' : 'No')
-    
-    if (!currentGuardian[0]) {
+    const currentGuardian = await getGuardianById(session.user.id)
+    console.log('Guardian found:', currentGuardian ? 'Yes' : 'No')
+
+    if (!currentGuardian) {
       console.log('No guardian found for user ID:', session.user.id)
       return NextResponse.json({ error: 'No family found' }, { status: 404 })
     }
     
-    const familyId = currentGuardian[0].familyId
+    const familyId = currentGuardian.familyId
     console.log('Family ID:', familyId)
 
     // Get all family session fees with session details

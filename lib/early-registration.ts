@@ -1,6 +1,8 @@
+import 'server-only'
 import { db } from './db'
-import { classTeachingRequests, guardians } from './schema'
+import { classTeachingRequests } from './schema'
 import { eq, and, inArray } from 'drizzle-orm'
+import { getGuardianById, getGuardiansByFamily } from './database'
 
 /**
  * Check if any parent in the family is registered to teach for the specified session
@@ -8,11 +10,7 @@ import { eq, and, inArray } from 'drizzle-orm'
  */
 export async function checkFamilyTeacherStatus(familyId: string, sessionId: string): Promise<boolean> {
   try {
-    // Get all guardians in the family
-    const familyGuardians = await db
-      .select({ id: guardians.id })
-      .from(guardians)
-      .where(eq(guardians.familyId, familyId))
+    const familyGuardians = await getGuardiansByFamily(familyId)
 
     if (!familyGuardians.length) {
       return false
@@ -45,18 +43,13 @@ export async function checkFamilyTeacherStatus(familyId: string, sessionId: stri
  */
 export async function checkUserFamilyTeacherStatus(userId: string, sessionId: string): Promise<boolean> {
   try {
-    // Get the user's family ID
-    const guardian = await db
-      .select({ familyId: guardians.familyId })
-      .from(guardians)
-      .where(eq(guardians.id, userId))
-      .limit(1)
+    const guardian = await getGuardianById(userId)
 
-    if (!guardian.length || !guardian[0].familyId) {
+    if (!guardian?.familyId) {
       return false
     }
 
-    return checkFamilyTeacherStatus(guardian[0].familyId, sessionId)
+    return checkFamilyTeacherStatus(guardian.familyId, sessionId)
   } catch (error) {
     console.error('Error checking user family teacher status:', error)
     return false

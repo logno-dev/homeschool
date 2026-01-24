@@ -1,5 +1,5 @@
 import { eq, and, or, desc, asc, isNull, isNotNull, sql } from 'drizzle-orm'
-import { db } from './db'
+import { db, client, hasDatabaseConnection } from './db'
 import { families, guardians, children, feePayments, users, sessions, classrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments } from './schema'
 import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, Schedule, ScheduleDraft, ScheduleDraftEntry, ClassTeachingRequest, ScheduleComment, NewFamily, NewGuardian, NewChild, NewFeePayment, NewUser, NewSession, NewClassroom, NewSchedule, NewScheduleDraft, NewScheduleDraftEntry, NewClassTeachingRequest, NewScheduleComment } from './schema'
 
@@ -11,6 +11,88 @@ function generateSharingCode(): string {
 // Helper function to generate IDs
 function generateId(): string {
   return Date.now().toString() + Math.random().toString(36).substring(2, 5)
+}
+
+let guardiansTableAvailable: boolean | null = null
+let usersTableAvailable: boolean | null = null
+let sessionsTableAvailable: boolean | null = null
+
+export async function hasGuardiansTable(): Promise<boolean> {
+  if (guardiansTableAvailable !== null) {
+    return guardiansTableAvailable
+  }
+
+  if (!await hasDatabaseConnection()) {
+    guardiansTableAvailable = false
+    return guardiansTableAvailable
+  }
+
+  try {
+    const result = await client.execute(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='guardians'"
+    )
+    guardiansTableAvailable = result.rows.length > 0
+  } catch (error) {
+    const message = String(error)
+    if (!message.includes('HTTP status 404')) {
+      console.error('Error checking guardians table:', error)
+    }
+    guardiansTableAvailable = false
+  }
+
+  return guardiansTableAvailable
+}
+
+export async function hasUsersTable(): Promise<boolean> {
+  if (usersTableAvailable !== null) {
+    return usersTableAvailable
+  }
+
+  if (!await hasDatabaseConnection()) {
+    usersTableAvailable = false
+    return usersTableAvailable
+  }
+
+  try {
+    const result = await client.execute(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='users'"
+    )
+    usersTableAvailable = result.rows.length > 0
+  } catch (error) {
+    const message = String(error)
+    if (!message.includes('HTTP status 404')) {
+      console.error('Error checking users table:', error)
+    }
+    usersTableAvailable = false
+  }
+
+  return usersTableAvailable
+}
+
+export async function hasSessionsTable(): Promise<boolean> {
+  if (sessionsTableAvailable !== null) {
+    return sessionsTableAvailable
+  }
+
+  if (!await hasDatabaseConnection()) {
+    sessionsTableAvailable = false
+    return sessionsTableAvailable
+  }
+
+  try {
+    const result = await client.execute(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'"
+    )
+    sessionsTableAvailable = result.rows.length > 0
+  } catch (error) {
+    const message = String(error)
+    if (!message.includes('HTTP status 404')) {
+      console.error('Error checking sessions table:', error)
+    }
+    sessionsTableAvailable = false
+  }
+
+  return sessionsTableAvailable
 }
 
 // Family management functions
@@ -68,12 +150,30 @@ export async function createGuardian(guardianData: Omit<NewGuardian, 'createdAt'
 }
 
 export async function getGuardiansByFamily(familyId: string): Promise<Guardian[]> {
-  return await db.select().from(guardians).where(eq(guardians.familyId, familyId))
+  if (!await hasGuardiansTable()) {
+    return []
+  }
+
+  try {
+    return await db.select().from(guardians).where(eq(guardians.familyId, familyId))
+  } catch (error) {
+    console.error('Error fetching guardians by family:', error)
+    return []
+  }
 }
 
 export async function getGuardianById(id: string): Promise<Guardian | null> {
-  const result = await db.select().from(guardians).where(eq(guardians.id, id))
-  return result[0] || null
+  if (!await hasGuardiansTable()) {
+    return null
+  }
+
+  try {
+    const result = await db.select().from(guardians).where(eq(guardians.id, id))
+    return result[0] || null
+  } catch (error) {
+    console.error('Error fetching guardian by id:', error)
+    return null
+  }
 }
 
 export async function updateGuardian(id: string, updates: Partial<Omit<Guardian, 'id' | 'createdAt'>>): Promise<Guardian | null> {
@@ -171,8 +271,17 @@ export async function getUsers(): Promise<User[]> {
 }
 
 export async function getUserById(id: string): Promise<User | null> {
-  const result = await db.select().from(users).where(eq(users.id, id))
-  return result[0] || null
+  if (!await hasUsersTable()) {
+    return null
+  }
+
+  try {
+    const result = await db.select().from(users).where(eq(users.id, id))
+    return result[0] || null
+  } catch (error) {
+    console.error('Error fetching user by id:', error)
+    return null
+  }
 }
 
 export async function getUsersByFamily(familyId: string): Promise<User[]> {
@@ -207,17 +316,69 @@ export async function createSession(sessionData: Omit<NewSession, 'id' | 'create
 }
 
 export async function getSessions(): Promise<Session[]> {
-  return await db.select().from(sessions)
+  if (!await hasSessionsTable()) {
+    return []
+  }
+
+  try {
+    return await db.select().from(sessions)
+  } catch (error) {
+    const message = String(error)
+    if (!message.includes('HTTP status 404')) {
+      console.error('Error fetching sessions:', error)
+    }
+    return []
+  }
 }
 
 export async function getSessionById(id: string): Promise<Session | null> {
-  const result = await db.select().from(sessions).where(eq(sessions.id, id))
-  return result[0] || null
+  if (!await hasSessionsTable()) {
+    return null
+  }
+
+  try {
+    const result = await db.select().from(sessions).where(eq(sessions.id, id))
+    return result[0] || null
+  } catch (error) {
+    const message = String(error)
+    if (!message.includes('HTTP status 404')) {
+      console.error('Error fetching session by id:', error)
+    }
+    return null
+  }
 }
 
 export async function getActiveSession(): Promise<Session | null> {
-  const result = await db.select().from(sessions).where(eq(sessions.isActive, true))
-  return result[0] || null
+  if (!await hasSessionsTable()) {
+    return null
+  }
+
+  try {
+    const result = await db.select().from(sessions).where(eq(sessions.isActive, true))
+    return result[0] || null
+  } catch (error) {
+    const message = String(error)
+    if (!message.includes('HTTP status 404')) {
+      console.error('Error fetching active session:', error)
+    }
+    return null
+  }
+}
+
+export async function getActiveSessions(): Promise<Session[]> {
+  if (!await hasSessionsTable()) {
+    return []
+  }
+
+  try {
+    return await db.select().from(sessions).where(eq(sessions.isActive, true))
+  } catch (error) {
+    const message = String(error)
+    if (!message.includes('HTTP status 404')) {
+      console.error('Error fetching active sessions:', error)
+    }
+    return []
+  }
 }
 
 export async function updateSession(id: string, updates: Partial<Omit<Session, 'id' | 'createdAt'>>): Promise<Session | null> {
@@ -408,6 +569,8 @@ export async function getClassTeachingRequestsWithSession(): Promise<(ClassTeach
       className: classTeachingRequests.className,
       description: classTeachingRequests.description,
       gradeRange: classTeachingRequests.gradeRange,
+      gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
+      gradeRangeTo: classTeachingRequests.gradeRangeTo,
       coTeacher: classTeachingRequests.coTeacher,
       classroomNeeds: classTeachingRequests.classroomNeeds,
       requiresFee: classTeachingRequests.requiresFee,
@@ -456,6 +619,8 @@ export async function getClassTeachingRequestsByGuardianWithSession(guardianId: 
       className: classTeachingRequests.className,
       description: classTeachingRequests.description,
       gradeRange: classTeachingRequests.gradeRange,
+      gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
+      gradeRangeTo: classTeachingRequests.gradeRangeTo,
       coTeacher: classTeachingRequests.coTeacher,
       classroomNeeds: classTeachingRequests.classroomNeeds,
       requiresFee: classTeachingRequests.requiresFee,
@@ -609,6 +774,8 @@ export async function getScheduleWithDetails(sessionId: string): Promise<(Schedu
         className: classTeachingRequests.className,
         description: classTeachingRequests.description,
         gradeRange: classTeachingRequests.gradeRange,
+        gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
+        gradeRangeTo: classTeachingRequests.gradeRangeTo,
         coTeacher: classTeachingRequests.coTeacher,
         classroomNeeds: classTeachingRequests.classroomNeeds,
         requiresFee: classTeachingRequests.requiresFee,
@@ -677,6 +844,8 @@ export async function getApprovedClassesForSession(sessionId: string): Promise<(
       className: classTeachingRequests.className,
       description: classTeachingRequests.description,
       gradeRange: classTeachingRequests.gradeRange,
+      gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
+      gradeRangeTo: classTeachingRequests.gradeRangeTo,
       coTeacher: classTeachingRequests.coTeacher,
       classroomNeeds: classTeachingRequests.classroomNeeds,
       requiresFee: classTeachingRequests.requiresFee,

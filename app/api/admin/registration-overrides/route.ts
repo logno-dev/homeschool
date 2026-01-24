@@ -1,34 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { familyRegistrationStatus, families, guardians } from '@/lib/schema'
 import { eq, and } from 'drizzle-orm'
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user || !session.accessToken) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-    }
-
-    // Check if user is admin using external auth API
-    const roleResponse = await fetch(`${process.env.AUTH_API_URL}/api/user/${session.user.id}/role`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': process.env.AUTH_API_KEY!,
-        'Authorization': `Bearer ${session.accessToken}`,
-      },
-    })
-
-    if (!roleResponse.ok) {
-      return NextResponse.json({ error: 'Failed to verify admin role' }, { status: 403 })
-    }
-
-    const roleData = await roleResponse.json()
-    if (roleData.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+    const auth = await getAuthenticatedAdmin()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
     const { searchParams } = new URL(request.url)

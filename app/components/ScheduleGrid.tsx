@@ -7,10 +7,11 @@ import ConfirmModal from './ConfirmModal'
 import ClassDetailsPopover from './ClassDetailsPopover'
 import DraftManagement from './DraftManagement'
 import Modal from './Modal'
-import LoadingSpinner, { SkeletonCard, SkeletonTable } from './LoadingSpinner'
 
 interface ScheduleGridProps {
   sessionId: string
+  initialScheduleData: ScheduleData
+  initialScheduleStatus: 'draft' | 'submitted' | 'published'
 }
 
 interface ScheduleData {
@@ -31,14 +32,16 @@ const PERIODS = [
   { id: 'third', name: 'Third Period' }
 ]
 
-export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
-  const [scheduleData, setScheduleData] = useState<ScheduleData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+export default function ScheduleGrid({
+  sessionId,
+  initialScheduleData,
+  initialScheduleStatus
+}: ScheduleGridProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [draggedClass, setDraggedClass] = useState<ClassTeachingRequest | null>(null)
   const [draggedFromSlot, setDraggedFromSlot] = useState<string | null>(null)
   const [draftSchedule, setDraftSchedule] = useState<DraftSchedule>({})
-  const [scheduleStatus, setScheduleStatus] = useState<'draft' | 'submitted' | 'published'>('draft')
+  const [scheduleStatus, setScheduleStatus] = useState<'draft' | 'submitted' | 'published'>(initialScheduleStatus)
   const [isDragging, setIsDragging] = useState(false)
   const [hoveredDropZone, setHoveredDropZone] = useState<string | null>(null)
   const [selectedClass, setSelectedClass] = useState<ClassTeachingRequest | null>(null)
@@ -49,7 +52,6 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
   const [showDraftManagement, setShowDraftManagement] = useState(false)
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null)
   const [currentDraftName, setCurrentDraftName] = useState<string>('')
-  const [isLoadingDraft, setIsLoadingDraft] = useState(true)
   const [showQuickSaveModal, setShowQuickSaveModal] = useState(false)
   const [quickSaveName, setQuickSaveName] = useState('')
   const [quickSaveDescription, setQuickSaveDescription] = useState('')
@@ -57,47 +59,16 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
   
   const { showSuccess, showError } = useToast()
 
+  const scheduleData = initialScheduleData
+
   useEffect(() => {
-    initializeSchedule()
+    loadOrCreateDraft()
   }, [sessionId])
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-    
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+    const mediaQuery = window.matchMedia('(max-width: 767px)')
+    setIsMobile(mediaQuery.matches)
   }, [])
-
-  const initializeSchedule = async () => {
-    setIsLoading(true)
-    setIsLoadingDraft(true)
-    
-    try {
-      // First, get the basic schedule data (approved classes and classrooms)
-      const scheduleResponse = await fetch(`/api/admin/schedule/${sessionId}`)
-      if (scheduleResponse.ok) {
-        const scheduleData = await scheduleResponse.json()
-        setScheduleData(scheduleData)
-        
-        // Set status based on existing data
-        if (scheduleData.scheduleEntries && scheduleData.scheduleEntries.length > 0) {
-          setScheduleStatus(scheduleData.scheduleEntries[0].status || 'draft')
-        }
-      }
-
-      // Then, get or create a draft to work with
-      await loadOrCreateDraft()
-      
-    } catch (error) {
-      console.error('Error initializing schedule:', error)
-    } finally {
-      setIsLoading(false)
-      setIsLoadingDraft(false)
-    }
-  }
 
   const loadOrCreateDraft = async () => {
     try {
@@ -167,19 +138,6 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
       }
     } catch (error) {
       console.error('Error loading draft:', error)
-    }
-  }
-
-  const fetchScheduleData = async () => {
-    // This is now just for refreshing the basic data, not for loading drafts
-    try {
-      const response = await fetch(`/api/admin/schedule/${sessionId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setScheduleData(data)
-      }
-    } catch (error) {
-      console.error('Error fetching schedule data:', error)
     }
   }
 
@@ -592,53 +550,6 @@ export default function ScheduleGrid({ sessionId }: ScheduleGridProps) {
     } finally {
       setIsQuickSaving(false)
     }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        {/* Header skeleton */}
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-48 mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded w-32"></div>
-          </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="animate-pulse h-10 bg-gray-200 rounded w-20"></div>
-            <div className="animate-pulse h-10 bg-gray-200 rounded w-32"></div>
-            <div className="animate-pulse h-10 bg-gray-200 rounded w-28"></div>
-          </div>
-        </div>
-
-        {/* Classes pool skeleton */}
-        <div className="bg-white p-6 rounded-lg shadow border">
-          <div className="animate-pulse">
-            <div className="h-6 bg-gray-200 rounded w-64 mb-4"></div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <SkeletonCard key={i} />
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Schedule grid skeleton */}
-        <SkeletonTable rows={4} />
-        
-        {/* Mobile loading indicator */}
-        <div className="md:hidden text-center">
-          <LoadingSpinner text="Loading schedule..." />
-        </div>
-      </div>
-    )
-  }
-
-  if (!scheduleData) {
-    return (
-      <div className="text-center py-8 text-gray-600">
-        Failed to load schedule data
-      </div>
-    )
   }
 
   const unscheduledClasses = getUnscheduledClasses()

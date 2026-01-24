@@ -1,7 +1,7 @@
 'use client'
+'use client'
 
-import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react'
 
 interface PendingRegistration {
   childId: string
@@ -10,6 +10,7 @@ interface PendingRegistration {
   className: string
   teacher: string
   classroom: string
+  status?: 'registered' | 'waitlisted'
 }
 
 interface PendingVolunteerAssignment {
@@ -47,7 +48,7 @@ interface RegistrationContextType {
   pendingVolunteerAssignments: PendingVolunteerAssignment[]
   conflicts: Conflict[]
   addChildRegistration: (registration: PendingRegistration) => void
-  removeChildRegistration: (childId: string, period: string) => void
+  removeChildRegistration: (childId: string, period: string, scheduleId?: string) => void
   addVolunteerAssignment: (assignment: PendingVolunteerAssignment) => void
   removeVolunteerAssignment: (period: string) => void
   isChildRegisteredInPeriod: (childId: string, period: string) => boolean
@@ -68,75 +69,34 @@ interface RegistrationContextType {
 
 const RegistrationContext = createContext<RegistrationContextType | undefined>(undefined)
 
-export function RegistrationProvider({ children }: { children: ReactNode }) {
-  const { data: session } = useSession()
+interface RegistrationProviderProps {
+  teachingAssignments?: TeachingAssignment[]
+  children: ReactNode
+}
+
+export function RegistrationProvider({ children, teachingAssignments = [] }: RegistrationProviderProps) {
   const [pendingRegistrations, setPendingRegistrations] = useState<PendingRegistration[]>([])
   const [pendingVolunteerAssignments, setPendingVolunteerAssignments] = useState<PendingVolunteerAssignment[]>([])
   const [conflicts, setConflicts] = useState<Conflict[]>([])
-  const [teachingAssignments, setTeachingAssignments] = useState<TeachingAssignment[]>([])
-
-  // Fetch teaching assignments when session is available
-  useEffect(() => {
-    if (session?.user?.id) {
-      fetchTeachingAssignments()
-    }
-  }, [session?.user?.id])
-
-  const fetchTeachingAssignments = async () => {
-    try {
-      // Get current session ID from URL
-      const pathSegments = window.location.pathname.split('/')
-      const sessionId = pathSegments[pathSegments.indexOf('registration') + 1]
-      
-      if (!sessionId) return
-
-      // Fetch both schedules and family status to get family guardian info
-      const [schedulesResponse, statusResponse] = await Promise.all([
-        fetch(`/api/registration/schedules/${sessionId}`),
-        fetch(`/api/registration/family-status?sessionId=${sessionId}`)
-      ])
-
-      if (schedulesResponse.ok && statusResponse.ok) {
-        const schedulesData = await schedulesResponse.json()
-        const statusData = await statusResponse.json()
-        const schedules = schedulesData.schedules || []
-        
-        // Get all family guardian IDs and create a lookup map
-        const familyGuardians = statusData.familyGuardians || []
-        const familyGuardianIds = familyGuardians.map((g: any) => g.id)
-        const guardianLookup = familyGuardians.reduce((acc: any, guardian: any) => {
-          acc[guardian.id] = `${guardian.firstName} ${guardian.lastName}`
-          return acc
-        }, {})
-        
-        // Filter schedules where any family guardian is the teacher
-        const familyTeachingAssignments = schedules
-          .filter((schedule: any) => familyGuardianIds.includes(schedule.teacher.id))
-          .map((schedule: any) => ({
-            guardianId: schedule.teacher.id,
-            period: schedule.schedule.period,
-            className: schedule.classTeachingRequest.className,
-            volunteerType: 'teacher',
-            guardianName: guardianLookup[schedule.teacher.id] || 'Unknown'
-          }))
-        
-        setTeachingAssignments(familyTeachingAssignments)
-      }
-    } catch (error) {
-      console.error('Error fetching teaching assignments:', error)
-    }
-  }
 
   const addChildRegistration = useCallback((registration: PendingRegistration) => {
     setPendingRegistrations(prev => {
-      // Remove any existing registration for this child in this period
-      const filtered = prev.filter(r => !(r.childId === registration.childId && r.period === registration.period))
+      const filtered = prev.filter((entry) => {
+        if (entry.childId !== registration.childId) return true
+        if (entry.scheduleId === registration.scheduleId) return false
+        if (registration.status === 'waitlisted') return true
+        return !(entry.period === registration.period && entry.status !== 'waitlisted')
+      })
       return [...filtered, registration]
     })
   }, [])
 
-  const removeChildRegistration = useCallback((childId: string, period: string) => {
-    setPendingRegistrations(prev => prev.filter(r => !(r.childId === childId && r.period === period)))
+  const removeChildRegistration = useCallback((childId: string, period: string, scheduleId?: string) => {
+    setPendingRegistrations(prev => prev.filter(r => {
+      if (r.childId !== childId || r.period !== period) return true
+      if (scheduleId) return r.scheduleId !== scheduleId
+      return false
+    }))
   }, [])
 
   const addVolunteerAssignment = useCallback((assignment: PendingVolunteerAssignment) => {
@@ -152,7 +112,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const isChildRegisteredInPeriod = useCallback((childId: string, period: string) => {
-    return pendingRegistrations.some(r => r.childId === childId && r.period === period)
+    return pendingRegistrations.some(r => r.childId === childId && r.period === period && r.status !== 'waitlisted')
   }, [pendingRegistrations])
 
   const isGuardianAssignedInPeriod = useCallback((guardianId: string, period: string) => {
@@ -160,7 +120,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   }, [pendingVolunteerAssignments])
 
   const getChildRegistrationForPeriod = useCallback((childId: string, period: string) => {
-    return pendingRegistrations.find(r => r.childId === childId && r.period === period) || null
+    return pendingRegistrations.find(r => r.childId === childId && r.period === period && r.status !== 'waitlisted') || null
   }, [pendingRegistrations])
 
   const getVolunteerAssignmentForPeriod = useCallback((period: string) => {
@@ -177,24 +137,32 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   }, [pendingRegistrations])
 
   const getPeriodsWithStudents = useCallback(() => {
-    const periods = new Set(pendingRegistrations.map(r => r.period))
+    const periods = new Set(
+      pendingRegistrations
+        .filter(r => r.status !== 'waitlisted')
+        .map(r => r.period)
+    )
     return Array.from(periods).filter(period => period !== 'lunch') // Lunch doesn't count for volunteer requirements
   }, [pendingRegistrations])
 
   const getVolunteerRequirements = useCallback(() => {
     const periodsWithStudents = getPeriodsWithStudents()
     const requiredHours = periodsWithStudents.length
-    
-    // Count period-based volunteer assignments (excluding non-period jobs)
-    const periodBasedHours = pendingVolunteerAssignments.filter(a => a.period !== 'non_period').length
-    
-    // Count non-period volunteer jobs (each counts as 1 hour regardless of period)
+
+    const coveredPeriods = new Set(
+      pendingVolunteerAssignments
+        .filter(a => a.period !== 'non_period')
+        .map(a => a.period)
+    )
+
+    teachingAssignments
+      .filter(t => t.period !== 'lunch')
+      .forEach(t => coveredPeriods.add(t.period))
+
     const nonPeriodHours = pendingVolunteerAssignments.filter(a => a.period === 'non_period').length
-    
-    // Count teaching assignments (each counts as 1 hour per period, excluding lunch)
-    const teachingHours = teachingAssignments.filter(t => t.period !== 'lunch').length
-    
-    const fulfilledHours = periodBasedHours + nonPeriodHours + teachingHours
+    const remainingPeriods = Math.max(0, requiredHours - coveredPeriods.size)
+    const wildcardCoverage = Math.min(nonPeriodHours, remainingPeriods)
+    const fulfilledHours = coveredPeriods.size + wildcardCoverage
     
     return {
       requiredHours,
@@ -249,7 +217,7 @@ export function RegistrationProvider({ children }: { children: ReactNode }) {
   }, [pendingVolunteerAssignments])
 
   const getPendingRegistrationsForSchedule = useCallback((scheduleId: string) => {
-    return pendingRegistrations.filter(registration => registration.scheduleId === scheduleId).length
+    return pendingRegistrations.filter(registration => registration.scheduleId === scheduleId && registration.status !== 'waitlisted').length
   }, [pendingRegistrations])
 
   const isScheduleConflicted = useCallback((scheduleId: string) => {

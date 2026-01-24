@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
 import { createFamily, createGuardian, createChild } from '@/lib/database'
+import { hasDatabaseConnection } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,6 +22,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const hasDatabase = await hasDatabaseConnection()
+    if (!hasDatabase) {
+      return NextResponse.json(
+        { error: 'Database unavailable. Check your Turso configuration.' },
+        { status: 503 }
+      )
+    }
+
     // Create the family
     const newFamily = await createFamily({
       name: family.name,
@@ -34,8 +43,8 @@ export async function POST(request: NextRequest) {
     const newGuardian = await createGuardian({
       id: session.user.id,
       email: session.user.email || '',
-      firstName: session.user.name?.split(' ')[0] || '',
-      lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
+      firstName: session.user.firstName || '',
+      lastName: session.user.lastName || '',
       role: 'user',
       familyId: newFamily.id,
       isMainContact: true,

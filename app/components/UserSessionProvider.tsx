@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { userSession } from '@/lib/user-session'
 
 interface UserSessionProviderProps {
@@ -9,11 +9,11 @@ interface UserSessionProviderProps {
 }
 
 export default function UserSessionProvider({ children }: UserSessionProviderProps) {
-  const { data: session, status } = useSession()
+  const { user, loading } = useAuth()
 
   useEffect(() => {
     const initializeUserSession = async () => {
-      if (status === 'authenticated' && session?.user) {
+      if (!loading && user) {
         // Check if we already have fresh cached data
         const cachedData = userSession.getUserData()
         if (cachedData) {
@@ -26,14 +26,14 @@ export default function UserSessionProvider({ children }: UserSessionProviderPro
         } catch (error) {
           console.error('Failed to initialize user session:', error)
         }
-      } else if (status === 'unauthenticated') {
+      } else if (!loading && !user) {
         // Clear cached data when user logs out
         userSession.clearUserData()
       }
     }
 
     initializeUserSession()
-  }, [session, status])
+  }, [user, loading])
 
   return <>{children}</>
 }

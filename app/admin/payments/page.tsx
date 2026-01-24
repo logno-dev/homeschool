@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '../../components/AdminLayout'
 
@@ -30,7 +30,7 @@ interface Session {
 }
 
 export default function PaymentsPage() {
-  const { data: session, status } = useSession()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [payments, setPayments] = useState<PaymentData[]>([])
   const [loading, setLoading] = useState(true)
@@ -61,16 +61,16 @@ export default function PaymentsPage() {
   const [familySessionFee, setFamilySessionFee] = useState<any>(null)
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (authLoading) return
 
-    if (!session) {
+    if (!user) {
       router.push('/signin')
       return
     }
 
     fetchPayments()
     fetchFamiliesAndSessions()
-  }, [session, status, router])
+  }, [user, authLoading, router])
 
   const fetchPayments = async () => {
     try {
@@ -293,7 +293,7 @@ export default function PaymentsPage() {
     })
   }
 
-  if (status === 'loading' || loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -304,10 +304,12 @@ export default function PaymentsPage() {
     )
   }
 
-  if (!session) return null
+  if (!user) return null
+
+  const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
 
   return (
-    <AdminLayout userName={session.user?.name || 'Admin'} activeTab="payments">
+    <AdminLayout userName={userName || 'Admin'} activeTab="payments">
       <div className="p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Management</h1>

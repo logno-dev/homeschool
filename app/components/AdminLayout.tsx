@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { signOut } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -14,6 +14,7 @@ interface AdminLayoutProps {
 export default function AdminLayout({ userName, activeTab, children }: AdminLayoutProps) {
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { signOut } = useAuth()
 
   const navigationItems = [
     {
@@ -170,7 +171,9 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
               </button>
               
               <button
-                onClick={() => signOut({ callbackUrl: '/', redirect: true })}
+                onClick={() => {
+                  void signOut({ returnTo: '/' })
+                }}
                 className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

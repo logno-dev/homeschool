@@ -88,18 +88,10 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
   }
 
   const gradeOptions = [
-    'K',
-    '1st',
-    '2nd', 
-    '3rd',
-    '4th',
-    '5th',
-    '6th',
-    '7th',
-    '8th',
     'K-2',
     '3-5',
     '6-8',
+    '9-12',
     'All Ages'
   ]
 

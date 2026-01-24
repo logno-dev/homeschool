@@ -44,6 +44,9 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
   const [submitting, setSubmitting] = useState(false)
   const [showAdminOverrideModal, setShowAdminOverrideModal] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
+  const [overrideContext, setOverrideContext] = useState<'volunteer' | 'grade_range' | 'mixed'>('volunteer')
+  const [gradeRangeConflicts, setGradeRangeConflicts] = useState<string[]>([])
+  const [canRequestOverride, setCanRequestOverride] = useState(false)
   const [volunteerHoursInfo, setVolunteerHoursInfo] = useState<{
     requiredHours: number
     fulfilledHours: number
@@ -59,6 +62,7 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
     setSubmitting(true)
     setConflicts([])
     setVolunteerHoursInfo(null)
+    setCanRequestOverride(false)
     
     try {
       // Submit all registrations in batch
@@ -84,15 +88,32 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
         return
       }
 
-      if (response.status === 400 && !result.volunteerRequirementsMet) {
+      if (response.status === 400 && (!result.volunteerRequirementsMet || result.canRequestOverride)) {
         // Path 3: Volunteer requirements not met
-        setVolunteerHoursInfo({
-          requiredHours: result.requiredHours,
-          fulfilledHours: result.fulfilledHours,
-          canRequestOverride: result.canRequestOverride
-        })
+        if (result.requiredHours !== undefined && result.fulfilledHours !== undefined) {
+          setVolunteerHoursInfo({
+            requiredHours: result.requiredHours,
+            fulfilledHours: result.fulfilledHours,
+            canRequestOverride: result.canRequestOverride
+          })
+        }
         
         if (result.canRequestOverride) {
+          const gradeConflicts = Array.isArray(result.conflicts)
+            ? result.conflicts.filter((conflict: { type?: string; className?: string }) => conflict.type === 'grade_range')
+            : []
+          const hasGradeRangeConflicts = gradeConflicts.length > 0
+          const hasVolunteerMismatch = result.volunteerRequirementsMet === false
+          const context = hasGradeRangeConflicts && hasVolunteerMismatch
+            ? 'mixed'
+            : hasGradeRangeConflicts
+              ? 'grade_range'
+              : 'volunteer'
+          setOverrideContext(context)
+          setGradeRangeConflicts(gradeConflicts
+            .map((conflict: { className?: string }) => conflict.className)
+            .filter((name: string | undefined): name is string => typeof name === 'string' && name.length > 0))
+          setCanRequestOverride(true)
           setShowAdminOverrideModal(true)
         } else {
           showError('Volunteer requirements not met', result.message)
@@ -203,6 +224,9 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
                       <strong>Assigned:</strong> {requirements.fulfilledHours} volunteer hour{requirements.fulfilledHours === 1 ? '' : 's'}
                     </span>
                   </div>
+                  <p className="text-xs opacity-80">
+                    Each period with students needs one volunteer hour. Teaching or period-specific volunteering covers that period, and non-period jobs act as wildcards for any uncovered period.
+                  </p>
                   {requirements.periodsWithStudents.length > 0 && (
                     <div className="mt-2 text-xs opacity-75">
                       <span>Students enrolled in: </span>
@@ -251,7 +275,7 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
           )}
 
           {/* Volunteer Hours Info */}
-          {volunteerHoursInfo && (
+          {volunteerHoursInfo && overrideContext !== 'grade_range' && (
             <div className="bg-yellow-50 rounded-lg p-4">
               <h3 className="font-semibold text-yellow-900 mb-2">Volunteer Requirements Not Met</h3>
               <div className="text-sm text-yellow-800">
@@ -260,6 +284,34 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
                 {volunteerHoursInfo.canRequestOverride && (
                   <p className="mt-2 font-medium">You can request an admin override to proceed with registration.</p>
                 )}
+              </div>
+            </div>
+          )}
+          {overrideContext === 'grade_range' && (
+            <div className="bg-yellow-50 rounded-lg p-4">
+              <h3 className="font-semibold text-yellow-900 mb-2">Grade Range Override Needed</h3>
+              <div className="text-sm text-yellow-800">
+                <p>One or more students are outside the class grade range.</p>
+                {gradeRangeConflicts.length > 0 && (
+                  <p className="mt-2 text-sm text-yellow-800">
+                    Affected classes: {gradeRangeConflicts.join(', ')}
+                  </p>
+                )}
+                <p className="mt-2 font-medium">You can request an admin override to proceed with registration.</p>
+              </div>
+            </div>
+          )}
+          {overrideContext === 'mixed' && (
+            <div className="bg-yellow-50 rounded-lg p-4">
+              <h3 className="font-semibold text-yellow-900 mb-2">Override Needed</h3>
+              <div className="text-sm text-yellow-800">
+                <p>Volunteer requirements are not met and a grade range override is needed.</p>
+                {gradeRangeConflicts.length > 0 && (
+                  <p className="mt-2 text-sm text-yellow-800">
+                    Affected classes: {gradeRangeConflicts.join(', ')}
+                  </p>
+                )}
+                <p className="mt-2 font-medium">You can request an admin override to proceed with registration.</p>
               </div>
             </div>
           )}
@@ -280,11 +332,14 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
                         <p className="text-sm text-gray-600">
                           {registration.teacher} • {registration.classroom}
                         </p>
+                        {registration.status === 'waitlisted' && (
+                          <p className="text-xs text-yellow-700 font-medium">Waitlist</p>
+                        )}
                       </div>
-                      <button
-                        onClick={() => removeChildRegistration(registration.childId, registration.period)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                      >
+                        <button
+                          onClick={() => removeChildRegistration(registration.childId, registration.period, registration.scheduleId)}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                        >
                         Remove
                       </button>
                     </div>
@@ -346,7 +401,7 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
               >
                 Continue Shopping
               </button>
-              {volunteerHoursInfo?.canRequestOverride ? (
+              {canRequestOverride ? (
                 <button
                   onClick={() => setShowAdminOverrideModal(true)}
                   disabled={submitting}
@@ -377,18 +432,49 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
       >
         <div className="space-y-4">
           <div className="bg-yellow-50 rounded-lg p-4">
-            <h3 className="font-semibold text-yellow-900 mb-2">Volunteer Requirements Not Met</h3>
-            <div className="text-sm text-yellow-800">
-              {volunteerHoursInfo && (
-                <>
-                  <p>Required volunteer hours: {volunteerHoursInfo.requiredHours}</p>
-                  <p>Fulfilled volunteer hours: {volunteerHoursInfo.fulfilledHours}</p>
-                  <p className="mt-2">
-                    You need {volunteerHoursInfo.requiredHours - volunteerHoursInfo.fulfilledHours} more volunteer hour{volunteerHoursInfo.requiredHours - volunteerHoursInfo.fulfilledHours === 1 ? '' : 's'}. This can be fulfilled by volunteering in specific periods, taking on general volunteer jobs, or teaching classes.
-                  </p>
-                </>
-              )}
-            </div>
+            {overrideContext === 'grade_range' && (
+              <>
+                <h3 className="font-semibold text-yellow-900 mb-2">Grade Range Override Needed</h3>
+                <div className="text-sm text-yellow-800">
+                  <p>One or more students are outside the class grade range.</p>
+                  {gradeRangeConflicts.length > 0 && (
+                    <p className="mt-2">Affected classes: {gradeRangeConflicts.join(', ')}</p>
+                  )}
+                </div>
+              </>
+            )}
+            {overrideContext === 'mixed' && (
+              <>
+                <h3 className="font-semibold text-yellow-900 mb-2">Override Needed</h3>
+                <div className="text-sm text-yellow-800">
+                  <p>Volunteer requirements are not met and a grade range override is needed.</p>
+                  {gradeRangeConflicts.length > 0 && (
+                    <p className="mt-2">Affected classes: {gradeRangeConflicts.join(', ')}</p>
+                  )}
+                  {volunteerHoursInfo && (
+                    <p className="mt-2">
+                      You need {volunteerHoursInfo.requiredHours - volunteerHoursInfo.fulfilledHours} more volunteer hour{volunteerHoursInfo.requiredHours - volunteerHoursInfo.fulfilledHours === 1 ? '' : 's'}.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+            {overrideContext === 'volunteer' && (
+              <>
+                <h3 className="font-semibold text-yellow-900 mb-2">Volunteer Requirements Not Met</h3>
+                <div className="text-sm text-yellow-800">
+                  {volunteerHoursInfo && (
+                    <>
+                      <p>Required volunteer hours: {volunteerHoursInfo.requiredHours}</p>
+                      <p>Fulfilled volunteer hours: {volunteerHoursInfo.fulfilledHours}</p>
+                      <p className="mt-2">
+                        You need {volunteerHoursInfo.requiredHours - volunteerHoursInfo.fulfilledHours} more volunteer hour{volunteerHoursInfo.requiredHours - volunteerHoursInfo.fulfilledHours === 1 ? '' : 's'}. This can be fulfilled by volunteering in specific periods, taking on general volunteer jobs, or teaching classes.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
           <div>

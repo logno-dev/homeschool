@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { signOut } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -13,6 +13,7 @@ interface AdminNavProps {
 export default function AdminNav({ userName, activeTab }: AdminNavProps) {
   const router = useRouter()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const { signOut } = useAuth()
 
   const navLinks = [
     { href: '/admin/users', label: 'User Management', key: 'users' },
@@ -65,7 +66,9 @@ export default function AdminNav({ userName, activeTab }: AdminNavProps) {
                 {userName}
               </span>
               <button
-                onClick={() => signOut({ callbackUrl: '/', redirect: true })}
+                onClick={() => {
+                  void signOut({ returnTo: '/' })
+                }}
                 className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md text-sm font-medium"
               >
                 Sign Out
@@ -140,7 +143,9 @@ export default function AdminNav({ userName, activeTab }: AdminNavProps) {
                 Back to Dashboard
               </button>
               <button
-                onClick={() => signOut({ callbackUrl: '/', redirect: true })}
+                onClick={() => {
+                  void signOut({ returnTo: '/' })
+                }}
                 className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50"
               >
                 Sign Out

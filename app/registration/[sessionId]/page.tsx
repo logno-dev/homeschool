@@ -1,168 +1,71 @@
-'use client'
+export const runtime = 'nodejs'
 
-import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
 import { isAfter, isBefore, parseISO, format } from 'date-fns'
-import { useUserSession } from '@/lib/user-session'
+import { redirect } from 'next/navigation'
+import { getAuthenticatedUser } from '@/lib/server-auth'
+import { getSessionById } from '@/lib/database'
+import { checkUserFamilyTeacherStatus } from '@/lib/early-registration'
+import { getRegistrationStatus } from '@/lib/registration-status'
+import { RegistrationProvider } from '@/app/components/RegistrationContext'
 import RegistrationGrid from '@/app/components/RegistrationGrid'
 import VolunteerHourCounter from '@/app/components/VolunteerHourCounter'
 import ReadonlyScheduleView from '@/app/components/ReadonlyScheduleView'
+import { getRegistrationScheduleBundle } from '@/lib/registration'
 
-interface ClassSession {
-  id: string
-  name: string
-  startDate: string
-  endDate: string
-  registrationStartDate: string
-  registrationEndDate: string
-  teacherRegistrationStartDate?: string
-  isActive: boolean
-  description?: string
-}
+export default async function RegistrationPage({ params }: { params: Promise<{ sessionId: string }> }) {
+  const session = await getAuthenticatedUser()
+  const { sessionId } = await params
+  const [sessionData, registrationStatus, hasEarlyAccess, scheduleBundle] = await Promise.all([
+    getSessionById(sessionId),
+    getRegistrationStatus(sessionId, session.user.id),
+    checkUserFamilyTeacherStatus(session.user.id, sessionId),
+    getRegistrationScheduleBundle(sessionId, session.user.id)
+  ])
 
-export default function RegistrationPage({ params }: { params: Promise<{ sessionId: string }> }) {
-  const { data: authSession, status } = useSession()
-  const { isTeacher } = useUserSession()
-  const router = useRouter()
-  const [classSessionInfo, setClassSessionInfo] = useState<ClassSession | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [sessionId, setSessionId] = useState<string>('')
-  const [registrationStatus, setRegistrationStatus] = useState<any>(null)
-  const [statusLoading, setStatusLoading] = useState(true)
-  const [registrationAccess, setRegistrationAccess] = useState<{
-    canRegister: boolean
-    isTeacher: boolean
-    reason?: string
-    teacherEarlyAccess?: boolean
-  }>({ canRegister: false, isTeacher: false })
-  const [familyHasTeacher, setFamilyHasTeacher] = useState(false)
+  if (!session?.user?.id) {
+    redirect('/signin')
+  }
 
-  useEffect(() => {
-    const getParams = async () => {
-      const resolvedParams = await params
-      setSessionId(resolvedParams.sessionId)
-    }
-    getParams()
-  }, [params])
+  const classSessionInfo = sessionData
+  const hasTeacherInFamily = hasEarlyAccess
+  const now = new Date()
+  const registrationStart = classSessionInfo ? parseISO(classSessionInfo.registrationStartDate) : null
+  const registrationEnd = classSessionInfo ? parseISO(classSessionInfo.registrationEndDate) : null
+  const teacherEarlyStart = classSessionInfo?.teacherRegistrationStartDate
+    ? parseISO(classSessionInfo.teacherRegistrationStartDate)
+    : null
 
-  useEffect(() => {
-    // Don't redirect while NextAuth is still loading
-    if (status === "loading") return
-    
-    // Only redirect if we're sure the user is not authenticated
-    if (status === "unauthenticated" || !authSession?.user?.id) {
-      router.push('/signin')
-      return
-    }
+  let canRegister = false
+  let reason = ''
+  let teacherEarlyAccess = false
 
-    if (!sessionId) return
-
-    fetchSessionInfo()
-  }, [authSession, sessionId, status, router])
-
-  const fetchSessionInfo = async () => {
-    try {
-      const [sessionRes, statusRes, earlyAccessRes] = await Promise.all([
-        fetch(`/api/sessions/${sessionId}`),
-        fetch(`/api/registration/family-status?sessionId=${sessionId}`),
-        fetch(`/api/registration/early-access?sessionId=${sessionId}`)
-      ])
-      
-      let sessionData = null
-      if (sessionRes.ok) {
-        sessionData = await sessionRes.json()
-        setClassSessionInfo(sessionData.session)
+  if (registrationStart && registrationEnd) {
+    if (isAfter(now, registrationStart) && isBefore(now, registrationEnd)) {
+      canRegister = true
+    } else if (hasTeacherInFamily && teacherEarlyStart && isAfter(now, teacherEarlyStart) && isBefore(now, registrationStart)) {
+      canRegister = true
+      teacherEarlyAccess = true
+    } else if (isBefore(now, teacherEarlyStart || registrationStart)) {
+      if (hasTeacherInFamily && teacherEarlyStart) {
+        reason = `Teacher early registration opens ${format(teacherEarlyStart, 'MMM d, yyyy \'at\' h:mm a')}`
+      } else {
+        reason = `Registration opens ${format(registrationStart, 'MMM d, yyyy \'at\' h:mm a')}`
       }
-      
-      let statusData = null
-      if (statusRes.ok) {
-        statusData = await statusRes.json()
-        setRegistrationStatus(statusData)
-      }
-
-      let earlyAccessData = null
-      if (earlyAccessRes.ok) {
-        earlyAccessData = await earlyAccessRes.json()
-        setFamilyHasTeacher(earlyAccessData.hasEarlyAccess)
-      }
-
-      // Check registration window access
-      if (sessionData?.session) {
-        const now = new Date()
-        const session = sessionData.session
-        const hasTeacherInFamily = earlyAccessData?.hasEarlyAccess || false
-        
-        const registrationStart = parseISO(session.registrationStartDate)
-        const registrationEnd = parseISO(session.registrationEndDate)
-        const teacherEarlyStart = session.teacherRegistrationStartDate ? parseISO(session.teacherRegistrationStartDate) : null
-
-        let canRegister = false
-        let reason = ''
-        let teacherEarlyAccess = false
-
-        // Check if we're in the regular registration window
-        if (isAfter(now, registrationStart) && isBefore(now, registrationEnd)) {
-          canRegister = true
-        }
-        // Check if we're in the teacher early access window
-        else if (hasTeacherInFamily && teacherEarlyStart && isAfter(now, teacherEarlyStart) && isBefore(now, registrationStart)) {
-          canRegister = true
-          teacherEarlyAccess = true
-        }
-        // Determine the reason if registration is not available
-        else if (isBefore(now, teacherEarlyStart || registrationStart)) {
-          if (hasTeacherInFamily && teacherEarlyStart) {
-            reason = `Teacher early registration opens ${format(teacherEarlyStart, 'MMM d, yyyy \'at\' h:mm a')}`
-          } else {
-            reason = `Registration opens ${format(registrationStart, 'MMM d, yyyy \'at\' h:mm a')}`
-          }
-        } else if (isAfter(now, registrationEnd)) {
-          reason = `Registration closed on ${format(registrationEnd, 'MMM d, yyyy \'at\' h:mm a')}`
-        }
-
-        setRegistrationAccess({
-          canRegister,
-          isTeacher: hasTeacherInFamily, // Use the family teacher status instead of individual user status
-          reason,
-          teacherEarlyAccess
-        })
-      }
-    } catch (error) {
-      console.error('Error fetching session info:', error)
-    } finally {
-      setLoading(false)
-      setStatusLoading(false)
+    } else if (isAfter(now, registrationEnd)) {
+      reason = `Registration closed on ${format(registrationEnd, 'MMM d, yyyy \'at\' h:mm a')}`
     }
   }
 
-  if (loading || statusLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-lg">Loading registration...</div>
-      </div>
-    )
-  }
-
-  // Show loading while NextAuth is loading
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!authSession?.user?.id) {
-    return null
+  const registrationAccess = {
+    canRegister,
+    isTeacher: hasTeacherInFamily,
+    reason,
+    teacherEarlyAccess
   }
 
   // Check if family is already registered
   const isRegistered = registrationStatus && (
-    registrationStatus.registrationState === 'completed' || 
+    registrationStatus.registrationState === 'completed' ||
     registrationStatus.hasRegistrations
   )
 
@@ -206,6 +109,7 @@ export default function RegistrationPage({ params }: { params: Promise<{ session
               sessionId={sessionId}
               classRegistrations={registrationStatus.classRegistrations || []}
               volunteerAssignments={registrationStatus.volunteerAssignments || []}
+              sessionInfo={classSessionInfo}
             />
           </div>
         ) : hasDeniedOverride ? (
@@ -249,10 +153,20 @@ export default function RegistrationPage({ params }: { params: Promise<{ session
               </div>
             )}
 
-            {/* Volunteer Hour Counter */}
-            <VolunteerHourCounter />
+            <RegistrationProvider teachingAssignments={scheduleBundle.teachingAssignments}>
+              {/* Volunteer Hour Counter */}
+              <VolunteerHourCounter teachingAssignments={scheduleBundle.teachingAssignments} />
 
-            <RegistrationGrid sessionId={sessionId} />
+              <RegistrationGrid
+                sessionId={sessionId}
+                schedules={scheduleBundle.schedules}
+                guardians={scheduleBundle.guardians}
+                children={scheduleBundle.children}
+                volunteerJobs={scheduleBundle.volunteerJobs}
+                nonPeriodVolunteerJobs={scheduleBundle.nonPeriodVolunteerJobs}
+                teachingAssignments={scheduleBundle.teachingAssignments}
+              />
+            </RegistrationProvider>
           </div>
         ) : isRegistered ? (
           // Show readonly view for registered families
@@ -285,6 +199,7 @@ export default function RegistrationPage({ params }: { params: Promise<{ session
               sessionId={sessionId}
               classRegistrations={registrationStatus.classRegistrations || []}
               volunteerAssignments={registrationStatus.volunteerAssignments || []}
+              sessionInfo={classSessionInfo}
             />
           </div>
         ) : !registrationAccess.canRegister ? (
@@ -372,10 +287,20 @@ export default function RegistrationPage({ params }: { params: Promise<{ session
               </div>
             )}
 
-            {/* Volunteer Hour Counter */}
-            <VolunteerHourCounter />
+            <RegistrationProvider teachingAssignments={scheduleBundle.teachingAssignments}>
+              {/* Volunteer Hour Counter */}
+              <VolunteerHourCounter teachingAssignments={scheduleBundle.teachingAssignments} />
 
-            <RegistrationGrid sessionId={sessionId} />
+              <RegistrationGrid
+                sessionId={sessionId}
+                schedules={scheduleBundle.schedules}
+                guardians={scheduleBundle.guardians}
+                children={scheduleBundle.children}
+                volunteerJobs={scheduleBundle.volunteerJobs}
+                nonPeriodVolunteerJobs={scheduleBundle.nonPeriodVolunteerJobs}
+                teachingAssignments={scheduleBundle.teachingAssignments}
+              />
+            </RegistrationProvider>
           </div>
         )}
       </div>

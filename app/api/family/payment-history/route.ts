@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { feePayments, familySessionFees, sessions, guardians } from '@/lib/schema'
+import { feePayments, familySessionFees, sessions } from '@/lib/schema'
 import { eq, desc } from 'drizzle-orm'
+import { getGuardianById } from '@/lib/database'
 
 export async function GET(request: NextRequest) {
   try {
     const session = await getAuthenticatedUser()
 
     // Get guardian info to find family
-    const guardian = await db
-      .select()
-      .from(guardians)
-      .where(eq(guardians.id, session.user.id))
-      .limit(1)
+    const guardian = await getGuardianById(session.user.id)
 
-    if (guardian.length === 0) {
+    if (!guardian) {
       return NextResponse.json({ error: 'Guardian not found' }, { status: 404 })
     }
 
@@ -36,7 +33,7 @@ export async function GET(request: NextRequest) {
       .from(feePayments)
       .leftJoin(familySessionFees, eq(feePayments.familySessionFeeId, familySessionFees.id))
       .leftJoin(sessions, eq(familySessionFees.sessionId, sessions.id))
-      .where(eq(feePayments.familyId, guardian[0].familyId))
+      .where(eq(feePayments.familyId, guardian.familyId))
       .orderBy(desc(feePayments.paymentDate))
 
     return NextResponse.json({

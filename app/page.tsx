@@ -1,10 +1,10 @@
 'use client'
 
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 
 export default function Home() {
-  const { data: session } = useSession()
+  const { user, loading } = useAuth()
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto px-4 py-16">
@@ -21,7 +21,7 @@ export default function Home() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            {!session && (
+            {!loading && !user && (
               <Link
                 href="/signin"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200"

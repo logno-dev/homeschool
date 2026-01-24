@@ -1,51 +1,17 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import type { CalendarEvent } from '@/lib/events'
 import Modal from './Modal'
 
-interface CalendarEvent {
-  id: string
-  title: string
-  description?: string
-  startDate: string
-  endDate?: string
-  startTime?: string
-  endTime?: string
-  isAllDay: boolean
-  eventType: string
-  sessionId?: string
-  location?: string
-  color: string
-  isPublic: boolean
-  createdBy?: string
-  createdAt?: string
-  updatedAt?: string
+interface CalendarProps {
+  events: CalendarEvent[]
 }
 
-export default function Calendar() {
-  const [events, setEvents] = useState<CalendarEvent[]>([])
+export default function Calendar({ events }: CalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [isLoading, setIsLoading] = useState(true)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-
-  useEffect(() => {
-    fetchEvents()
-  }, [])
-
-  const fetchEvents = async () => {
-    try {
-      const response = await fetch('/api/events')
-      if (response.ok) {
-        const data = await response.json()
-        setEvents(data)
-      }
-    } catch (error) {
-      console.error('Error fetching events:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const getDaysInMonth = (date: Date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
@@ -183,21 +149,6 @@ export default function Calendar() {
     }
 
     return days
-  }
-
-  if (isLoading) {
-    return (
-      <div className="bg-white p-6 rounded-lg shadow">
-        <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 rounded mb-4"></div>
-          <div className="grid grid-cols-7 gap-1">
-            {Array.from({ length: 35 }).map((_, i) => (
-              <div key={i} className="h-20 bg-gray-200 rounded"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
   }
 
   const monthNames = [

@@ -16,6 +16,7 @@ import { eq, and, inArray } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { isAfter, isBefore, parseISO } from 'date-fns'
 import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
+import { isGradeWithinRange } from '@/lib/grades'
 
 interface PendingRegistration {
   scheduleId: string
@@ -24,6 +25,7 @@ interface PendingRegistration {
   period: string
   teacher: string
   classroom: string
+  status?: 'registered' | 'waitlisted'
 }
 
 interface PendingVolunteerAssignment {
@@ -40,7 +42,7 @@ interface PendingVolunteerAssignment {
 }
 
 interface ConflictDetails {
-  type: 'class_full' | 'volunteer_full' | 'child_conflict' | 'guardian_conflict'
+  type: 'class_full' | 'volunteer_full' | 'child_conflict' | 'guardian_conflict' | 'grade_range'
   scheduleId?: string
   volunteerJobId?: string
   period: string
@@ -52,6 +54,7 @@ interface ConflictDetails {
 interface ValidationResult {
   success: boolean
   conflicts?: ConflictDetails[]
+  gradeRangeConflicts?: ConflictDetails[]
   volunteerRequirementsMet: boolean
   requiredHours: number
   fulfilledHours: number
@@ -67,6 +70,7 @@ async function validateRegistration(
   guardianId: string
 ): Promise<ValidationResult> {
   const conflicts: ConflictDetails[] = []
+  const gradeRangeConflicts: ConflictDetails[] = []
   
   // Check for class capacity conflicts
   for (const registration of registrations) {
@@ -82,43 +86,76 @@ async function validateRegistration(
 
     if (scheduleData.length > 0) {
       const { classTeachingRequest } = scheduleData[0]
-      
-      const currentRegistrations = await db
-        .select()
-        .from(classRegistrations)
-        .where(eq(classRegistrations.scheduleId, registration.scheduleId))
 
-      if (currentRegistrations.length >= classTeachingRequest.maxStudents) {
-        conflicts.push({
-          type: 'class_full',
+      const childRecord = await db
+        .select({ grade: children.grade })
+        .from(children)
+        .where(and(
+          eq(children.id, registration.childId),
+          eq(children.familyId, familyId)
+        ))
+        .limit(1)
+
+      const childGrade = childRecord[0]?.grade
+      const gradeAllowed = isGradeWithinRange(
+        childGrade,
+        classTeachingRequest.gradeRangeFrom,
+        classTeachingRequest.gradeRangeTo,
+        classTeachingRequest.gradeRange
+      )
+
+      if (!gradeAllowed) {
+        const gradeConflict: ConflictDetails = {
+          type: 'grade_range',
           scheduleId: registration.scheduleId,
           period: registration.period,
           className: registration.className,
-          message: `Class "${registration.className}" is full (${currentRegistrations.length}/${classTeachingRequest.maxStudents})`
-        })
+          message: `Child grade is outside the allowed range for "${registration.className}"`
+        }
+        conflicts.push(gradeConflict)
+        gradeRangeConflicts.push(gradeConflict)
+      }
+      
+      if (registration.status !== 'waitlisted') {
+        const currentRegistrations = await db
+          .select()
+          .from(classRegistrations)
+          .where(eq(classRegistrations.scheduleId, registration.scheduleId))
+
+        if (currentRegistrations.length >= classTeachingRequest.maxStudents) {
+          conflicts.push({
+            type: 'class_full',
+            scheduleId: registration.scheduleId,
+            period: registration.period,
+            className: registration.className,
+            message: `Class "${registration.className}" is full (${currentRegistrations.length}/${classTeachingRequest.maxStudents})`
+          })
+        }
       }
     }
 
     // Check for child period conflicts
-    const existingRegistration = await db
-      .select()
-      .from(classRegistrations)
-      .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
-      .where(and(
-        eq(classRegistrations.childId, registration.childId),
-        eq(classRegistrations.sessionId, sessionId),
-        eq(schedules.period, registration.period)
-      ))
-      .limit(1)
+    if (registration.status !== 'waitlisted') {
+      const existingRegistration = await db
+        .select()
+        .from(classRegistrations)
+        .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
+        .where(and(
+          eq(classRegistrations.childId, registration.childId),
+          eq(classRegistrations.sessionId, sessionId),
+          eq(schedules.period, registration.period)
+        ))
+        .limit(1)
 
-    if (existingRegistration.length > 0) {
-      conflicts.push({
-        type: 'child_conflict',
-        scheduleId: registration.scheduleId,
-        period: registration.period,
-        className: registration.className,
-        message: `Child is already registered for a class in the ${registration.period} period`
-      })
+      if (existingRegistration.length > 0) {
+        conflicts.push({
+          type: 'child_conflict',
+          scheduleId: registration.scheduleId,
+          period: registration.period,
+          className: registration.className,
+          message: `Child is already registered for a class in the ${registration.period} period`
+        })
+      }
     }
   }
 
@@ -206,30 +243,40 @@ async function validateRegistration(
 
   // Calculate volunteer requirements
   // Required hours: 1 hour per period with students (excluding lunch)
-  const periodsWithStudents = new Set(registrations.map(r => r.period).filter(p => p !== 'lunch'))
+  const periodsWithStudents = new Set(
+    registrations
+      .filter((registration) => registration.status !== 'waitlisted')
+      .map(r => r.period)
+      .filter(p => p !== 'lunch')
+  )
   const requiredHours = periodsWithStudents.size
-  
-  // Fulfilled hours: Total volunteer assignments + teaching assignments (regardless of period)
-  // Count period-based volunteer assignments (excluding non-period jobs)
-  const periodBasedVolunteerHours = volunteerAssignmentsList.filter(a => a.period !== 'non_period').length
-  
-  // Count non-period volunteer jobs (each counts as 1 hour regardless of period)
+
+  const coveredPeriods = new Set(
+    volunteerAssignmentsList
+      .filter(a => a.period !== 'non_period')
+      .map(a => a.period)
+  )
+
+  teachingAssignmentsForValidation
+    .filter((t: any) => t.period !== 'lunch')
+    .forEach((t: any) => coveredPeriods.add(t.period))
+
   const nonPeriodVolunteerHours = volunteerAssignmentsList.filter(a => a.period === 'non_period').length
-  
-  // Count teaching assignments (each counts as 1 hour per period, excluding lunch)
-  const teachingHours = teachingAssignmentsForValidation.filter((t: any) => t.period !== 'lunch').length
-  
-  const fulfilledHours = periodBasedVolunteerHours + nonPeriodVolunteerHours + teachingHours
-  
+  const remainingPeriods = Math.max(0, requiredHours - coveredPeriods.size)
+  const wildcardCoverage = Math.min(nonPeriodVolunteerHours, remainingPeriods)
+  const fulfilledHours = coveredPeriods.size + wildcardCoverage
+
   const volunteerRequirementsMet = fulfilledHours >= requiredHours
 
   return {
     success: conflicts.length === 0 && volunteerRequirementsMet,
     conflicts: conflicts.length > 0 ? conflicts : undefined,
+    gradeRangeConflicts: gradeRangeConflicts.length > 0 ? gradeRangeConflicts : undefined,
     volunteerRequirementsMet,
     requiredHours,
     fulfilledHours,
-    canRequestOverride: !volunteerRequirementsMet && conflicts.length === 0
+    canRequestOverride: (!volunteerRequirementsMet && conflicts.length === 0) ||
+      (gradeRangeConflicts.length > 0 && gradeRangeConflicts.length === conflicts.length)
   }
 }
 
@@ -342,13 +389,26 @@ export async function POST(request: Request) {
       session.user.id
     )
 
-    // Path 2: If there are conflicts, return them for highlighting
-    if (validation.conflicts && validation.conflicts.length > 0) {
+    const hasOnlyGradeRangeConflicts =
+      validation.gradeRangeConflicts &&
+      validation.conflicts &&
+      validation.conflicts.length === validation.gradeRangeConflicts.length
+
+    if (validation.conflicts && validation.conflicts.length > 0 && !hasOnlyGradeRangeConflicts) {
       return NextResponse.json({
         success: false,
         conflicts: validation.conflicts,
         message: 'Registration conflicts detected'
       }, { status: 409 })
+    }
+
+    if (hasOnlyGradeRangeConflicts && !requestAdminOverride) {
+      return NextResponse.json({
+        success: false,
+        conflicts: validation.conflicts,
+        canRequestOverride: true,
+        message: 'Some students are outside the class grade range. You can request an admin override.'
+      }, { status: 400 })
     }
 
     // Check for approved admin override
@@ -373,12 +433,13 @@ export async function POST(request: Request) {
     }
 
     // Path 3: Handle admin override request
-    if (!validation.volunteerRequirementsMet && !existingOverride && requestAdminOverride) {
+    if ((!validation.volunteerRequirementsMet || hasOnlyGradeRangeConflicts) && !existingOverride && requestAdminOverride) {
       // Process the registration immediately but with "pending" status to hold slots
       await db.transaction(async (tx) => {
         // Insert class registrations with pending status
         if (registrations && registrations.length > 0) {
           for (const registration of registrations) {
+            const registrationStatus = registration.status === 'waitlisted' ? 'waitlisted' : 'pending'
             await tx.insert(classRegistrations).values({
               id: randomUUID(),
               sessionId,
@@ -386,7 +447,7 @@ export async function POST(request: Request) {
               childId: registration.childId,
               familyId,
               registeredBy: session.user.id,
-              status: 'pending' // Pending admin approval
+              status: registrationStatus
             })
           }
         }
@@ -409,14 +470,28 @@ export async function POST(request: Request) {
         }
 
         // Store the family registration status
+        const overrideReasonParts = [] as string[]
+        if (!validation.volunteerRequirementsMet) {
+          overrideReasonParts.push(
+            `Volunteer hours not met: ${validation.fulfilledHours}/${validation.requiredHours} hours fulfilled`
+          )
+        }
+        if (hasOnlyGradeRangeConflicts && validation.gradeRangeConflicts) {
+          const classNames = validation.gradeRangeConflicts
+            .map((conflict) => conflict.className)
+            .filter(Boolean)
+            .join(', ')
+          overrideReasonParts.push(`Grade range override requested for: ${classNames || 'selected classes'}`)
+        }
+
         await tx.insert(familyRegistrationStatus).values({
           id: randomUUID(),
           sessionId,
           familyId,
           status: 'admin_override',
-          volunteerRequirementsMet: false,
+          volunteerRequirementsMet: validation.volunteerRequirementsMet,
           adminOverride: true,
-          adminOverrideReason: `Volunteer hours not met: ${validation.fulfilledHours}/${validation.requiredHours} hours fulfilled`
+          adminOverrideReason: overrideReasonParts.join(' | ')
         })
       })
 
@@ -498,7 +573,12 @@ export async function POST(request: Request) {
     }
 
     // Validate volunteer requirements using total-based logic
-    const periodsWithStudents = new Set(registrations.map(r => r.period).filter(p => p !== 'lunch'))
+    const periodsWithStudents = new Set(
+      registrations
+        .filter((registration) => registration.status !== 'waitlisted')
+        .map(r => r.period)
+        .filter(p => p !== 'lunch')
+    )
     const requiredHours = periodsWithStudents.size
     
     // Count fulfilled hours: period-based volunteers + non-period volunteers + teaching assignments
@@ -560,17 +640,20 @@ export async function POST(request: Request) {
         const { classTeachingRequest } = scheduleData[0]
 
         // Check class capacity
-        const currentRegistrations = await tx
-          .select()
-          .from(classRegistrations)
-          .where(eq(classRegistrations.scheduleId, registration.scheduleId))
+        if (registration.status !== 'waitlisted') {
+          const currentRegistrations = await tx
+            .select()
+            .from(classRegistrations)
+            .where(eq(classRegistrations.scheduleId, registration.scheduleId))
 
-        if (currentRegistrations.length >= classTeachingRequest.maxStudents) {
-          throw new Error(`Class is full: ${registration.className}`)
+          if (currentRegistrations.length >= classTeachingRequest.maxStudents) {
+            throw new Error(`Class is full: ${registration.className}`)
+          }
         }
 
         // Register the child
         const registrationId = randomUUID()
+        const registrationStatus = registration.status === 'waitlisted' ? 'waitlisted' : 'registered'
         await tx.insert(classRegistrations).values({
           id: registrationId,
           sessionId,
@@ -578,7 +661,7 @@ export async function POST(request: Request) {
           childId: registration.childId,
           familyId,
           registeredBy: session.user.id,
-          status: 'registered'
+          status: registrationStatus
         })
 
         registeredCount++

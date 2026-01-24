@@ -3,12 +3,14 @@
 import { useRouter } from 'next/navigation'
 import FeesSummary from './FeesSummary'
 import NextEvent from './NextEvent'
+import type { CalendarEvent } from '@/lib/events'
 
 interface DashboardButtonsProps {
   isAdmin: boolean
+  nextEvent: CalendarEvent | null
 }
 
-export default function DashboardButtons({ isAdmin }: DashboardButtonsProps) {
+export default function DashboardButtons({ isAdmin, nextEvent }: DashboardButtonsProps) {
   const router = useRouter()
 
   return (
@@ -64,10 +66,10 @@ export default function DashboardButtons({ isAdmin }: DashboardButtonsProps) {
         </div>
       </div>
       
-      <div className="bg-white p-4 sm:p-6 rounded-lg shadow border-2 border-indigo-200 hover:shadow-md transition-shadow">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Upcoming Events</h3>
-        <NextEvent />
-      </div>
+        <div className="bg-white p-4 sm:p-6 rounded-lg shadow border-2 border-indigo-200 hover:shadow-md transition-shadow">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Upcoming Events</h3>
+          <NextEvent nextEvent={nextEvent} />
+        </div>
       
       <div className="bg-white p-4 sm:p-6 rounded-lg shadow hover:shadow-md transition-shadow">
         <h3 className="text-lg font-medium text-gray-900 mb-2">Resources</h3>

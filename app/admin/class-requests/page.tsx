@@ -1,22 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '@/app/components/AdminLayout'
 import ClassTeachingRequestReview from '@/app/components/ClassTeachingRequestReview'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 
 export default function AdminClassRequestsPage() {
-  const { data: session, status } = useSession()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const [classRequests, setClassRequests] = useState<(ClassTeachingRequest & { session: Session })[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (loading) return
 
-    if (!session) {
+    if (!user) {
       router.push('/signin')
       return
     }
@@ -37,9 +37,9 @@ export default function AdminClassRequestsPage() {
     }
 
     fetchClassRequests()
-  }, [session, status, router])
+  }, [user, loading, router])
 
-  if (status === 'loading' || isLoading) {
+  if (loading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -50,13 +50,15 @@ export default function AdminClassRequestsPage() {
     )
   }
 
-  if (!session) {
+  if (!user) {
     return null
   }
 
+  const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+
   return (
     <AdminLayout 
-      userName={session.user.name || 'Admin'} 
+      userName={userName || 'Admin'} 
       activeTab="class-requests"
     >
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">

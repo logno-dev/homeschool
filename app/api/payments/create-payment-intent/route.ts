@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { familySessionFees, guardians } from '@/lib/schema'
+import { familySessionFees } from '@/lib/schema'
 import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { getGuardianById } from '@/lib/database'
 
 // Mock Stripe Payment Intent creation
 export async function POST(request: NextRequest) {
@@ -13,13 +14,9 @@ export async function POST(request: NextRequest) {
     const { familySessionFeeId, amount } = await request.json()
 
     // Verify the user has access to this family fee
-    const guardian = await db
-      .select()
-      .from(guardians)
-      .where(eq(guardians.id, session.user.id))
-      .limit(1)
+    const guardian = await getGuardianById(session.user.id)
 
-    if (guardian.length === 0) {
+    if (!guardian) {
       return NextResponse.json({ error: 'Guardian not found' }, { status: 404 })
     }
 
@@ -28,7 +25,7 @@ export async function POST(request: NextRequest) {
       .from(familySessionFees)
       .where(and(
         eq(familySessionFees.id, familySessionFeeId),
-        eq(familySessionFees.familyId, guardian[0].familyId)
+        eq(familySessionFees.familyId, guardian.familyId)
       ))
       .limit(1)
 
@@ -62,7 +59,7 @@ export async function POST(request: NextRequest) {
       client_secret: clientSecret,
       metadata: {
         familySessionFeeId,
-        familyId: guardian[0].familyId,
+        familyId: guardian.familyId,
         sessionId: fee.sessionId
       },
       created: Math.floor(Date.now() / 1000),

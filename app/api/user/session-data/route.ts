@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser, fetchFamilyData, checkAdminRole } from '@/lib/server-auth'
+import { getAuthenticatedUser, fetchFamilyData, getAppRole } from '@/lib/server-auth'
 import { getClassTeachingRequestsByGuardian, getActiveSession } from '@/lib/database'
 
 export async function GET(request: NextRequest) {
@@ -8,9 +8,9 @@ export async function GET(request: NextRequest) {
     const userId = session.user.id
 
     // Fetch family data and admin role in parallel
-    const [familyData, isAdmin] = await Promise.all([
+    const [familyData, appRole] = await Promise.all([
       fetchFamilyData(userId),
-      checkAdminRole(userId)
+      getAppRole(session)
     ])
 
     // Check if any guardian in the family has teacher role for the current active session
@@ -36,11 +36,13 @@ export async function GET(request: NextRequest) {
     // Find the current user's guardian record
     const currentGuardian = familyData?.guardians?.find(g => g.id === userId)
 
+    const userName = [session.user.firstName, session.user.lastName].filter(Boolean).join(' ') || session.user.email
+
     const sessionData = {
       userId: session.user.id,
       email: session.user.email,
-      name: session.user.name,
-      role: isAdmin ? (currentGuardian?.role === 'admin' ? 'admin' : 'moderator') : (currentGuardian?.role || 'user'),
+      name: userName,
+      role: appRole,
       familyId: familyData?.family?.id || null,
       isMainContact: currentGuardian?.isMainContact || false,
       hasTeacherRole,

@@ -1,7 +1,6 @@
 'use client'
+'use client'
 
-import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
 import { useRegistration } from './RegistrationContext'
 
 interface TeachingAssignment {
@@ -12,64 +11,15 @@ interface TeachingAssignment {
   guardianName?: string
 }
 
-export default function VolunteerHourCounter() {
-  const { data: session } = useSession()
+interface VolunteerHourCounterProps {
+  teachingAssignments?: TeachingAssignment[]
+}
+
+export default function VolunteerHourCounter({ teachingAssignments = [] }: VolunteerHourCounterProps) {
   const { 
     pendingRegistrations,
     pendingVolunteerAssignments
   } = useRegistration()
-  const [teachingAssignments, setTeachingAssignments] = useState<TeachingAssignment[]>([])
-
-  useEffect(() => {
-    if (session?.user?.id) {
-      fetchTeachingAssignments()
-    }
-  }, [session?.user?.id])
-
-  const fetchTeachingAssignments = async () => {
-    try {
-      // Get current session ID from URL or context
-      const pathSegments = window.location.pathname.split('/')
-      const sessionId = pathSegments[pathSegments.indexOf('registration') + 1]
-      
-      if (!sessionId) return
-
-      // Fetch both schedules and family status to get family guardian info
-      const [schedulesResponse, statusResponse] = await Promise.all([
-        fetch(`/api/registration/schedules/${sessionId}`),
-        fetch(`/api/registration/family-status?sessionId=${sessionId}`)
-      ])
-
-      if (schedulesResponse.ok && statusResponse.ok) {
-        const schedulesData = await schedulesResponse.json()
-        const statusData = await statusResponse.json()
-        const schedules = schedulesData.schedules || []
-        
-        // Get all family guardian IDs and create a lookup map
-        const familyGuardians = statusData.familyGuardians || []
-        const familyGuardianIds = familyGuardians.map((g: any) => g.id)
-        const guardianLookup = familyGuardians.reduce((acc: any, guardian: any) => {
-          acc[guardian.id] = `${guardian.firstName} ${guardian.lastName}`
-          return acc
-        }, {})
-        
-        // Filter schedules where any family guardian is the teacher
-        const familyTeachingAssignments = schedules
-          .filter((schedule: any) => familyGuardianIds.includes(schedule.teacher.id))
-          .map((schedule: any) => ({
-            guardianId: schedule.teacher.id,
-            period: schedule.schedule.period,
-            className: schedule.classTeachingRequest.className,
-            volunteerType: 'teacher',
-            guardianName: guardianLookup[schedule.teacher.id] || 'Unknown'
-          }))
-        
-        setTeachingAssignments(familyTeachingAssignments)
-      }
-    } catch (error) {
-      console.error('Error fetching teaching assignments:', error)
-    }
-  }
 
   // Calculate required volunteer hours (1 hour per period with students, excluding lunch)
   const getRequiredVolunteerHours = () => {

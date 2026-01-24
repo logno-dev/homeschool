@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '@/app/components/AdminLayout'
 import RegistrationOverrideManagement from '@/app/components/RegistrationOverrideManagement'
@@ -17,42 +17,32 @@ interface Session {
 }
 
 export default function RegistrationOverridesPage() {
-  const { data: session, status } = useSession()
+  const { user, loading } = useAuth()
   const router = useRouter()
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [userName, setUserName] = useState('')
 
   useEffect(() => {
-    if (status === 'loading') return
+    if (loading) return
 
-    if (!session) {
+    if (!user) {
       router.push('/signin')
       return
     }
 
+    const displayName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+    setUserName(displayName)
+
     // Fetch active session and user info
     const fetchData = async () => {
       try {
-        const [sessionsResponse, userResponse] = await Promise.all([
-          fetch('/api/admin/sessions'),
-          fetch('/api/admin/users')
-        ])
+        const sessionsResponse = await fetch('/api/admin/sessions')
 
         if (sessionsResponse.ok) {
           const sessionsData = await sessionsResponse.json()
           const activeSess = sessionsData.sessions?.find((s: Session) => s.isActive)
           setActiveSession(activeSess || null)
-        }
-
-        if (userResponse.ok) {
-          const userData = await userResponse.json()
-          if (userData.users && userData.users.length > 0) {
-            const currentUser = userData.users.find((u: any) => u.id === session.user?.id)
-            if (currentUser) {
-              setUserName(`${currentUser.firstName} ${currentUser.lastName}`)
-            }
-          }
         }
       } catch (error) {
         console.error('Error fetching data:', error)
@@ -62,9 +52,9 @@ export default function RegistrationOverridesPage() {
     }
 
     fetchData()
-  }, [session, status, router])
+  }, [user, loading, router])
 
-  if (status === 'loading' || isLoading) {
+  if (loading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -75,7 +65,7 @@ export default function RegistrationOverridesPage() {
     )
   }
 
-  if (!session) {
+  if (!user) {
     return null
   }
 

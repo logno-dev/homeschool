@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { Session } from '@/lib/schema'
+import { GRADE_ORDER, getGradeRangeFromLabel } from '@/lib/grades'
 
 interface ClassTeachingFormProps {
   onSuccess: () => void
@@ -15,7 +16,8 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
     className: '',
     description: '',
     gradeRange: '',
-    customGradeRange: '',
+    gradeRangeFrom: '',
+    gradeRangeTo: '',
     maxStudents: '20',
     helpersNeeded: '1',
     coTeacher: '',
@@ -25,6 +27,7 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
     schedulingRequirements: ''
   })
   const [useCustomGradeRange, setUseCustomGradeRange] = useState(false)
+  const [gradeRangeError, setGradeRangeError] = useState<string | null>(null)
 
   useEffect(() => {
     // Fetch current session info
@@ -47,9 +50,33 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
     setIsLoading(true)
 
     try {
+      if (useCustomGradeRange) {
+        if (!formData.gradeRangeFrom || !formData.gradeRangeTo) {
+          setGradeRangeError('Please select both a starting and ending grade.')
+          setIsLoading(false)
+          return
+        }
+
+        const fromIndex = GRADE_ORDER.indexOf(formData.gradeRangeFrom as typeof GRADE_ORDER[number])
+        const toIndex = GRADE_ORDER.indexOf(formData.gradeRangeTo as typeof GRADE_ORDER[number])
+        if (fromIndex === -1 || toIndex === -1 || fromIndex > toIndex) {
+          setGradeRangeError('Starting grade must be lower than ending grade.')
+          setIsLoading(false)
+          return
+        }
+      }
+
       const submitData = {
         ...formData,
-        gradeRange: useCustomGradeRange ? formData.customGradeRange : formData.gradeRange,
+        gradeRange: useCustomGradeRange
+          ? `${formData.gradeRangeFrom}-${formData.gradeRangeTo}`
+          : formData.gradeRange,
+        gradeRangeFrom: useCustomGradeRange
+          ? GRADE_ORDER.indexOf(formData.gradeRangeFrom as typeof GRADE_ORDER[number])
+          : getGradeRangeFromLabel(formData.gradeRange).from,
+        gradeRangeTo: useCustomGradeRange
+          ? GRADE_ORDER.indexOf(formData.gradeRangeTo as typeof GRADE_ORDER[number])
+          : getGradeRangeFromLabel(formData.gradeRange).to,
         maxStudents: parseInt(formData.maxStudents),
         helpersNeeded: parseInt(formData.helpersNeeded),
         feeAmount: formData.requiresFee ? parseFloat(formData.feeAmount) : null
@@ -79,18 +106,10 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
   }
 
   const gradeOptions = [
-    'K',
-    '1st',
-    '2nd', 
-    '3rd',
-    '4th',
-    '5th',
-    '6th',
-    '7th',
-    '8th',
     'K-2',
     '3-5',
     '6-8',
+    '9-12',
     'All Ages'
   ]
 
@@ -144,12 +163,23 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
                 required={!useCustomGradeRange}
                 value={useCustomGradeRange ? 'custom' : formData.gradeRange}
                 onChange={(e) => {
+                  setGradeRangeError(null)
                   if (e.target.value === 'custom') {
                     setUseCustomGradeRange(true)
-                    setFormData({ ...formData, gradeRange: '' })
+                    setFormData({
+                      ...formData,
+                      gradeRange: '',
+                      gradeRangeFrom: '',
+                      gradeRangeTo: '',
+                    })
                   } else {
                     setUseCustomGradeRange(false)
-                    setFormData({ ...formData, gradeRange: e.target.value, customGradeRange: '' })
+                    setFormData({
+                      ...formData,
+                      gradeRange: e.target.value,
+                      gradeRangeFrom: '',
+                      gradeRangeTo: ''
+                    })
                   }
                 }}
                 className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -161,14 +191,47 @@ export default function ClassTeachingForm({ onSuccess, onCancel }: ClassTeaching
                 <option value="custom">Custom Grade Range</option>
               </select>
               {useCustomGradeRange && (
-                <input
-                  type="text"
-                  required
-                  value={formData.customGradeRange}
-                  onChange={(e) => setFormData({ ...formData, customGradeRange: e.target.value })}
-                  placeholder="e.g., 2nd-4th, Pre-K, 9th-12th"
-                  className="mt-3 w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+                <div className="mt-3 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">From</label>
+                      <select
+                        required
+                        value={formData.gradeRangeFrom}
+                        onChange={(e) => {
+                          setGradeRangeError(null)
+                          setFormData({ ...formData, gradeRangeFrom: e.target.value })
+                        }}
+                        className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Select grade</option>
+                        {GRADE_ORDER.map((grade) => (
+                          <option key={grade} value={grade}>{grade}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
+                      <select
+                        required
+                        value={formData.gradeRangeTo}
+                        onChange={(e) => {
+                          setGradeRangeError(null)
+                          setFormData({ ...formData, gradeRangeTo: e.target.value })
+                        }}
+                        className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      >
+                        <option value="">Select grade</option>
+                        {GRADE_ORDER.map((grade) => (
+                          <option key={grade} value={grade}>{grade}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {gradeRangeError && (
+                    <p className="text-sm text-red-600">{gradeRangeError}</p>
+                  )}
+                </div>
               )}
             </div>
           </div>

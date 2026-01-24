@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { families, guardians, children } from '@/lib/schema'
+import { families, children } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
+import { getGuardianById, getGuardiansByFamily } from '@/lib/database'
 
 export async function GET() {
   try {
@@ -13,21 +14,21 @@ export async function GET() {
     const { session: authSession } = auth
 
     // Get current guardian to find family ID
-    const currentGuardian = await db.select().from(guardians).where(eq(guardians.id, authSession.user.id)).limit(1)
+    const currentGuardian = await getGuardianById(authSession.user.id)
 
-    if (!currentGuardian[0]) {
+    if (!currentGuardian) {
       return NextResponse.json(
         { error: 'No family found' },
         { status: 404 }
       )
     }
 
-    const familyId = currentGuardian[0].familyId
+    const familyId = currentGuardian.familyId
 
     // Get all family data in parallel
     const [family, allGuardians, allChildren] = await Promise.all([
       db.select().from(families).where(eq(families.id, familyId)).limit(1),
-      db.select().from(guardians).where(eq(guardians.familyId, familyId)),
+      getGuardiansByFamily(familyId),
       db.select().from(children).where(eq(children.familyId, familyId))
     ])
 

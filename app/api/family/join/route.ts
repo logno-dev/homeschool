@@ -51,8 +51,8 @@ export async function POST(request: NextRequest) {
     const newGuardian = await createGuardian({
       id: session.user.id,
       email: session.user.email || '',
-      firstName: session.user.name?.split(' ')[0] || '',
-      lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
+      firstName: session.user.firstName || '',
+      lastName: session.user.lastName || '',
       role: 'user',
       familyId: family.id,
       isMainContact: false,

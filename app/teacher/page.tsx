@@ -1,6 +1,6 @@
 'use client'
 
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useUserSession } from '@/lib/user-session'
@@ -8,21 +8,21 @@ import ClassTeachingRequests from '@/app/components/ClassTeachingRequests'
 import TeacherScheduleReview from '@/app/components/TeacherScheduleReview'
 
 export default function TeacherDashboard() {
-  const { data: session, status } = useSession()
+  const { user, loading } = useAuth()
   const { userData, loading: userLoading, isTeacher } = useUserSession()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<'requests' | 'schedule'>('requests')
 
   useEffect(() => {
-    if (status === 'loading' || userLoading) return
+    if (loading || userLoading) return
 
-    if (!session) {
+    if (!user) {
       router.push('/signin')
       return
     }
-  }, [session, status, userLoading, router])
+  }, [user, loading, userLoading, router])
 
-  if (status === 'loading' || userLoading) {
+  if (loading || userLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -33,7 +33,7 @@ export default function TeacherDashboard() {
     )
   }
 
-  if (!session) {
+  if (!user) {
     return null
   }
 

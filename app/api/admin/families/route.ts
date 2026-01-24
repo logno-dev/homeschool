@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { families } from '@/lib/schema'
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await getAuthenticatedAdmin()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
     const allFamilies = await db.select({
@@ -29,10 +27,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await getAuthenticatedAdmin()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
     const { name, address, phone, email } = await request.json()

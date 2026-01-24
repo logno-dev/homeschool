@@ -1,24 +1,28 @@
 'use client'
+'use client'
 
-import { useState, useEffect, useMemo, memo } from 'react'
+import { useState, useMemo } from 'react'
 import Modal from './Modal'
 import { useToast } from './ToastContainer'
 import { useRegistration } from './RegistrationContext'
 import RegistrationCart from './RegistrationCart'
 import VolunteerJobsGrid from './VolunteerJobsGrid'
 import NonPeriodVolunteerJobs from './NonPeriodVolunteerJobs'
+import { isGradeWithinRange } from '@/lib/grades'
 
 interface ClassTeachingRequest {
   id: string
   className: string
   description: string
   gradeRange: string
+  gradeRangeFrom?: number | null
+  gradeRangeTo?: number | null
   maxStudents: number
   helpersNeeded: number
-  coTeacher?: string
-  classroomNeeds?: string
+  coTeacher?: string | null
+  classroomNeeds?: string | null
   requiresFee: boolean
-  feeAmount?: number
+  feeAmount?: number | null
 }
 
 interface Schedule {
@@ -31,7 +35,7 @@ interface Schedule {
 interface Classroom {
   id: string
   name: string
-  description?: string
+  description?: string | null
 }
 
 interface Teacher {
@@ -47,6 +51,10 @@ interface RosterChild {
   grade: string
 }
 
+interface PendingRosterChild extends RosterChild {
+  status?: 'registered' | 'waitlisted'
+}
+
 interface Volunteer {
   guardian: {
     id: string
@@ -54,6 +62,14 @@ interface Volunteer {
     lastName: string
   }
   volunteerType: string
+}
+
+interface TeachingAssignment {
+  guardianId: string
+  period: string
+  className: string
+  volunteerType: string
+  guardianName?: string
 }
 
 interface EnhancedSchedule {
@@ -85,6 +101,12 @@ interface Guardian {
 
 interface RegistrationGridProps {
   sessionId: string
+  schedules: EnhancedSchedule[]
+  guardians: Guardian[]
+  children: Child[]
+  volunteerJobs: any[]
+  nonPeriodVolunteerJobs: any[]
+  teachingAssignments: TeachingAssignment[]
 }
 
 const PERIODS = [
@@ -94,11 +116,20 @@ const PERIODS = [
   { id: 'third', name: 'Third Period' }
 ]
 
-export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
+export default function RegistrationGrid({
+  sessionId,
+  schedules,
+  guardians,
+  children,
+  volunteerJobs,
+  nonPeriodVolunteerJobs,
+  teachingAssignments
+}: RegistrationGridProps) {
   const { showSuccess, showError } = useToast()
   const { 
     addChildRegistration, 
     addVolunteerAssignment, 
+    pendingRegistrations,
     isChildRegisteredInPeriod,
     isGuardianAssignedInPeriod,
     getVolunteerAssignmentForPeriod,
@@ -108,56 +139,20 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
     getPendingRegistrationsForSchedule
   } = useRegistration()
   
-  const [schedules, setSchedules] = useState<EnhancedSchedule[]>([])
-  const [children, setChildren] = useState<Child[]>([])
-  const [guardians, setGuardians] = useState<Guardian[]>([])
-  const [classrooms, setClassrooms] = useState<Classroom[]>([])
-  const [volunteerJobs, setVolunteerJobs] = useState<any[]>([])
-  const [nonPeriodVolunteerJobs, setNonPeriodVolunteerJobs] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
   const [selectedClass, setSelectedClass] = useState<EnhancedSchedule | null>(null)
   const [showRegistrationModal, setShowRegistrationModal] = useState(false)
   const [showChildSelectionModal, setShowChildSelectionModal] = useState(false)
+  const [registrationMode, setRegistrationMode] = useState<'registered' | 'waitlisted'>('registered')
   const [showVolunteerSelectionModal, setShowVolunteerSelectionModal] = useState(false)
 
-  useEffect(() => {
-    fetchData()
-  }, [sessionId])
-
-  const fetchData = async () => {
-    try {
-      const [schedulesRes, familyRes] = await Promise.all([
-        fetch(`/api/registration/schedules/${sessionId}`),
-        fetch('/api/family/profile')
-      ])
-
-      if (schedulesRes.ok) {
-        const schedulesData = await schedulesRes.json()
-        setSchedules(schedulesData.schedules || [])
-        setVolunteerJobs(schedulesData.volunteerJobs || [])
-        setNonPeriodVolunteerJobs(schedulesData.nonPeriodVolunteerJobs || [])
-        
-        // Extract unique classrooms from schedules
-        const uniqueClassrooms = schedulesData.schedules?.reduce((acc: Classroom[], item: EnhancedSchedule) => {
-          if (!acc.find(c => c.id === item.classroom.id)) {
-            acc.push(item.classroom)
-          }
-          return acc
-        }, []) || []
-        setClassrooms(uniqueClassrooms)
+  const classrooms = useMemo(() => {
+    return schedules.reduce((acc, schedule) => {
+      if (!acc.find((room) => room.id === schedule.classroom.id)) {
+        acc.push(schedule.classroom)
       }
-
-      if (familyRes.ok) {
-        const familyData = await familyRes.json()
-        setChildren(familyData.children || [])
-        setGuardians(familyData.guardians || [])
-      }
-    } catch (error) {
-      console.error('Error fetching data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+      return acc
+    }, [] as Classroom[])
+  }, [schedules])
 
   const groupedSchedules = useMemo(() => {
     return schedules.reduce((acc, schedule) => {
@@ -170,15 +165,7 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
     }, {} as Record<string, Record<string, EnhancedSchedule>>)
   }, [schedules])
 
-  // Transform schedules data into teaching assignments for conflict detection
-  const teachingAssignments = useMemo(() => {
-    return schedules.map(schedule => ({
-      guardianId: schedule.teacher.id,
-      period: schedule.schedule.period,
-      className: schedule.classTeachingRequest.className,
-      volunteerType: 'teacher'
-    }))
-  }, [schedules])
+  const normalizedTeachingAssignments = useMemo(() => teachingAssignments, [teachingAssignments])
 
   // Helper function to calculate effective available spots including pending registrations
   const getEffectiveAvailableSpots = (schedule: EnhancedSchedule) => {
@@ -187,11 +174,8 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
   }
 
   const handleClassClick = (schedule: EnhancedSchedule) => {
-    const effectiveSpots = getEffectiveAvailableSpots(schedule)
-    if (effectiveSpots > 0) {
-      setSelectedClass(schedule)
-      setShowRegistrationModal(true)
-    }
+    setSelectedClass(schedule)
+    setShowRegistrationModal(true)
   }
 
   const handleChildRegistration = (child: Child, schedule: EnhancedSchedule) => {
@@ -199,9 +183,23 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
     const pendingRegistrations = getPendingRegistrationsForSchedule(schedule.schedule.id)
     const totalRegistrations = schedule.currentRegistrations + pendingRegistrations
     
-    if (totalRegistrations >= schedule.classTeachingRequest.maxStudents) {
+    if (registrationMode === 'registered' && totalRegistrations >= schedule.classTeachingRequest.maxStudents) {
       showError('Class is full!', `Cannot add ${child.firstName} ${child.lastName} to ${schedule.classTeachingRequest.className} - all spots are taken.`)
       return
+    }
+
+    const gradeAllowed = isGradeWithinRange(
+      child.grade,
+      schedule.classTeachingRequest.gradeRangeFrom,
+      schedule.classTeachingRequest.gradeRangeTo,
+      schedule.classTeachingRequest.gradeRange
+    )
+
+    if (!gradeAllowed) {
+      showError(
+        'Grade out of range',
+        `${child.firstName} ${child.lastName} is outside the listed grade range. You can still submit, but it will require staff approval.`
+      )
     }
 
     const teacher = `${schedule.teacher.firstName} ${schedule.teacher.lastName}`
@@ -211,16 +209,18 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
       className: schedule.classTeachingRequest.className,
       period: schedule.schedule.period,
       teacher,
-      classroom: schedule.classroom.name
+      classroom: schedule.classroom.name,
+      status: registrationMode
     })
-    showSuccess('Added to cart!', `${child.firstName} ${child.lastName} added to ${schedule.classTeachingRequest.className}`)
+    const statusLabel = registrationMode === 'waitlisted' ? 'waitlist' : 'class'
+    showSuccess('Added to cart!', `${child.firstName} ${child.lastName} added to the ${statusLabel} for ${schedule.classTeachingRequest.className}`)
     setShowChildSelectionModal(false)
   }
 
   const handleVolunteerAssignment = (guardian: Guardian, schedule: EnhancedSchedule) => {
     // Check for conflicts before adding assignment
-    if (hasGuardianConflictInPeriod(guardian.id, schedule.schedule.period, teachingAssignments)) {
-      const conflictDetails = getGuardianConflictDetails(guardian.id, schedule.schedule.period, teachingAssignments)
+    if (hasGuardianConflictInPeriod(guardian.id, schedule.schedule.period, normalizedTeachingAssignments)) {
+      const conflictDetails = getGuardianConflictDetails(guardian.id, schedule.schedule.period, normalizedTeachingAssignments)
       showError('Conflict detected!', `${guardian.firstName} ${guardian.lastName} is already assigned: ${conflictDetails}`)
       return
     }
@@ -240,16 +240,30 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
     setShowVolunteerSelectionModal(false)
   }
 
+  const pendingRoster = useMemo(() => {
+    if (!selectedClass) return []
+    const registeredIds = new Set(selectedClass.roster.map((student) => student.id))
+    const roster: PendingRosterChild[] = []
+
+    pendingRegistrations
+      .filter((registration) => registration.scheduleId === selectedClass.schedule.id)
+      .forEach((registration) => {
+        const child = children.find((entry) => entry.id === registration.childId)
+        if (!child || registeredIds.has(child.id)) return
+
+        roster.push({
+          id: child.id,
+          firstName: child.firstName,
+          lastName: child.lastName,
+          grade: child.grade,
+          status: registration.status
+        })
+      })
+
+    return roster
+  }, [pendingRegistrations, selectedClass, children])
 
 
-  if (loading) {
-    return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-2 text-gray-600">Loading schedule...</p>
-      </div>
-    )
-  }
 
   // groupedSchedules is now memoized above
 
@@ -486,14 +500,26 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
 
             {/* Class Roster */}
             <div>
-              <h4 className="text-md font-semibold text-gray-900 mb-3">Current Roster ({selectedClass.roster.length} students)</h4>
-              {selectedClass.roster.length > 0 ? (
+              <h4 className="text-md font-semibold text-gray-900 mb-3">
+                Current Roster ({selectedClass.roster.length + pendingRoster.length} students)
+                {pendingRoster.length > 0 ? `, ${pendingRoster.length} pending` : ''}
+              </h4>
+              {selectedClass.roster.length > 0 || pendingRoster.length > 0 ? (
                 <div className="bg-gray-50 rounded-lg p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     {selectedClass.roster.map((student) => (
                       <div key={student.id} className="flex items-center space-x-2 text-sm">
                         <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                         <span>{student.firstName} {student.lastName} (Grade {student.grade})</span>
+                      </div>
+                    ))}
+                    {pendingRoster.map((student) => (
+                      <div key={`pending-${student.id}`} className="flex items-center space-x-2 text-sm">
+                        <div className={`w-2 h-2 rounded-full ${student.status === 'waitlisted' ? 'bg-yellow-500' : 'bg-blue-500'}`}></div>
+                        <span>{student.firstName} {student.lastName} (Grade {student.grade})</span>
+                        <span className="text-xs text-yellow-700">
+                          {student.status === 'waitlisted' ? 'Waitlist' : 'Pending'}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -530,13 +556,30 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
                 {/* Add Children */}
                 {getEffectiveAvailableSpots(selectedClass) > 0 && (
                   <button
-                    onClick={() => setShowChildSelectionModal(true)}
+                    onClick={() => {
+                      setRegistrationMode('registered')
+                      setShowChildSelectionModal(true)
+                    }}
                     className="flex items-center justify-center space-x-2 bg-blue-600 text-white px-4 py-3 rounded-md hover:bg-blue-700 transition-colors"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                     <span>Add Child to Class</span>
+                  </button>
+                )}
+                {getEffectiveAvailableSpots(selectedClass) <= 0 && (
+                  <button
+                    onClick={() => {
+                      setRegistrationMode('waitlisted')
+                      setShowChildSelectionModal(true)
+                    }}
+                    className="flex items-center justify-center space-x-2 bg-yellow-600 text-white px-4 py-3 rounded-md hover:bg-yellow-700 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>Join Waitlist</span>
                   </button>
                 )}
                 
@@ -557,7 +600,7 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
               {/* Status Messages */}
               <div className="mt-4 space-y-2">
                 {getEffectiveAvailableSpots(selectedClass) <= 0 && (
-                  <p className="text-red-500 text-sm">⚠️ This class is full.</p>
+                  <p className="text-red-500 text-sm">⚠️ This class is full. You can join the waitlist.</p>
                 )}
                 {selectedClass.classTeachingRequest.helpersNeeded > 0 && selectedClass.helpersAvailable <= 0 && (
                   <p className="text-orange-500 text-sm">⚠️ All helper spots are filled.</p>
@@ -600,19 +643,19 @@ export default function RegistrationGrid({ sessionId }: RegistrationGridProps) {
             
             <div className="space-y-3">
               {children && children
-                .filter(child => !isChildRegisteredInPeriod(child.id, selectedClass.schedule.period))
+                .filter(child => registrationMode === 'waitlisted' || !isChildRegisteredInPeriod(child.id, selectedClass.schedule.period))
                 .map((child) => (
                   <div key={child.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                     <div>
                       <p className="font-medium text-gray-900">{child.firstName} {child.lastName}</p>
                       <p className="text-sm text-gray-500">Grade {child.grade}</p>
                     </div>
-                    <button
-                      onClick={() => handleChildRegistration(child, selectedClass)}
-                      className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition-colors text-sm"
-                    >
-                      Add to Cart
-                    </button>
+                <button
+                  onClick={() => handleChildRegistration(child, selectedClass)}
+                  className={`text-white px-3 py-1 rounded-md transition-colors text-sm ${registrationMode === 'waitlisted' ? 'bg-yellow-600 hover:bg-yellow-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                >
+                  {registrationMode === 'waitlisted' ? 'Add to Waitlist' : 'Add to Cart'}
+                </button>
                   </div>
                 ))}
               

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { getAuthenticatedUserSession } from '@/lib/server-auth'
-import { getUserById, createUser } from '@/lib/database'
+import { getAuthenticatedUserSession, getAppRole } from '@/lib/server-auth'
+import { getUserById, createUser, updateUser } from '@/lib/database'
 
 export async function POST() {
   try {
@@ -12,6 +12,7 @@ export async function POST() {
     const { session } = auth
 
     // Check if user already exists in local database
+    const appRole = await getAppRole(session)
     let user = await getUserById(session.user.id)
     
     if (!user) {
@@ -19,10 +20,19 @@ export async function POST() {
       user = await createUser({
         id: session.user.id,
         email: session.user.email || '',
-        firstName: session.user.name?.split(' ')[0] || '',
-        lastName: session.user.name?.split(' ').slice(1).join(' ') || '',
-        role: 'user' // Default role, can be updated by admin
+        firstName: session.user.firstName || '',
+        lastName: session.user.lastName || '',
+        role: appRole
       })
+    } else if (user.role !== appRole) {
+      user = await updateUser(user.id, { role: appRole })
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User sync failed' },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({

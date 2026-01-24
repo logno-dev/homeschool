@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
+import { db } from '@/lib/db'
+import { users } from '@/lib/schema'
+import { eq } from 'drizzle-orm'
 
 export async function DELETE(
   _request: NextRequest,
@@ -12,35 +15,23 @@ export async function DELETE(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
     
-    const { session } = auth
-
     // Prevent self-deletion
-    if (userId === session.user.id) {
+    if (userId === auth.session.user.id) {
       return NextResponse.json(
         { error: 'Cannot deactivate your own account' },
         { status: 400 }
       )
     }
 
-    // Deactivate user via auth provider
-    const response = await fetch(`${process.env.AUTH_API_URL}/api/user/${userId}`, {
-      method: 'DELETE',
-      headers: {
-        'x-api-key': process.env.AUTH_API_KEY!,
-        'Authorization': `Bearer ${session.accessToken}`,
-      },
-    })
+    const deletedUsers = await db.delete(users)
+      .where(eq(users.id, userId))
+      .returning()
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      return NextResponse.json(
-        { error: errorData.error || 'Failed to deactivate user' },
-        { status: response.status }
-      )
+    if (!deletedUsers.length) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const data = await response.json()
-    return NextResponse.json(data)
+    return NextResponse.json({ message: 'User deactivated successfully' })
   } catch (error) {
     console.error('Error deactivating user:', error)
     return NextResponse.json(

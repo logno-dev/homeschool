@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
+import { getUserById, updateUser } from '@/lib/database'
 
 export async function GET(
   _request: NextRequest,
@@ -12,27 +13,13 @@ export async function GET(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
     
-    const { session } = auth
+    const user = await getUserById(userId)
 
-    // Get user role from auth provider
-    const response = await fetch(`${process.env.AUTH_API_URL}/api/user/${userId}/role`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': process.env.AUTH_API_KEY!,
-        'Authorization': `Bearer ${session.accessToken}`,
-      },
-    })
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      return NextResponse.json(
-        { error: errorData.error || 'Failed to get user role' },
-        { status: response.status }
-      )
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const data = await response.json()
-    return NextResponse.json(data)
+    return NextResponse.json({ role: user.role })
   } catch (error) {
     console.error('Error getting user role:', error)
     return NextResponse.json(
@@ -53,8 +40,6 @@ export async function PATCH(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
     
-    const { session } = auth
-
     const { role } = await request.json()
 
     if (!role) {
@@ -64,30 +49,13 @@ export async function PATCH(
       )
     }
 
-    // Update user role via auth provider
-    const response = await fetch(`${process.env.AUTH_API_URL}/api/user/${userId}/role`, {
-      method: 'PATCH',
-      headers: {
-        'x-api-key': process.env.AUTH_API_KEY!,
-        'Authorization': `Bearer ${session.accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        role,
-        appId: process.env.AUTH_APP_ID,
-      }),
-    })
+    const updatedUser = await updateUser(userId, { role })
 
-    if (!response.ok) {
-      const errorData = await response.json()
-      return NextResponse.json(
-        { error: errorData.error || 'Failed to update user role' },
-        { status: response.status }
-      )
+    if (!updatedUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    const data = await response.json()
-    return NextResponse.json(data)
+    return NextResponse.json({ role: updatedUser.role })
   } catch (error) {
     console.error('Error updating user role:', error)
     return NextResponse.json(

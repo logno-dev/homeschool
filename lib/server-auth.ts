@@ -1,44 +1,96 @@
-import { getServerSession } from 'next-auth'
-import { authOptions } from './auth'
+import { withAuth } from '@workos-inc/authkit-nextjs'
 import { getUsers } from './database'
 import { redirect } from 'next/navigation'
 
+type AppRole = 'admin' | 'moderator' | 'user'
+
+const WORKOS_ROLE_MAP: Record<string, AppRole> = {
+  'org-admin': 'admin',
+  'org-staff': 'moderator',
+  'org-user': 'user',
+  'admin': 'admin',
+  'staff': 'moderator',
+  'user': 'user'
+}
+
+function normalizeRole(role?: string | null): AppRole {
+  if (role === 'admin') return 'admin'
+  if (role === 'moderator') return 'moderator'
+  return 'user'
+}
+
+export function getAppRoleFromSession(session: { role?: string; roles?: string[] } | null): AppRole | null {
+  if (!session) return null
+  const candidates = [session.role, ...(session.roles ?? [])]
+    .filter((role): role is string => typeof role === 'string' && role.length > 0)
+    .map((role) => role.toLowerCase().trim())
+
+  for (const candidate of candidates) {
+    const mapped = WORKOS_ROLE_MAP[candidate]
+    if (mapped === 'admin') return 'admin'
+  }
+
+  for (const candidate of candidates) {
+    const mapped = WORKOS_ROLE_MAP[candidate]
+    if (mapped === 'moderator') return 'moderator'
+  }
+
+  for (const candidate of candidates) {
+    const mapped = WORKOS_ROLE_MAP[candidate]
+    if (mapped === 'user') return 'user'
+  }
+
+  return null
+}
+
+export async function getAppRole(session: { role?: string; roles?: string[]; user?: { id: string } } | null): Promise<AppRole> {
+  const workosRole = getAppRoleFromSession(session)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('WorkOS role snapshot:', {
+      userId: session?.user?.id,
+      role: session?.role,
+      roles: session?.roles
+    })
+  }
+  if (workosRole) return workosRole
+
+  if (!session?.user?.id) return 'user'
+
+  try {
+    const { getGuardianById, getUserById } = await import('./database')
+    const guardian = await getGuardianById(session.user.id)
+    if (guardian?.role) return normalizeRole(guardian.role)
+
+    const user = await getUserById(session.user.id)
+    if (user?.role) return normalizeRole(user.role)
+  } catch (error) {
+    console.error('Error determining user role:', error)
+  }
+
+  return 'user'
+}
+
 export async function getAuthenticatedUser() {
-  const session = await getServerSession(authOptions)
-  
+  const session = await withAuth({ ensureSignedIn: true })
+
   if (!session?.user?.id) {
     redirect('/signin')
   }
-  
+
   return session
 }
 
-export async function checkAdminRole(userId: string): Promise<boolean> {
-  try {
-    // Check guardian table first (primary user data)
-    const { getGuardianById, getUserById } = await import('./database')
-    
-    const guardian = await getGuardianById(userId)
-    if (guardian && (guardian.role === 'admin' || guardian.role === 'moderator')) {
-      return true
-    }
-    
-    // Fallback to users table for backward compatibility
-    const user = await getUserById(userId)
-    if (user && (user.role === 'admin' || user.role === 'moderator')) {
-      return true
-    }
-    
-    return false
-  } catch (error) {
-    console.error('Error checking admin role:', error)
-    return false
+export async function checkAdminRole(session: { role?: string; roles?: string[]; user?: { id: string } } | null): Promise<boolean> {
+  const role = await getAppRole(session)
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Resolved app role:', role)
   }
+  return role === 'admin' || role === 'moderator'
 }
 
 export async function requireAdminAccess() {
   const session = await getAuthenticatedUser()
-  const isAdmin = await checkAdminRole(session.user.id)
+  const isAdmin = await checkAdminRole(session)
   
   if (!isAdmin) {
     redirect('/dashboard')
@@ -48,21 +100,22 @@ export async function requireAdminAccess() {
 }
 
 export async function getAuthenticatedAdmin() {
-  const session = await getServerSession(authOptions)
+  const session = await withAuth()
   if (!session?.user?.id) {
     return { error: 'Unauthorized', status: 401 }
   }
 
-  const isAdmin = await checkAdminRole(session.user.id)
+  const isAdmin = await checkAdminRole(session)
   if (!isAdmin) {
     return { error: 'Forbidden', status: 403 }
   }
 
-  return { session, isAdmin: true }
+  const role = await getAppRole(session)
+  return { session, isAdmin: true, role }
 }
 
 export async function getAuthenticatedUserSession() {
-  const session = await getServerSession(authOptions)
+  const session = await withAuth()
   if (!session?.user?.id) {
     return { error: 'Unauthorized', status: 401 }
   }

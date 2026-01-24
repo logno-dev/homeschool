@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { 
   getClassTeachingRequestById,
   approveClassTeachingRequest,
@@ -8,43 +7,16 @@ import {
   updateClassTeachingRequest,
   getGuardianById
 } from '@/lib/database'
+import { getGradeRangeFromLabel } from '@/lib/grades'
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ requestId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user || !session.accessToken) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
-    // Check if user is admin or moderator
-    const roleResponse = await fetch(`${process.env.AUTH_API_URL}/api/user/${session.user.id}/role`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': process.env.AUTH_API_KEY!,
-        'Authorization': `Bearer ${session.accessToken}`,
-      },
-    })
-
-    if (!roleResponse.ok) {
-      return NextResponse.json(
-        { error: 'Failed to verify role' },
-        { status: 403 }
-      )
-    }
-
-    const roleData = await roleResponse.json()
-    if (!['admin', 'moderator'].includes(roleData.user.role)) {
-      return NextResponse.json(
-        { error: 'Admin or moderator access required' },
-        { status: 403 }
-      )
+    const auth = await getAuthenticatedAdmin()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
     const { requestId } = await params
@@ -72,38 +44,11 @@ export async function PATCH(
   { params }: { params: Promise<{ requestId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user || !session.accessToken) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
+    const auth = await getAuthenticatedAdmin()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-
-    // Check if user is admin or moderator
-    const roleResponse = await fetch(`${process.env.AUTH_API_URL}/api/user/${session.user.id}/role`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': process.env.AUTH_API_KEY!,
-        'Authorization': `Bearer ${session.accessToken}`,
-      },
-    })
-
-    if (!roleResponse.ok) {
-      return NextResponse.json(
-        { error: 'Failed to verify role' },
-        { status: 403 }
-      )
-    }
-
-    const roleData = await roleResponse.json()
-    if (!['admin', 'moderator'].includes(roleData.user.role)) {
-      return NextResponse.json(
-        { error: 'Admin or moderator access required' },
-        { status: 403 }
-      )
-    }
+    const { session } = auth
 
     // Get reviewer guardian record
     const reviewer = await getGuardianById(session.user.id)
@@ -142,6 +87,8 @@ export async function PATCH(
       if (editData.className !== undefined) updateData.className = editData.className.trim()
       if (editData.description !== undefined) updateData.description = editData.description.trim()
       if (editData.gradeRange !== undefined) updateData.gradeRange = editData.gradeRange.trim()
+      if (editData.gradeRangeFrom !== undefined) updateData.gradeRangeFrom = editData.gradeRangeFrom
+      if (editData.gradeRangeTo !== undefined) updateData.gradeRangeTo = editData.gradeRangeTo
       if (editData.maxStudents !== undefined) updateData.maxStudents = parseInt(editData.maxStudents)
       if (editData.helpersNeeded !== undefined) updateData.helpersNeeded = parseInt(editData.helpersNeeded)
       if (editData.coTeacher !== undefined) updateData.coTeacher = editData.coTeacher?.trim() || null
@@ -149,6 +96,25 @@ export async function PATCH(
       if (editData.requiresFee !== undefined) updateData.requiresFee = editData.requiresFee
       if (editData.feeAmount !== undefined) updateData.feeAmount = editData.requiresFee ? parseFloat(editData.feeAmount) : null
       if (editData.schedulingRequirements !== undefined) updateData.schedulingRequirements = editData.schedulingRequirements?.trim() || null
+
+      if (updateData.gradeRange && (updateData.gradeRangeFrom === undefined || updateData.gradeRangeTo === undefined)) {
+        const fallbackRange = getGradeRangeFromLabel(updateData.gradeRange)
+        if (updateData.gradeRangeFrom === undefined) {
+          updateData.gradeRangeFrom = fallbackRange.from
+        }
+        if (updateData.gradeRangeTo === undefined) {
+          updateData.gradeRangeTo = fallbackRange.to
+        }
+      }
+
+      if (updateData.gradeRangeFrom !== undefined && updateData.gradeRangeTo !== undefined) {
+        if (updateData.gradeRangeFrom !== null && updateData.gradeRangeTo !== null && updateData.gradeRangeFrom > updateData.gradeRangeTo) {
+          return NextResponse.json(
+            { error: 'Grade range start must be lower than end.' },
+            { status: 400 }
+          )
+        }
+      }
 
       updatedRequest = await updateClassTeachingRequest(requestId, updateData)
     }

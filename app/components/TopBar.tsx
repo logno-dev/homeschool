@@ -1,15 +1,19 @@
 'use client'
 
-import { signOut, useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter, usePathname } from 'next/navigation'
 
 export default function TopBar() {
-  const { data: session } = useSession()
+  const { user, signOut } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
 
+  const userName = user
+    ? [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+    : ''
+
   // Don't show the top bar on auth pages or if no session
-  if (!session || pathname === '/signin' || pathname === '/register' || pathname === '/forgot-password' || pathname === '/reset-password') {
+  if (!user || pathname === '/signin' || pathname === '/register' || pathname === '/forgot-password' || pathname === '/reset-password') {
     return null
   }
 
@@ -49,13 +53,15 @@ export default function TopBar() {
                 <span className="sm:hidden">Dashboard</span>
               </button>
             )}
-            {session?.user?.name && (
+            {userName && (
               <span className="text-gray-700 text-xs sm:text-sm truncate max-w-24 sm:max-w-none">
-                {session.user.name}
+                {userName}
               </span>
             )}
             <button
-              onClick={() => signOut({ callbackUrl: '/', redirect: true })}
+              onClick={() => {
+                void signOut({ returnTo: '/' })
+              }}
               className="bg-red-600 hover:bg-red-700 text-white px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium whitespace-nowrap"
             >
               <span className="hidden sm:inline">Sign Out</span>

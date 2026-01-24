@@ -1,10 +1,13 @@
 import { getAuthenticatedUser, checkAdminRole } from '@/lib/server-auth'
+import { fetchCalendarEvents, getNextUpcomingEvent } from '@/lib/events'
 import DashboardButtons from '@/app/components/DashboardButtons'
 
 export default async function Dashboard() {
   // Server-side authentication and role checking
   const session = await getAuthenticatedUser()
-  const isAdmin = await checkAdminRole(session.user.id)
+  const isAdmin = await checkAdminRole(session)
+  const events = await fetchCalendarEvents()
+  const nextEvent = getNextUpcomingEvent(events)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -18,7 +21,7 @@ export default async function Dashboard() {
               Welcome to your dashboard! Here you can manage students, teachers, classes, and activities.
             </p>
             
-            <DashboardButtons isAdmin={isAdmin} />
+            <DashboardButtons isAdmin={isAdmin} nextEvent={nextEvent} />
           </div>
         </div>
       </main>

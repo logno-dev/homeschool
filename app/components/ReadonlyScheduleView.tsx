@@ -1,6 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+interface SessionInfo {
+  id: string
+  name: string
+  startDate: string
+  endDate: string
+  registrationStartDate: string
+  registrationEndDate: string
+}
 
 interface ClassRegistration {
   registration: {
@@ -49,6 +56,7 @@ interface ReadonlyScheduleViewProps {
   sessionId: string
   classRegistrations: ClassRegistration[]
   volunteerAssignments: VolunteerAssignment[]
+  sessionInfo?: SessionInfo | null
 }
 
 const PERIODS = [
@@ -61,25 +69,9 @@ const PERIODS = [
 export default function ReadonlyScheduleView({ 
   sessionId, 
   classRegistrations, 
-  volunteerAssignments 
+  volunteerAssignments,
+  sessionInfo
 }: ReadonlyScheduleViewProps) {
-  const [sessionInfo, setSessionInfo] = useState<any>(null)
-
-  useEffect(() => {
-    fetchSessionInfo()
-  }, [sessionId])
-
-  const fetchSessionInfo = async () => {
-    try {
-      const response = await fetch(`/api/admin/sessions/${sessionId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setSessionInfo(data.session)
-      }
-    } catch (error) {
-      console.error('Error fetching session info:', error)
-    }
-  }
 
   // Group registrations by period
   const registrationsByPeriod = classRegistrations.reduce((acc, reg) => {

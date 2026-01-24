@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { getClassroomById, updateClassroom, deleteClassroom } from '@/lib/database'
 
 export async function GET(
@@ -8,37 +7,9 @@ export async function GET(
   { params }: { params: Promise<{ classroomId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user || !session.accessToken) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
-    // Check if user is admin or moderator
-    const roleResponse = await fetch(`${process.env.AUTH_API_URL}/api/user/${session.user.id}/role`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': process.env.AUTH_API_KEY!,
-        'Authorization': `Bearer ${session.accessToken}`,
-      },
-    })
-
-    if (!roleResponse.ok) {
-      return NextResponse.json(
-        { error: 'Failed to verify role' },
-        { status: 403 }
-      )
-    }
-
-    const roleData = await roleResponse.json()
-    if (!['admin', 'moderator'].includes(roleData.user.role)) {
-      return NextResponse.json(
-        { error: 'Admin or moderator access required' },
-        { status: 403 }
-      )
+    const auth = await getAuthenticatedAdmin()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
     const { classroomId } = await params
@@ -66,37 +37,9 @@ export async function PATCH(
   { params }: { params: Promise<{ classroomId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user || !session.accessToken) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
-    // Check if user is admin or moderator
-    const roleResponse = await fetch(`${process.env.AUTH_API_URL}/api/user/${session.user.id}/role`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': process.env.AUTH_API_KEY!,
-        'Authorization': `Bearer ${session.accessToken}`,
-      },
-    })
-
-    if (!roleResponse.ok) {
-      return NextResponse.json(
-        { error: 'Failed to verify role' },
-        { status: 403 }
-      )
-    }
-
-    const roleData = await roleResponse.json()
-    if (!['admin', 'moderator'].includes(roleData.user.role)) {
-      return NextResponse.json(
-        { error: 'Admin or moderator access required' },
-        { status: 403 }
-      )
+    const auth = await getAuthenticatedAdmin()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
     const body = await request.json()
@@ -139,37 +82,9 @@ export async function DELETE(
   { params }: { params: Promise<{ classroomId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user || !session.accessToken) {
-      return NextResponse.json(
-        { error: 'Not authenticated' },
-        { status: 401 }
-      )
-    }
-
-    // Check if user is admin or moderator
-    const roleResponse = await fetch(`${process.env.AUTH_API_URL}/api/user/${session.user.id}/role`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': process.env.AUTH_API_KEY!,
-        'Authorization': `Bearer ${session.accessToken}`,
-      },
-    })
-
-    if (!roleResponse.ok) {
-      return NextResponse.json(
-        { error: 'Failed to verify role' },
-        { status: 403 }
-      )
-    }
-
-    const roleData = await roleResponse.json()
-    if (!['admin', 'moderator'].includes(roleData.user.role)) {
-      return NextResponse.json(
-        { error: 'Admin or moderator access required' },
-        { status: 403 }
-      )
+    const auth = await getAuthenticatedAdmin()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
     const { classroomId } = await params

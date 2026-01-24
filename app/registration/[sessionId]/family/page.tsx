@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 import { useUserSession } from '@/lib/user-session'
 
@@ -77,7 +77,7 @@ interface VolunteerAssignment {
 }
 
 export default function FamilyRegistrationPage({ params }: { params: Promise<{ sessionId: string }> }) {
-  const { data: authSession, status } = useSession()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [schedules, setSchedules] = useState<EnhancedSchedule[]>([])
   const [children, setChildren] = useState<Child[]>([])
@@ -97,11 +97,10 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
   }, [params])
 
   useEffect(() => {
-    // Don't redirect while NextAuth is still loading
-    if (status === "loading") return
+    if (authLoading) return
     
     // Only redirect if we're sure the user is not authenticated
-    if (status === "unauthenticated" || !authSession?.user?.id) {
+    if (!user?.id) {
       router.push('/signin')
       return
     }
@@ -109,7 +108,7 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
     if (!sessionId) return
 
     fetchData()
-  }, [authSession, sessionId, status, router])
+  }, [user, sessionId, authLoading, router])
 
   const fetchData = async () => {
     try {
@@ -238,7 +237,7 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
     return volunteerAssignments[period]
   }
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-lg">Loading family registration...</div>
@@ -246,19 +245,7 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
     )
   }
 
-  // Show loading while NextAuth is loading
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!authSession?.user?.id) {
+  if (!user?.id) {
     return null
   }
 

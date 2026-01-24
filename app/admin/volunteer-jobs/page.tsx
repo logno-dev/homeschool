@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useSession } from 'next-auth/react'
+import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '@/app/components/AdminLayout'
 import { VolunteerJobsManagement } from '@/app/components/VolunteerJobsManagement'
@@ -13,20 +13,20 @@ interface Session {
 }
 
 export default function VolunteerJobsPage() {
-  const { data: session, status } = useSession()
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [sessions, setSessions] = useState<Session[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState<string>('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (status === 'loading') return
-    if (!session) {
+    if (authLoading) return
+    if (!user) {
       router.push('/signin')
       return
     }
     fetchSessions()
-  }, [session, status, router])
+  }, [user, authLoading, router])
 
   const fetchSessions = async () => {
     try {
@@ -50,17 +50,19 @@ export default function VolunteerJobsPage() {
     }
   }
 
-  if (status === 'loading' || loading) {
+  if (authLoading || loading) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>
   }
 
-  if (!session) {
+  if (!user) {
     return null
   }
 
+  const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+
   return (
     <AdminLayout 
-      userName={session.user?.name || session.user?.email || 'User'} 
+      userName={userName || 'User'} 
       activeTab="volunteer-jobs"
     >
       <div className="container mx-auto px-4 py-8">
