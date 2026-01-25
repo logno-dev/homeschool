@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { familySessionFees, feePayments, guardians } from '@/lib/schema'
+import { familySessionFees, feePayments, scholarshipFundTransactions } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
 // Webhook endpoint to handle payment status updates (mock)
 export async function PUT(request: NextRequest) {
   try {
-    const { paymentIntentId, status, amount, familySessionFeeId } = await request.json()
+    const { paymentIntentId, status, amount, donationAmount = 0, familySessionFeeId } = await request.json()
 
     if (status === 'succeeded') {
       // Update the family session fee with the payment
@@ -83,6 +83,7 @@ export async function PUT(request: NextRequest) {
 
       const fee = familyFee[0]
       const paymentAmount = amount / 100 // Convert from cents
+      const donationValue = donationAmount / 100
       const newPaidAmount = fee.paidAmount + paymentAmount
       const newStatus = newPaidAmount >= fee.totalFee ? 'paid' : 'partial'
 
@@ -109,6 +110,20 @@ export async function PUT(request: NextRequest) {
           paymentMethod: 'online',
           notes: `Mock Stripe payment - Intent ID: ${paymentIntentId}`
         })
+
+      if (donationValue > 0) {
+        await db
+          .insert(scholarshipFundTransactions)
+          .values({
+            id: randomUUID(),
+            amount: donationValue,
+            transactionType: 'donation',
+            source: 'online',
+            familyId: fee.familyId,
+            sessionId: fee.sessionId,
+            notes: `Scholarship donation with payment intent ${paymentIntentId}`
+          })
+      }
 
       return NextResponse.json({ success: true })
     }

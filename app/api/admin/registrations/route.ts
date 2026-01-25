@@ -14,6 +14,7 @@ import {
 } from '@/lib/schema'
 import { and, eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { publishRegistrationUpdate } from '@/lib/registration-events'
 
 export async function GET(request: Request) {
   try {
@@ -103,7 +104,9 @@ export async function GET(request: Request) {
       db
         .select({
           id: volunteerJobs.id,
-          title: volunteerJobs.title
+          title: volunteerJobs.title,
+          jobType: volunteerJobs.jobType,
+          quantityAvailable: sessionVolunteerJobs.quantityAvailable
         })
         .from(sessionVolunteerJobs)
         .innerJoin(volunteerJobs, eq(sessionVolunteerJobs.volunteerJobId, volunteerJobs.id))
@@ -275,6 +278,7 @@ export async function POST(request: Request) {
       })
       .returning()
 
+    publishRegistrationUpdate(sessionId)
     return NextResponse.json({ registration: inserted[0] })
   } catch (error) {
     console.error('Error creating registration:', error)

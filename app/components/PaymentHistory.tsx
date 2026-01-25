@@ -64,6 +64,8 @@ export default function PaymentHistory() {
         return '💵 Cash'
       case 'check':
         return '📝 Check'
+      case 'scholarship':
+        return '🎓 Scholarship Fund'
       default:
         return method
     }

@@ -2,7 +2,7 @@ export const runtime = 'nodejs'
 
 import { isAfter, isBefore, parseISO, format } from 'date-fns'
 import { redirect } from 'next/navigation'
-import { getAuthenticatedUser } from '@/lib/server-auth'
+import { checkAdminRole, getAuthenticatedUser } from '@/lib/server-auth'
 import { getSessionById } from '@/lib/database'
 import { checkUserFamilyTeacherStatus } from '@/lib/early-registration'
 import { getRegistrationStatus } from '@/lib/registration-status'
@@ -15,11 +15,12 @@ import { getRegistrationScheduleBundle } from '@/lib/registration'
 export default async function RegistrationPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const session = await getAuthenticatedUser()
   const { sessionId } = await params
-  const [sessionData, registrationStatus, hasEarlyAccess, scheduleBundle] = await Promise.all([
+  const [sessionData, registrationStatus, hasEarlyAccess, scheduleBundle, isStaffAdmin] = await Promise.all([
     getSessionById(sessionId),
     getRegistrationStatus(sessionId, session.user.id),
     checkUserFamilyTeacherStatus(session.user.id, sessionId),
-    getRegistrationScheduleBundle(sessionId, session.user.id)
+    getRegistrationScheduleBundle(sessionId, session.user.id),
+    checkAdminRole(session)
   ])
 
   if (!session?.user?.id) {
@@ -54,6 +55,11 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
     } else if (isAfter(now, registrationEnd)) {
       reason = `Registration closed on ${format(registrationEnd, 'MMM d, yyyy \'at\' h:mm a')}`
     }
+  }
+
+  if (isStaffAdmin) {
+    canRegister = Boolean(classSessionInfo?.isActive && scheduleBundle.schedules.length > 0)
+    reason = canRegister ? '' : 'No active session or published schedule is available.'
   }
 
   const registrationAccess = {
@@ -153,7 +159,12 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
               </div>
             )}
 
-            <RegistrationProvider teachingAssignments={scheduleBundle.teachingAssignments}>
+            <RegistrationProvider
+              teachingAssignments={scheduleBundle.teachingAssignments}
+              sessionId={sessionId}
+              initialRegistrations={scheduleBundle.initialRegistrations}
+              initialVolunteerAssignments={scheduleBundle.initialVolunteerAssignments}
+            >
               {/* Volunteer Hour Counter */}
               <VolunteerHourCounter teachingAssignments={scheduleBundle.teachingAssignments} />
 
@@ -287,7 +298,12 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
               </div>
             )}
 
-            <RegistrationProvider teachingAssignments={scheduleBundle.teachingAssignments}>
+            <RegistrationProvider
+              teachingAssignments={scheduleBundle.teachingAssignments}
+              sessionId={sessionId}
+              initialRegistrations={scheduleBundle.initialRegistrations}
+              initialVolunteerAssignments={scheduleBundle.initialVolunteerAssignments}
+            >
               {/* Volunteer Hour Counter */}
               <VolunteerHourCounter teachingAssignments={scheduleBundle.teachingAssignments} />
 

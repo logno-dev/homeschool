@@ -3,6 +3,7 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { classRegistrations, schedules, classTeachingRequests } from '@/lib/schema'
 import { and, eq } from 'drizzle-orm'
+import { publishRegistrationUpdate } from '@/lib/registration-events'
 
 export async function PATCH(
   request: Request,
@@ -76,6 +77,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Registration not found' }, { status: 404 })
     }
 
+    publishRegistrationUpdate(updated[0].sessionId)
     return NextResponse.json({ registration: updated[0] })
   } catch (error) {
     console.error('Error updating registration:', error)

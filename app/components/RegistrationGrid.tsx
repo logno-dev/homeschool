@@ -1,7 +1,7 @@
 'use client'
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Modal from './Modal'
 import { useToast } from './ToastContainer'
 import { useRegistration } from './RegistrationContext'
@@ -130,6 +130,7 @@ export default function RegistrationGrid({
     addChildRegistration, 
     addVolunteerAssignment, 
     pendingRegistrations,
+    setSessionId,
     isChildRegisteredInPeriod,
     isGuardianAssignedInPeriod,
     getVolunteerAssignmentForPeriod,
@@ -138,6 +139,9 @@ export default function RegistrationGrid({
     isScheduleConflicted,
     getPendingRegistrationsForSchedule
   } = useRegistration()
+  const [scheduleData, setScheduleData] = useState(schedules)
+  const [volunteerJobsData, setVolunteerJobsData] = useState(volunteerJobs)
+  const [nonPeriodJobsData, setNonPeriodJobsData] = useState(nonPeriodVolunteerJobs)
   
   const [selectedClass, setSelectedClass] = useState<EnhancedSchedule | null>(null)
   const [showRegistrationModal, setShowRegistrationModal] = useState(false)
@@ -146,16 +150,16 @@ export default function RegistrationGrid({
   const [showVolunteerSelectionModal, setShowVolunteerSelectionModal] = useState(false)
 
   const classrooms = useMemo(() => {
-    return schedules.reduce((acc, schedule) => {
+    return scheduleData.reduce((acc, schedule) => {
       if (!acc.find((room) => room.id === schedule.classroom.id)) {
         acc.push(schedule.classroom)
       }
       return acc
     }, [] as Classroom[])
-  }, [schedules])
+  }, [scheduleData])
 
   const groupedSchedules = useMemo(() => {
-    return schedules.reduce((acc, schedule) => {
+    return scheduleData.reduce((acc, schedule) => {
       const period = schedule.schedule.period
       if (!acc[period]) {
         acc[period] = {}
@@ -163,14 +167,13 @@ export default function RegistrationGrid({
       acc[period][schedule.classroom.id] = schedule
       return acc
     }, {} as Record<string, Record<string, EnhancedSchedule>>)
-  }, [schedules])
+  }, [scheduleData])
 
   const normalizedTeachingAssignments = useMemo(() => teachingAssignments, [teachingAssignments])
 
   // Helper function to calculate effective available spots including pending registrations
   const getEffectiveAvailableSpots = (schedule: EnhancedSchedule) => {
-    const pendingRegistrations = getPendingRegistrationsForSchedule(schedule.schedule.id)
-    return schedule.availableSpots - pendingRegistrations
+    return schedule.availableSpots
   }
 
   const handleClassClick = (schedule: EnhancedSchedule) => {
@@ -178,12 +181,40 @@ export default function RegistrationGrid({
     setShowRegistrationModal(true)
   }
 
-  const handleChildRegistration = (child: Child, schedule: EnhancedSchedule) => {
+  const refreshScheduleData = async () => {
+    try {
+      const response = await fetch(`/api/registration/schedules/${sessionId}`)
+      if (!response.ok) return
+      const payload = await response.json()
+      setScheduleData(payload.schedules || [])
+      setVolunteerJobsData(payload.volunteerJobs || [])
+      setNonPeriodJobsData(payload.nonPeriodVolunteerJobs || [])
+    } catch (error) {
+      console.error('Failed to refresh registration data:', error)
+    }
+  }
+
+  useEffect(() => {
+    setSessionId(sessionId)
+  }, [sessionId, setSessionId])
+
+  useEffect(() => {
+    const source = new EventSource(`/api/registration/stream?sessionId=${sessionId}`)
+    source.onmessage = () => {
+      refreshScheduleData()
+    }
+    source.onerror = () => {
+      source.close()
+    }
+
+    return () => {
+      source.close()
+    }
+  }, [sessionId])
+
+  const handleChildRegistration = async (child: Child, schedule: EnhancedSchedule) => {
     // Check if adding this child would exceed available spots
-    const pendingRegistrations = getPendingRegistrationsForSchedule(schedule.schedule.id)
-    const totalRegistrations = schedule.currentRegistrations + pendingRegistrations
-    
-    if (registrationMode === 'registered' && totalRegistrations >= schedule.classTeachingRequest.maxStudents) {
+    if (registrationMode === 'registered' && schedule.availableSpots <= 0) {
       showError('Class is full!', `Cannot add ${child.firstName} ${child.lastName} to ${schedule.classTeachingRequest.className} - all spots are taken.`)
       return
     }
@@ -203,21 +234,25 @@ export default function RegistrationGrid({
     }
 
     const teacher = `${schedule.teacher.firstName} ${schedule.teacher.lastName}`
-    addChildRegistration({
-      scheduleId: schedule.schedule.id,
-      childId: child.id,
-      className: schedule.classTeachingRequest.className,
-      period: schedule.schedule.period,
-      teacher,
-      classroom: schedule.classroom.name,
-      status: registrationMode
-    })
-    const statusLabel = registrationMode === 'waitlisted' ? 'waitlist' : 'class'
-    showSuccess('Added to cart!', `${child.firstName} ${child.lastName} added to the ${statusLabel} for ${schedule.classTeachingRequest.className}`)
-    setShowChildSelectionModal(false)
+    try {
+      await addChildRegistration({
+        scheduleId: schedule.schedule.id,
+        childId: child.id,
+        className: schedule.classTeachingRequest.className,
+        period: schedule.schedule.period,
+        teacher,
+        classroom: schedule.classroom.name,
+        status: registrationMode
+      })
+      const statusLabel = registrationMode === 'waitlisted' ? 'waitlist' : 'class'
+      showSuccess('Added to cart!', `${child.firstName} ${child.lastName} added to the ${statusLabel} for ${schedule.classTeachingRequest.className}`)
+      setShowChildSelectionModal(false)
+    } catch (error) {
+      showError('Unable to reserve spot', error instanceof Error ? error.message : 'Failed to reserve class spot.')
+    }
   }
 
-  const handleVolunteerAssignment = (guardian: Guardian, schedule: EnhancedSchedule) => {
+  const handleVolunteerAssignment = async (guardian: Guardian, schedule: EnhancedSchedule) => {
     // Check for conflicts before adding assignment
     if (hasGuardianConflictInPeriod(guardian.id, schedule.schedule.period, normalizedTeachingAssignments)) {
       const conflictDetails = getGuardianConflictDetails(guardian.id, schedule.schedule.period, normalizedTeachingAssignments)
@@ -226,18 +261,22 @@ export default function RegistrationGrid({
     }
 
     const teacher = `${schedule.teacher.firstName} ${schedule.teacher.lastName}`
-    addVolunteerAssignment({
-      scheduleId: schedule.schedule.id,
-      guardianId: guardian.id,
-      period: schedule.schedule.period,
-      volunteerType: 'helper',
-      className: schedule.classTeachingRequest.className,
-      teacher,
-      classroom: schedule.classroom.name,
-      guardianName: `${guardian.firstName} ${guardian.lastName}`
-    })
-    showSuccess('Added to cart!', `${guardian.firstName} ${guardian.lastName} added as volunteer for ${schedule.classTeachingRequest.className}`)
-    setShowVolunteerSelectionModal(false)
+    try {
+      await addVolunteerAssignment({
+        scheduleId: schedule.schedule.id,
+        guardianId: guardian.id,
+        period: schedule.schedule.period,
+        volunteerType: 'helper',
+        className: schedule.classTeachingRequest.className,
+        teacher,
+        classroom: schedule.classroom.name,
+        guardianName: `${guardian.firstName} ${guardian.lastName}`
+      })
+      showSuccess('Added to cart!', `${guardian.firstName} ${guardian.lastName} added as volunteer for ${schedule.classTeachingRequest.className}`)
+      setShowVolunteerSelectionModal(false)
+    } catch (error) {
+      showError('Unable to reserve volunteer slot', error instanceof Error ? error.message : 'Failed to reserve volunteer slot.')
+    }
   }
 
   const pendingRoster = useMemo(() => {
@@ -720,18 +759,18 @@ export default function RegistrationGrid({
       </Modal>
 
       {/* Volunteer Jobs Grid */}
-      {volunteerJobs && volunteerJobs.length > 0 && (
+      {volunteerJobsData && volunteerJobsData.length > 0 && (
         <VolunteerJobsGrid 
-          volunteerJobs={volunteerJobs}
+          volunteerJobs={volunteerJobsData}
           guardians={guardians || []}
-          schedules={schedules || []}
+          schedules={scheduleData || []}
         />
       )}
 
       {/* Non-Period Volunteer Jobs */}
-      {nonPeriodVolunteerJobs && nonPeriodVolunteerJobs.length > 0 && (
+      {nonPeriodJobsData && nonPeriodJobsData.length > 0 && (
         <NonPeriodVolunteerJobs 
-          volunteerJobs={nonPeriodVolunteerJobs}
+          volunteerJobs={nonPeriodJobsData}
           guardians={guardians || []}
         />
       )}

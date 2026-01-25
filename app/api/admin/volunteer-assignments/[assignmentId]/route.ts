@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { volunteerAssignments, schedules } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 import { getGuardianById } from '@/lib/database'
+import { publishRegistrationUpdate } from '@/lib/registration-events'
 
 export async function PATCH(
   request: Request,
@@ -65,6 +66,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
     }
 
+    publishRegistrationUpdate(updated[0].sessionId)
     return NextResponse.json({ assignment: updated[0] })
   } catch (error) {
     console.error('Error updating volunteer assignment:', error)

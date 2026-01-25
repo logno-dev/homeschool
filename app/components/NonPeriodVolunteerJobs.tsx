@@ -28,7 +28,7 @@ interface NonPeriodVolunteerJobsProps {
 }
 
 export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians }: NonPeriodVolunteerJobsProps) {
-  const { showSuccess } = useToast()
+  const { showSuccess, showError } = useToast()
   const { 
     addVolunteerAssignment,
     pendingVolunteerAssignments
@@ -42,21 +42,26 @@ export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians }: Non
     setShowVolunteerModal(true)
   }
 
-  const handleVolunteerAssignment = (guardian: Guardian) => {
+  const handleVolunteerAssignment = async (guardian: Guardian) => {
     if (!selectedJob) return
 
-    addVolunteerAssignment({
-      sessionVolunteerJobId: selectedJob.sessionVolunteerJobId,
-      guardianId: guardian.id,
-      period: 'non_period', // Special period for non-period jobs
-      volunteerType: 'volunteer_job',
-      jobTitle: selectedJob.title,
-      guardianName: `${guardian.firstName} ${guardian.lastName}`
-    })
-    
-    showSuccess('Added to cart!', `${guardian.firstName} ${guardian.lastName} added as volunteer for ${selectedJob.title}`)
-    setShowVolunteerModal(false)
-    setSelectedJob(null)
+    try {
+      await addVolunteerAssignment({
+        sessionVolunteerJobId: selectedJob.sessionVolunteerJobId,
+        volunteerJobId: selectedJob.id,
+        guardianId: guardian.id,
+        period: 'non_period', // Special period for non-period jobs
+        volunteerType: 'volunteer_job',
+        jobTitle: selectedJob.title,
+        guardianName: `${guardian.firstName} ${guardian.lastName}`
+      })
+      
+      showSuccess('Added to cart!', `${guardian.firstName} ${guardian.lastName} added as volunteer for ${selectedJob.title}`)
+      setShowVolunteerModal(false)
+      setSelectedJob(null)
+    } catch (error) {
+      showError('Unable to reserve volunteer job', error instanceof Error ? error.message : 'Failed to reserve volunteer job.')
+    }
   }
 
   // Get assignments for this specific job

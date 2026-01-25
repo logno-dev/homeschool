@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import FeesSummary from '@/app/components/FeesSummary'
 import PaymentHistory from '@/app/components/PaymentHistory'
+import ScholarshipDonationCard from '@/app/components/ScholarshipDonationCard'
 
 export default function PaymentsPage() {
   const [activeTab, setActiveTab] = useState<'fees' | 'history'>('fees')
@@ -55,6 +56,9 @@ export default function PaymentsPage() {
               </p>
             </div>
             <FeesSummary />
+            <div className="mt-6">
+              <ScholarshipDonationCard compact />
+            </div>
           </div>
         )}
 

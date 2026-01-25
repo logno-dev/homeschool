@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { volunteerAssignments, schedules } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { publishRegistrationUpdate } from '@/lib/registration-events'
 import { getGuardianById } from '@/lib/database'
 
 export async function POST(request: Request) {
@@ -54,6 +55,7 @@ export async function POST(request: Request) {
       })
       .returning()
 
+    publishRegistrationUpdate(sessionId)
     return NextResponse.json({ assignment: inserted[0] })
   } catch (error) {
     console.error('Error creating volunteer assignment:', error)

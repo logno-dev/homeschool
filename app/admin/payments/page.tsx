@@ -368,6 +368,7 @@ export default function PaymentsPage() {
                 <option value="cash">Cash</option>
                 <option value="check">Check</option>
                 <option value="online">Online</option>
+                <option value="scholarship">Scholarship</option>
               </select>
             </div>
             

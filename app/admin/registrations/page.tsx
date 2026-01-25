@@ -67,6 +67,8 @@ interface VolunteerAssignmentRow {
 interface VolunteerJobOption {
   id: string
   title: string
+  jobType: string
+  quantityAvailable: number
 }
 
 interface GuardianOption {
@@ -215,6 +217,30 @@ export default function AdminRegistrationsPage() {
     return volunteerAssignments.filter((assignment) => assignment.schedule?.id === selectedSchedule.id && assignment.status === 'assigned')
   }, [volunteerAssignments, selectedSchedule])
 
+  const nonPeriodJobs = useMemo(
+    () => volunteerJobs.filter((job) => job.jobType === 'non_period'),
+    [volunteerJobs]
+  )
+
+  const periodJobs = useMemo(
+    () => volunteerJobs.filter((job) => job.jobType === 'period_based'),
+    [volunteerJobs]
+  )
+
+  const assignmentsByJob = useMemo(() => {
+    const map = new Map<string, VolunteerAssignmentRow[]>()
+    volunteerAssignments
+      .filter((assignment) => assignment.status === 'assigned' && assignment.volunteerJob?.id)
+      .forEach((assignment) => {
+        const jobId = assignment.volunteerJob?.id
+        if (!jobId) return
+        const list = map.get(jobId) || []
+        list.push(assignment)
+        map.set(jobId, list)
+      })
+    return map
+  }, [volunteerAssignments])
+
   const openClassModal = (schedule: ScheduleOption) => {
     setSelectedSchedule(schedule)
     setShowClassModal(true)
@@ -300,26 +326,47 @@ export default function AdminRegistrationsPage() {
     }
   }
 
-  const openAssignmentModal = (assignment?: VolunteerAssignmentRow) => {
+  const openAssignmentModal = (assignment?: VolunteerAssignmentRow, job?: VolunteerJobOption) => {
     setEditingAssignment(assignment || null)
     if (assignment) {
       setAssignmentForm({
         guardianId: assignment.guardian.id,
         volunteerType: assignment.volunteerType,
-        scheduleId: assignment.schedule?.id || selectedSchedule?.id || '',
+        scheduleId: assignment.volunteerType === 'volunteer_job' ? '' : assignment.schedule?.id || selectedSchedule?.id || '',
         volunteerJobId: assignment.volunteerJob?.id || '',
         period: assignment.period
       })
     } else {
       setAssignmentForm({
         guardianId: '',
-        volunteerType: 'helper',
-        scheduleId: selectedSchedule?.id || '',
-        volunteerJobId: '',
-        period: selectedSchedule?.period || 'first'
+        volunteerType: job ? 'volunteer_job' : 'helper',
+        scheduleId: job ? '' : selectedSchedule?.id || '',
+        volunteerJobId: job?.id || '',
+        period: job?.jobType === 'non_period' ? 'non_period' : selectedSchedule?.period || 'first'
       })
     }
     setShowAssignmentModal(true)
+  }
+
+  const selectedVolunteerJob = useMemo(
+    () => volunteerJobs.find((job) => job.id === assignmentForm.volunteerJobId) || null,
+    [volunteerJobs, assignmentForm.volunteerJobId]
+  )
+
+  const volunteerPeriodOptions = useMemo(() => {
+    if (assignmentForm.volunteerType === 'volunteer_job' && selectedVolunteerJob?.jobType === 'non_period') {
+      return [{ id: 'non_period', name: 'Non-period' }]
+    }
+    return PERIODS
+  }, [assignmentForm.volunteerType, selectedVolunteerJob])
+
+  const handleVolunteerJobChange = (jobId: string) => {
+    const job = volunteerJobs.find((item) => item.id === jobId)
+    setAssignmentForm((prev) => ({
+      ...prev,
+      volunteerJobId: jobId,
+      period: job?.jobType === 'non_period' ? 'non_period' : prev.period
+    }))
   }
 
   const handleSaveAssignment = async () => {
@@ -452,6 +499,134 @@ export default function AdminRegistrationsPage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {nonPeriodJobs.length > 0 && (
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">Non-Period Volunteer Jobs</h2>
+                <p className="text-sm text-gray-500">Volunteer opportunities not tied to a classroom period.</p>
+              </div>
+              <div className="divide-y divide-gray-200">
+                {nonPeriodJobs.map((job) => {
+                  const assignments = assignmentsByJob.get(job.id) || []
+                  const availableSpots = job.quantityAvailable - assignments.length
+                  return (
+                    <div key={job.id} className="px-6 py-4">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <div className="font-medium text-gray-900">{job.title}</div>
+                          <div className="text-xs text-gray-500">
+                            {assignments.length} assigned • {availableSpots} available
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => openAssignmentModal(undefined, job)}
+                          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                        >
+                          Assign Volunteer
+                        </button>
+                      </div>
+                      {assignments.length === 0 ? (
+                        <p className="mt-2 text-sm text-gray-500">No volunteers assigned yet.</p>
+                      ) : (
+                        <ul className="mt-3 space-y-2">
+                          {assignments.map((assignment) => (
+                            <li key={assignment.id} className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
+                              <div>
+                                <div className="font-medium text-gray-900">
+                                  {assignment.guardian.firstName} {assignment.guardian.lastName}
+                                </div>
+                                <div className="text-xs text-gray-500">Volunteer Job</div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => openAssignmentModal(assignment)}
+                                  className="text-sm text-blue-600 hover:text-blue-700"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveAssignment(assignment.id)}
+                                  className="text-sm text-red-600 hover:text-red-700"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {periodJobs.length > 0 && (
+            <div className="bg-white shadow rounded-lg overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900">Period Volunteer Jobs</h2>
+                <p className="text-sm text-gray-500">Volunteer opportunities tied to a specific period but not a classroom.</p>
+              </div>
+              <div className="divide-y divide-gray-200">
+                {periodJobs.map((job) => {
+                  const assignments = assignmentsByJob.get(job.id) || []
+                  const availableSpots = job.quantityAvailable - assignments.length
+                  return (
+                    <div key={job.id} className="px-6 py-4">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <div className="font-medium text-gray-900">{job.title}</div>
+                          <div className="text-xs text-gray-500">
+                            {assignments.length} assigned • {availableSpots} available
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => openAssignmentModal(undefined, job)}
+                          className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                        >
+                          Assign Volunteer
+                        </button>
+                      </div>
+                      {assignments.length === 0 ? (
+                        <p className="mt-2 text-sm text-gray-500">No volunteers assigned yet.</p>
+                      ) : (
+                        <ul className="mt-3 space-y-2">
+                          {assignments.map((assignment) => (
+                            <li key={assignment.id} className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
+                              <div>
+                                <div className="font-medium text-gray-900">
+                                  {assignment.guardian.firstName} {assignment.guardian.lastName}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {PERIODS.find((period) => period.id === assignment.period)?.name || assignment.period}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => openAssignmentModal(assignment)}
+                                  className="text-sm text-blue-600 hover:text-blue-700"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleRemoveAssignment(assignment.id)}
+                                  className="text-sm text-red-600 hover:text-red-700"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
@@ -691,7 +866,7 @@ export default function AdminRegistrationsPage() {
               onChange={(e) => setAssignmentForm({
                 ...assignmentForm,
                 volunteerType: e.target.value,
-                scheduleId: selectedSchedule?.id || '',
+                scheduleId: e.target.value === 'volunteer_job' ? '' : selectedSchedule?.id || '',
                 volunteerJobId: ''
               })}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
@@ -707,7 +882,7 @@ export default function AdminRegistrationsPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Volunteer Job</label>
               <select
                 value={assignmentForm.volunteerJobId}
-                onChange={(e) => setAssignmentForm({ ...assignmentForm, volunteerJobId: e.target.value })}
+                onChange={(e) => handleVolunteerJobChange(e.target.value)}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
               >
                 <option value="">Select job</option>
@@ -739,9 +914,9 @@ export default function AdminRegistrationsPage() {
               value={assignmentForm.period}
               onChange={(e) => setAssignmentForm({ ...assignmentForm, period: e.target.value })}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-              disabled={assignmentForm.volunteerType !== 'volunteer_job'}
+              disabled={assignmentForm.volunteerType !== 'volunteer_job' || selectedVolunteerJob?.jobType === 'non_period'}
             >
-              {PERIODS.map((period) => (
+              {volunteerPeriodOptions.map((period) => (
                 <option key={period.id} value={period.id}>{period.name}</option>
               ))}
             </select>

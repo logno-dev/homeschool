@@ -1,5 +1,4 @@
 'use client'
-'use client'
 
 import { useRegistration } from './RegistrationContext'
 
@@ -21,6 +20,8 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
     pendingVolunteerAssignments
   } = useRegistration()
 
+  const periodOrder: Record<string, number> = { first: 0, second: 1, lunch: 2, third: 3 }
+
   // Calculate required volunteer hours (1 hour per period with students, excluding lunch)
   const getRequiredVolunteerHours = () => {
     const periodsWithStudents = new Set(
@@ -31,24 +32,60 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
     return periodsWithStudents.size
   }
 
+  const periodsWithStudents = new Set(
+    pendingRegistrations
+      .map(r => r.period)
+      .filter(period => period !== 'lunch')
+  )
+  const requiredPeriods = Array.from(periodsWithStudents).sort((a, b) => (periodOrder[a] ?? 99) - (periodOrder[b] ?? 99))
+
   // Calculate fulfilled volunteer hours
   const getFulfilledVolunteerHours = () => {
-    // Count period-based volunteer assignments (excluding non-period jobs)
-    const periodBasedHours = pendingVolunteerAssignments.filter(a => a.period !== 'non_period').length
-    
-    // Count non-period volunteer jobs (each counts as 1 hour regardless of period)
+    const coveredPeriods = new Set<string>()
+    pendingVolunteerAssignments
+      .filter(a => a.period !== 'non_period' && periodsWithStudents.has(a.period))
+      .forEach(a => coveredPeriods.add(a.period))
+
+    teachingAssignments
+      .filter(t => t.period !== 'lunch' && periodsWithStudents.has(t.period))
+      .forEach(t => coveredPeriods.add(t.period))
+
     const nonPeriodHours = pendingVolunteerAssignments.filter(a => a.period === 'non_period').length
-    
-    // Count teaching assignments (each counts as 1 hour per period)
-    const teachingHours = teachingAssignments.filter(t => t.period !== 'lunch').length
-    
-    return periodBasedHours + nonPeriodHours + teachingHours
+    const remainingPeriods = Math.max(0, periodsWithStudents.size - coveredPeriods.size)
+    const wildcardCoverage = Math.min(nonPeriodHours, remainingPeriods)
+
+    return coveredPeriods.size + wildcardCoverage
   }
 
   const requiredHours = getRequiredVolunteerHours()
   const fulfilledHours = getFulfilledVolunteerHours()
   const isComplete = fulfilledHours >= requiredHours
   const remainingHours = Math.max(0, requiredHours - fulfilledHours)
+
+  const coveredPeriods = new Set<string>()
+  const periodVolunteerAssignments = pendingVolunteerAssignments.filter(
+    (assignment) => assignment.period !== 'non_period' && periodsWithStudents.has(assignment.period)
+  )
+  periodVolunteerAssignments.forEach((assignment) => coveredPeriods.add(assignment.period))
+
+  const invalidPeriodAssignments = pendingVolunteerAssignments.filter(
+    (assignment) => assignment.period !== 'non_period' && !periodsWithStudents.has(assignment.period)
+  )
+
+  const teachingAssignmentsByPeriod = teachingAssignments.filter(
+    (assignment) => assignment.period !== 'lunch' && periodsWithStudents.has(assignment.period)
+  )
+  teachingAssignmentsByPeriod.forEach((assignment) => coveredPeriods.add(assignment.period))
+
+  const invalidTeachingAssignments = teachingAssignments.filter(
+    (assignment) => assignment.period !== 'lunch' && !periodsWithStudents.has(assignment.period)
+  )
+
+  const nonPeriodAssignments = pendingVolunteerAssignments.filter(a => a.period === 'non_period')
+  const remainingPeriods = Math.max(0, requiredHours - coveredPeriods.size)
+  const wildcardCoverage = Math.min(nonPeriodAssignments.length, remainingPeriods)
+  const missingPeriods = requiredPeriods.filter((period) => !coveredPeriods.has(period))
+  const missingPeriodsAfterWildcard = missingPeriods.slice(wildcardCoverage)
 
   // Always show the counter to provide guidance to users
 
@@ -59,7 +96,7 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Volunteer Hour Requirements</h2>
           <p className="text-sm text-gray-600">
             {requiredHours > 0 
-              ? "Each family must volunteer for 1 hour per period where they have students registered."
+              ? "Each family must volunteer for 1 hour in every period where they have students registered. Non-period volunteer jobs can cover any missing period."
               : "Register students for classes to see your volunteer hour requirements. Each period with students requires 1 volunteer hour."
             }
           </p>
@@ -154,7 +191,7 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
             <div>
               <h4 className="font-medium text-gray-900 mb-2">Required Hours Breakdown:</h4>
               <div className="space-y-1 text-gray-600">
-                {Array.from(new Set(pendingRegistrations.map(r => r.period).filter(p => p !== 'lunch'))).map(period => (
+                {requiredPeriods.map(period => (
                   <div key={period} className="flex justify-between">
                     <span className="capitalize">{period} Period:</span>
                     <span>1 hour</span>
@@ -164,6 +201,11 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
                   <div className="text-gray-500 italic">No students registered yet</div>
                 )}
               </div>
+              {missingPeriodsAfterWildcard.length > 0 && (
+                <div className="mt-3 text-sm text-orange-700">
+                  Missing coverage: {missingPeriodsAfterWildcard.map((period) => `${period} period`).join(', ')}
+                </div>
+              )}
             </div>
 
             {/* Fulfilled Hours Breakdown */}
@@ -171,20 +213,20 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
               <h4 className="font-medium text-gray-900 mb-2">Fulfilled Hours Breakdown:</h4>
               <div className="space-y-1 text-gray-600">
                 {/* Teaching assignments */}
-                {teachingAssignments.filter(t => t.period !== 'lunch').map((assignment, index) => (
+                {teachingAssignmentsByPeriod.map((assignment, index) => (
                   <div key={`teaching-${index}`} className="flex justify-between">
                     <span className="capitalize">{assignment.period} Period ({assignment.guardianName} Teaching {assignment.className}):</span>
                     <span>1 hour</span>
                   </div>
                 ))}
                 {/* Volunteer assignments */}
-                {pendingVolunteerAssignments.filter(a => a.period !== 'non_period').map((assignment, index) => (
+                {periodVolunteerAssignments.map((assignment, index) => (
                   <div key={index} className="flex justify-between">
                     <span className="capitalize">{assignment.period} Period ({assignment.volunteerType}):</span>
                     <span>1 hour</span>
                   </div>
                 ))}
-                {pendingVolunteerAssignments.filter(a => a.period === 'non_period').map((assignment, index) => (
+                {nonPeriodAssignments.slice(0, wildcardCoverage).map((assignment, index) => (
                   <div key={`non-period-${index}`} className="flex justify-between">
                     <span>General Volunteer ({assignment.jobTitle}):</span>
                     <span>1 hour</span>
@@ -194,6 +236,29 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
                   <div className="text-gray-500 italic">No volunteer assignments yet</div>
                 )}
               </div>
+              {(invalidTeachingAssignments.length > 0 || invalidPeriodAssignments.length > 0 || nonPeriodAssignments.length > wildcardCoverage) && (
+                <div className="mt-3 space-y-1 !text-red-600">
+                  <div className="font-medium !text-red-600">Does not count toward requirements:</div>
+                  {invalidTeachingAssignments.map((assignment, index) => (
+                    <div key={`invalid-teaching-${index}`} className="flex justify-between !text-red-600">
+                      <span className="capitalize">{assignment.period} Period ({assignment.guardianName} Teaching {assignment.className})</span>
+                      <span>(no students registered)</span>
+                    </div>
+                  ))}
+                  {invalidPeriodAssignments.map((assignment, index) => (
+                    <div key={`invalid-period-${index}`} className="flex justify-between !text-red-600">
+                      <span className="capitalize">{assignment.period} Period ({assignment.volunteerType})</span>
+                      <span>(no students registered)</span>
+                    </div>
+                  ))}
+                  {nonPeriodAssignments.slice(wildcardCoverage).map((assignment, index) => (
+                    <div key={`extra-non-period-${index}`} className="flex justify-between !text-red-600">
+                      <span>General Volunteer ({assignment.jobTitle})</span>
+                      <span>(no unmet periods remaining)</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

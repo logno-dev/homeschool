@@ -74,6 +74,12 @@ export default function DashboardButtons({ isAdmin, nextEvent }: DashboardButton
       <div className="bg-white p-4 sm:p-6 rounded-lg shadow hover:shadow-md transition-shadow">
         <h3 className="text-lg font-medium text-gray-900 mb-2">Resources</h3>
         <p className="text-gray-600 text-sm sm:text-base">Access educational resources and materials</p>
+        <button
+          onClick={() => router.push('/resources')}
+          className="mt-4 bg-gray-900 hover:bg-gray-800 active:bg-gray-700 text-white px-4 py-3 sm:py-2 rounded-md text-base sm:text-sm font-medium w-full sm:w-auto touch-manipulation transition-colors"
+        >
+          View Resources
+        </button>
       </div>
       
       {isAdmin && (

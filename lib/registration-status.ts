@@ -9,7 +9,7 @@ import {
   classrooms,
   children
 } from '@/lib/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { getGuardianById, getGuardiansByFamily } from '@/lib/database'
 
 export async function getRegistrationStatus(sessionId: string, userId: string) {
@@ -53,7 +53,8 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
       .innerJoin(children, eq(classRegistrations.childId, children.id))
       .where(and(
         eq(classRegistrations.familyId, familyId),
-        eq(classRegistrations.sessionId, sessionId)
+        eq(classRegistrations.sessionId, sessionId),
+        inArray(classRegistrations.status, ['registered', 'waitlisted', 'pending'])
       )),
     db
       .select({
@@ -68,7 +69,8 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
       .leftJoin(classrooms, eq(schedules.classroomId, classrooms.id))
       .where(and(
         eq(volunteerAssignments.familyId, familyId),
-        eq(volunteerAssignments.sessionId, sessionId)
+        eq(volunteerAssignments.sessionId, sessionId),
+        inArray(volunteerAssignments.status, ['assigned', 'pending'])
       ))
   ])
 

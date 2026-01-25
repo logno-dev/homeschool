@@ -22,12 +22,20 @@ export default function Home() {
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             {!loading && !user && (
-              <Link
-                href="/signin"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200"
-              >
-                Sign In / Register
-              </Link>
+              <>
+                <Link
+                  href="/signin"
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/signup"
+                  className="border border-indigo-600 text-indigo-600 hover:bg-indigo-50 font-semibold py-3 px-8 rounded-lg transition-colors duration-200"
+                >
+                  Create Account
+                </Link>
+              </>
             )}
             <Link
               href="/about"

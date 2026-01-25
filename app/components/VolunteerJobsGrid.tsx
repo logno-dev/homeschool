@@ -29,9 +29,9 @@ interface VolunteerJobsGridProps {
 }
 
 const PERIODS = [
-  { id: 1, name: 'Period 1' },
-  { id: 2, name: 'Period 2' },
-  { id: 3, name: 'Period 3' }
+  { id: 'first', name: 'First Period' },
+  { id: 'second', name: 'Second Period' },
+  { id: 'third', name: 'Third Period' }
 ]
 
 export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules = [] }: VolunteerJobsGridProps) {
@@ -55,13 +55,13 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
     volunteerType: 'teacher'
   }))
 
-  const handleJobClick = (job: VolunteerJob, period: number) => {
+  const handleJobClick = (job: VolunteerJob, period: string) => {
     setSelectedJob(job)
-    setSelectedPeriod(period.toString())
+    setSelectedPeriod(period)
     setShowVolunteerModal(true)
   }
 
-  const handleVolunteerAssignment = (guardian: Guardian) => {
+  const handleVolunteerAssignment = async (guardian: Guardian) => {
     if (!selectedJob || !selectedPeriod) return
 
     // Check for conflicts before adding assignment
@@ -71,19 +71,24 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
       return
     }
 
-    addVolunteerAssignment({
-      sessionVolunteerJobId: selectedJob.sessionVolunteerJobId,
-      guardianId: guardian.id,
-      period: selectedPeriod,
-      volunteerType: 'volunteer_job',
-      jobTitle: selectedJob.title,
-      guardianName: `${guardian.firstName} ${guardian.lastName}`
-    })
-    
-    showSuccess('Added to cart!', `${guardian.firstName} ${guardian.lastName} added as volunteer for ${selectedJob.title}`)
-    setShowVolunteerModal(false)
-    setSelectedJob(null)
-    setSelectedPeriod('')
+    try {
+      await addVolunteerAssignment({
+        sessionVolunteerJobId: selectedJob.sessionVolunteerJobId,
+        volunteerJobId: selectedJob.id,
+        guardianId: guardian.id,
+        period: selectedPeriod,
+        volunteerType: 'volunteer_job',
+        jobTitle: selectedJob.title,
+        guardianName: `${guardian.firstName} ${guardian.lastName}`
+      })
+      
+      showSuccess('Added to cart!', `${guardian.firstName} ${guardian.lastName} added as volunteer for ${selectedJob.title}`)
+      setShowVolunteerModal(false)
+      setSelectedJob(null)
+      setSelectedPeriod('')
+    } catch (error) {
+      showError('Unable to reserve volunteer job', error instanceof Error ? error.message : 'Failed to reserve volunteer job.')
+    }
   }
 
   if (volunteerJobs.length === 0) {
@@ -128,9 +133,9 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                       </div>
                     </td>
                     {PERIODS.map((period) => {
-                      const currentAssignment = getVolunteerAssignmentForPeriod(period.id.toString())
+                      const currentAssignment = getVolunteerAssignmentForPeriod(period.id)
                       const isAssigned = currentAssignment && currentAssignment.sessionVolunteerJobId === job.sessionVolunteerJobId
-                      
+
                       return (
                         <td key={period.id} className="px-6 py-4 whitespace-nowrap">
                           <div
@@ -186,7 +191,7 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
               
               <div className="p-4 space-y-4">
                 {PERIODS.map((period) => {
-                  const currentAssignment = getVolunteerAssignmentForPeriod(period.id.toString())
+                  const currentAssignment = getVolunteerAssignmentForPeriod(period.id)
                   const isAssigned = currentAssignment && currentAssignment.sessionVolunteerJobId === job.sessionVolunteerJobId
                   
                   return (

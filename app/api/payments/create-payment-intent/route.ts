@@ -11,7 +11,8 @@ export async function POST(request: NextRequest) {
   try {
     const session = await getAuthenticatedUser()
 
-    const { familySessionFeeId, amount } = await request.json()
+    const { familySessionFeeId, amount, donationAmount = 0 } = await request.json()
+    const normalizedDonationAmount = Number(donationAmount) || 0
 
     // Verify the user has access to this family fee
     const guardian = await getGuardianById(session.user.id)
@@ -44,6 +45,12 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    if (normalizedDonationAmount < 0) {
+      return NextResponse.json({ error: 'Donation amount must be a positive value' }, { status: 400 })
+    }
+
+    const totalCharge = amount + normalizedDonationAmount
+
     // Create mock payment intent (mimics Stripe's structure)
     const paymentIntentId = `pi_mock_${randomUUID().replace(/-/g, '')}`
     const clientSecret = `${paymentIntentId}_secret_${randomUUID().replace(/-/g, '')}`
@@ -53,14 +60,15 @@ export async function POST(request: NextRequest) {
     const mockPaymentIntent = {
       id: paymentIntentId,
       object: 'payment_intent',
-      amount: Math.round(amount * 100), // Stripe uses cents
+      amount: Math.round(totalCharge * 100), // Stripe uses cents
       currency: 'usd',
       status: 'requires_payment_method',
       client_secret: clientSecret,
       metadata: {
         familySessionFeeId,
         familyId: guardian.familyId,
-        sessionId: fee.sessionId
+        sessionId: fee.sessionId,
+        donationAmount: normalizedDonationAmount
       },
       created: Math.floor(Date.now() / 1000),
       description: `DVCLC Session Fee Payment - $${amount.toFixed(2)}`

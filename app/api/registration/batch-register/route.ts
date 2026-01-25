@@ -10,13 +10,15 @@ import {
   classTeachingRequests,
   children,
   familyRegistrationStatus,
-  sessions
+  sessions,
+  sessionVolunteerJobs
 } from '@/lib/schema'
-import { eq, and, inArray } from 'drizzle-orm'
+import { eq, and, inArray, or, gt } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { isAfter, isBefore, parseISO } from 'date-fns'
 import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
 import { isGradeWithinRange } from '@/lib/grades'
+import { publishRegistrationUpdate } from '@/lib/registration-events'
 
 interface PendingRegistration {
   scheduleId: string
@@ -51,6 +53,37 @@ interface ConflictDetails {
   message: string
 }
 
+const normalizePeriod = (period: string) => {
+  switch (period) {
+    case '1':
+    case 'first':
+      return 'first'
+    case '2':
+    case 'second':
+      return 'second'
+    case '3':
+    case 'third':
+      return 'third'
+    case 'lunch':
+      return 'lunch'
+    case 'non_period':
+      return 'non_period'
+    default:
+      return period
+  }
+}
+
+const getPeriodAliases = (period: string) => {
+  const normalized = normalizePeriod(period)
+  const numericLookup: Record<string, string | undefined> = {
+    first: '1',
+    second: '2',
+    third: '3'
+  }
+  const numeric = numericLookup[normalized]
+  return Array.from(new Set([period, normalized, numeric].filter((value): value is string => typeof value === 'string' && value.length > 0)))
+}
+
 interface ValidationResult {
   success: boolean
   conflicts?: ConflictDetails[]
@@ -71,6 +104,7 @@ async function validateRegistration(
 ): Promise<ValidationResult> {
   const conflicts: ConflictDetails[] = []
   const gradeRangeConflicts: ConflictDetails[] = []
+  const now = new Date().toISOString()
   
   // Check for class capacity conflicts
   for (const registration of registrations) {
@@ -117,37 +151,61 @@ async function validateRegistration(
       }
       
       if (registration.status !== 'waitlisted') {
-        const currentRegistrations = await db
-          .select()
-          .from(classRegistrations)
-          .where(eq(classRegistrations.scheduleId, registration.scheduleId))
+      const currentRegistrations = await db
+        .select()
+        .from(classRegistrations)
+        .where(eq(classRegistrations.scheduleId, registration.scheduleId))
 
-        if (currentRegistrations.length >= classTeachingRequest.maxStudents) {
-          conflicts.push({
-            type: 'class_full',
-            scheduleId: registration.scheduleId,
-            period: registration.period,
-            className: registration.className,
-            message: `Class "${registration.className}" is full (${currentRegistrations.length}/${classTeachingRequest.maxStudents})`
-          })
-        }
+      const totalRegistrations = currentRegistrations.filter((row) =>
+        row.status === 'registered' ||
+        row.status === 'pending' ||
+        (row.status === 'hold' && row.holdExpiresAt && row.holdExpiresAt > now)
+      ).length
+
+      if (totalRegistrations >= classTeachingRequest.maxStudents) {
+        conflicts.push({
+          type: 'class_full',
+          scheduleId: registration.scheduleId,
+          period: registration.period,
+          className: registration.className,
+          message: `Class "${registration.className}" is full (${totalRegistrations}/${classTeachingRequest.maxStudents})`
+        })
       }
+    }
     }
 
     // Check for child period conflicts
     if (registration.status !== 'waitlisted') {
       const existingRegistration = await db
-        .select()
+        .select({
+          status: classRegistrations.status,
+          scheduleId: classRegistrations.scheduleId,
+          familyId: classRegistrations.familyId,
+          holdExpiresAt: classRegistrations.holdExpiresAt
+        })
         .from(classRegistrations)
         .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
         .where(and(
           eq(classRegistrations.childId, registration.childId),
           eq(classRegistrations.sessionId, sessionId),
-          eq(schedules.period, registration.period)
+          eq(schedules.period, registration.period),
+          or(
+            inArray(classRegistrations.status, ['registered', 'pending']),
+            and(eq(classRegistrations.status, 'hold'), gt(classRegistrations.holdExpiresAt, now))
+          )
         ))
         .limit(1)
 
       if (existingRegistration.length > 0) {
+        const existing = existingRegistration[0]
+        const isOwnHold =
+          existing.status === 'hold' &&
+          existing.familyId === familyId &&
+          existing.scheduleId === registration.scheduleId
+
+        if (isOwnHold) {
+          continue
+        }
         conflicts.push({
           type: 'child_conflict',
           scheduleId: registration.scheduleId,
@@ -161,25 +219,47 @@ async function validateRegistration(
 
   // Check for volunteer assignment conflicts
   for (const assignment of volunteerAssignmentsList) {
+    const normalizedPeriod = normalizePeriod(assignment.period)
+    const periodAliases = getPeriodAliases(assignment.period)
     // Check if guardian is already assigned for this period
     const existingAssignment = await db
-      .select()
+      .select({
+        id: volunteerAssignments.id,
+        status: volunteerAssignments.status,
+        familyId: volunteerAssignments.familyId,
+        scheduleId: volunteerAssignments.scheduleId,
+        volunteerJobId: volunteerAssignments.volunteerJobId,
+        holdExpiresAt: volunteerAssignments.holdExpiresAt
+      })
       .from(volunteerAssignments)
       .where(and(
         eq(volunteerAssignments.guardianId, assignment.guardianId),
         eq(volunteerAssignments.sessionId, sessionId),
-        eq(volunteerAssignments.period, assignment.period)
+        inArray(volunteerAssignments.period, periodAliases),
+        or(
+          inArray(volunteerAssignments.status, ['assigned', 'pending']),
+          and(eq(volunteerAssignments.status, 'hold'), gt(volunteerAssignments.holdExpiresAt, now))
+        )
       ))
 
     if (existingAssignment.length > 0) {
+      const existing = existingAssignment[0]
+      const matchesAssignment = existing.scheduleId
+        ? existing.scheduleId === assignment.scheduleId
+        : existing.volunteerJobId === assignment.volunteerJobId
+      const isOwnHold = existing.status === 'hold' && existing.familyId === familyId && matchesAssignment
+
+      if (isOwnHold) {
+        continue
+      }
       conflicts.push({
         type: 'guardian_conflict',
         scheduleId: assignment.scheduleId,
         volunteerJobId: assignment.volunteerJobId,
-        period: assignment.period,
+        period: normalizedPeriod,
         className: assignment.className,
         jobTitle: assignment.jobTitle,
-        message: `Guardian is already assigned as a volunteer for the ${assignment.period} period`
+        message: `Guardian is already assigned as a volunteer for the ${normalizedPeriod} period`
       })
     }
 
@@ -203,7 +283,11 @@ async function validateRegistration(
           .from(volunteerAssignments)
           .where(and(
             eq(volunteerAssignments.scheduleId, assignment.scheduleId),
-            eq(volunteerAssignments.volunteerType, 'helper')
+            eq(volunteerAssignments.volunteerType, 'helper'),
+            or(
+              inArray(volunteerAssignments.status, ['assigned', 'pending']),
+              and(eq(volunteerAssignments.status, 'hold'), gt(volunteerAssignments.holdExpiresAt, now))
+            )
           ))
 
         if (currentHelpers.length >= classTeachingRequest.helpersNeeded) {
@@ -213,6 +297,41 @@ async function validateRegistration(
             period: assignment.period,
             className: assignment.className,
             message: `No helper spots available for "${assignment.className}" (${currentHelpers.length}/${classTeachingRequest.helpersNeeded})`
+          })
+        }
+      }
+    }
+
+    if (assignment.volunteerJobId && assignment.volunteerType === 'volunteer_job') {
+      const sessionJob = await db
+        .select({ quantityAvailable: sessionVolunteerJobs.quantityAvailable })
+        .from(sessionVolunteerJobs)
+        .where(and(
+          eq(sessionVolunteerJobs.sessionId, sessionId),
+          eq(sessionVolunteerJobs.volunteerJobId, assignment.volunteerJobId)
+        ))
+        .limit(1)
+
+      if (sessionJob.length > 0) {
+        const currentAssignments = await db
+          .select()
+          .from(volunteerAssignments)
+          .where(and(
+            eq(volunteerAssignments.sessionId, sessionId),
+            eq(volunteerAssignments.volunteerJobId, assignment.volunteerJobId),
+            or(
+              inArray(volunteerAssignments.status, ['assigned', 'pending']),
+              and(eq(volunteerAssignments.status, 'hold'), gt(volunteerAssignments.holdExpiresAt, now))
+            )
+          ))
+
+        if (currentAssignments.length >= sessionJob[0].quantityAvailable) {
+          conflicts.push({
+            type: 'volunteer_full',
+            volunteerJobId: assignment.volunteerJobId,
+            period: normalizedPeriod,
+            jobTitle: assignment.jobTitle,
+            message: `No spots available for "${assignment.jobTitle || 'volunteer job'}" (${currentAssignments.length}/${sessionJob[0].quantityAvailable})`
           })
         }
       }
@@ -253,12 +372,12 @@ async function validateRegistration(
 
   const coveredPeriods = new Set(
     volunteerAssignmentsList
-      .filter(a => a.period !== 'non_period')
-      .map(a => a.period)
+      .map(a => normalizePeriod(a.period))
+      .filter(period => period !== 'non_period' && periodsWithStudents.has(period))
   )
 
   teachingAssignmentsForValidation
-    .filter((t: any) => t.period !== 'lunch')
+    .filter((t: any) => t.period !== 'lunch' && periodsWithStudents.has(t.period))
     .forEach((t: any) => coveredPeriods.add(t.period))
 
   const nonPeriodVolunteerHours = volunteerAssignmentsList.filter(a => a.period === 'non_period').length
@@ -550,48 +669,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // Get teaching assignments for any guardian in the family
-    const familyGuardiansForFinalCheck = await db
-      .select({ id: guardians.id })
-      .from(guardians)
-      .where(eq(guardians.familyId, familyId))
-
-    const familyGuardianIdsForFinalCheck = familyGuardiansForFinalCheck.map(g => g.id)
-
-    let teachingAssignmentsForFinalCheck: any[] = []
-    if (familyGuardianIdsForFinalCheck.length > 0) {
-      teachingAssignmentsForFinalCheck = await db
-        .select({
-          period: schedules.period
-        })
-        .from(schedules)
-        .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-        .where(and(
-          eq(schedules.sessionId, sessionId),
-          inArray(classTeachingRequests.guardianId, familyGuardianIdsForFinalCheck)
-        ))
-    }
-
-    // Validate volunteer requirements using total-based logic
-    const periodsWithStudents = new Set(
-      registrations
-        .filter((registration) => registration.status !== 'waitlisted')
-        .map(r => r.period)
-        .filter(p => p !== 'lunch')
-    )
-    const requiredHours = periodsWithStudents.size
-    
-    // Count fulfilled hours: period-based volunteers + non-period volunteers + teaching assignments
-    const periodBasedVolunteerHours = volunteerAssignmentsList.filter(a => a.period !== 'non_period').length
-    const nonPeriodVolunteerHours = volunteerAssignmentsList.filter(a => a.period === 'non_period').length
-    const teachingHours = teachingAssignmentsForFinalCheck.filter((t: any) => t.period !== 'lunch').length
-    const fulfilledHours = periodBasedVolunteerHours + nonPeriodVolunteerHours + teachingHours
-    
-    if (fulfilledHours < requiredHours) {
-      return NextResponse.json({ 
-        error: `Volunteer requirement not met. You need ${requiredHours} volunteer hours but only have ${fulfilledHours} hours fulfilled. Each family must volunteer for ${requiredHours} hours total (1 hour per period with students).` 
-      }, { status: 400 })
-    }
+    const holdReferenceTime = new Date().toISOString()
 
     // Process registrations without large transaction to avoid Turso timeouts
     console.log('Starting registration processing...')
@@ -608,19 +686,37 @@ export async function POST(request: Request) {
         console.log('Checking existing registration...')
         if (registration.status !== 'waitlisted') {
           const existingRegistration = await tx
-            .select()
+            .select({
+              id: classRegistrations.id,
+              status: classRegistrations.status,
+              scheduleId: classRegistrations.scheduleId,
+              familyId: classRegistrations.familyId,
+              holdExpiresAt: classRegistrations.holdExpiresAt
+            })
             .from(classRegistrations)
             .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
             .where(and(
               eq(classRegistrations.childId, registration.childId),
               eq(classRegistrations.sessionId, sessionId),
-              eq(schedules.period, registration.period)
+              eq(schedules.period, registration.period),
+              or(
+                inArray(classRegistrations.status, ['registered', 'pending']),
+                and(eq(classRegistrations.status, 'hold'), gt(classRegistrations.holdExpiresAt, holdReferenceTime))
+              )
             ))
             .limit(1)
           console.log('Existing registration check complete')
 
           if (existingRegistration.length > 0) {
-            throw new Error(`Child is already registered for a class in the ${registration.period} period`)
+            const existing = existingRegistration[0]
+            const isOwnHold =
+              existing.status === 'hold' &&
+              existing.familyId === familyId &&
+              existing.scheduleId === registration.scheduleId
+
+            if (!isOwnHold) {
+              throw new Error(`Child is already registered for a class in the ${registration.period} period`)
+            }
           }
         }
 
@@ -648,23 +744,66 @@ export async function POST(request: Request) {
             .from(classRegistrations)
             .where(eq(classRegistrations.scheduleId, registration.scheduleId))
 
-          if (currentRegistrations.length >= classTeachingRequest.maxStudents) {
+          const totalRegistrations = currentRegistrations.filter((row) =>
+            row.status === 'registered' ||
+            row.status === 'pending' ||
+            (row.status === 'hold' && row.holdExpiresAt && row.holdExpiresAt > holdReferenceTime)
+          ).length
+
+          if (totalRegistrations >= classTeachingRequest.maxStudents) {
             throw new Error(`Class is full: ${registration.className}`)
           }
         }
 
         // Register the child
-        const registrationId = randomUUID()
         const registrationStatus = registration.status === 'waitlisted' ? 'waitlisted' : 'registered'
-        await tx.insert(classRegistrations).values({
-          id: registrationId,
-          sessionId,
-          scheduleId: registration.scheduleId,
-          childId: registration.childId,
-          familyId,
-          registeredBy: session.user.id,
-          status: registrationStatus
-        })
+        if (registrationStatus === 'registered') {
+          const existingHold = await tx
+            .select({ id: classRegistrations.id })
+            .from(classRegistrations)
+            .where(and(
+              eq(classRegistrations.sessionId, sessionId),
+              eq(classRegistrations.familyId, familyId),
+              eq(classRegistrations.childId, registration.childId),
+              eq(classRegistrations.scheduleId, registration.scheduleId),
+              eq(classRegistrations.status, 'hold'),
+              gt(classRegistrations.holdExpiresAt, holdReferenceTime)
+            ))
+            .limit(1)
+
+          if (existingHold.length > 0) {
+            await tx
+              .update(classRegistrations)
+              .set({
+                status: 'registered',
+                holdExpiresAt: null,
+                updatedAt: new Date().toISOString()
+              })
+              .where(eq(classRegistrations.id, existingHold[0].id))
+          } else {
+            const registrationId = randomUUID()
+            await tx.insert(classRegistrations).values({
+              id: registrationId,
+              sessionId,
+              scheduleId: registration.scheduleId,
+              childId: registration.childId,
+              familyId,
+              registeredBy: session.user.id,
+              status: registrationStatus
+            })
+          }
+        } else {
+          const registrationId = randomUUID()
+          await tx.insert(classRegistrations).values({
+            id: registrationId,
+            sessionId,
+            scheduleId: registration.scheduleId,
+            childId: registration.childId,
+            familyId,
+            registeredBy: session.user.id,
+            status: registrationStatus
+          })
+        }
 
         registeredCount++
       })
@@ -672,19 +811,40 @@ export async function POST(request: Request) {
 
     // Process volunteer assignments
     for (const assignment of volunteerAssignmentsList) {
+      const normalizedPeriod = normalizePeriod(assignment.period)
+      const periodAliases = getPeriodAliases(assignment.period)
       await db.transaction(async (tx) => {
         // Check if guardian is already assigned for this period
         const existingAssignment = await tx
-          .select()
+          .select({
+            id: volunteerAssignments.id,
+            status: volunteerAssignments.status,
+            familyId: volunteerAssignments.familyId,
+            scheduleId: volunteerAssignments.scheduleId,
+            volunteerJobId: volunteerAssignments.volunteerJobId,
+            holdExpiresAt: volunteerAssignments.holdExpiresAt
+          })
           .from(volunteerAssignments)
           .where(and(
             eq(volunteerAssignments.guardianId, assignment.guardianId),
             eq(volunteerAssignments.sessionId, sessionId),
-            eq(volunteerAssignments.period, assignment.period)
+            inArray(volunteerAssignments.period, periodAliases),
+            or(
+              inArray(volunteerAssignments.status, ['assigned', 'pending']),
+              and(eq(volunteerAssignments.status, 'hold'), gt(volunteerAssignments.holdExpiresAt, holdReferenceTime))
+            )
           ))
 
         if (existingAssignment.length > 0) {
-          throw new Error(`Guardian is already assigned as a volunteer for the ${assignment.period} period`)
+          const existing = existingAssignment[0]
+          const matchesAssignment = existing.scheduleId
+            ? existing.scheduleId === assignment.scheduleId
+            : existing.volunteerJobId === assignment.volunteerJobId
+          const isOwnHold = existing.status === 'hold' && existing.familyId === familyId && matchesAssignment
+
+          if (!isOwnHold) {
+            throw new Error(`Guardian is already assigned as a volunteer for the ${normalizedPeriod} period`)
+          }
         }
 
         // Handle class-based volunteer assignments (teacher, helper, co_teacher)
@@ -713,7 +873,11 @@ export async function POST(request: Request) {
               .from(volunteerAssignments)
               .where(and(
                 eq(volunteerAssignments.scheduleId, assignment.scheduleId),
-                eq(volunteerAssignments.volunteerType, 'helper')
+                eq(volunteerAssignments.volunteerType, 'helper'),
+                or(
+                  inArray(volunteerAssignments.status, ['assigned', 'pending']),
+                  and(eq(volunteerAssignments.status, 'hold'), gt(volunteerAssignments.holdExpiresAt, holdReferenceTime))
+                )
               ))
 
             if (currentHelpers.length >= classTeachingRequest.helpersNeeded) {
@@ -721,33 +885,81 @@ export async function POST(request: Request) {
             }
           }
 
-          // Add volunteer assignment
-          const assignmentId = randomUUID()
-          await tx.insert(volunteerAssignments).values({
-            id: assignmentId,
-            sessionId,
-            guardianId: assignment.guardianId,
-            familyId,
-            period: assignment.period,
-            volunteerType: assignment.volunteerType,
-            scheduleId: assignment.scheduleId,
-            status: 'assigned'
-          })
+          const existingHold = await tx
+            .select({ id: volunteerAssignments.id })
+            .from(volunteerAssignments)
+            .where(and(
+              eq(volunteerAssignments.sessionId, sessionId),
+              eq(volunteerAssignments.familyId, familyId),
+              eq(volunteerAssignments.guardianId, assignment.guardianId),
+              eq(volunteerAssignments.scheduleId, assignment.scheduleId),
+              eq(volunteerAssignments.period, normalizedPeriod),
+              eq(volunteerAssignments.status, 'hold'),
+              gt(volunteerAssignments.holdExpiresAt, holdReferenceTime)
+            ))
+            .limit(1)
+
+          if (existingHold.length > 0) {
+            await tx
+              .update(volunteerAssignments)
+              .set({
+                status: 'assigned',
+                holdExpiresAt: null,
+                updatedAt: new Date().toISOString()
+              })
+              .where(eq(volunteerAssignments.id, existingHold[0].id))
+          } else {
+            const assignmentId = randomUUID()
+            await tx.insert(volunteerAssignments).values({
+              id: assignmentId,
+              sessionId,
+              guardianId: assignment.guardianId,
+              familyId,
+              period: normalizedPeriod,
+              volunteerType: assignment.volunteerType,
+              scheduleId: assignment.scheduleId,
+              status: 'assigned'
+            })
+          }
         } 
         // Handle admin-created volunteer jobs
         else if (assignment.volunteerJobId && assignment.volunteerType === 'volunteer_job') {
-          // Add volunteer assignment for admin job
-          const assignmentId = randomUUID()
-          await tx.insert(volunteerAssignments).values({
-            id: assignmentId,
-            sessionId,
-            guardianId: assignment.guardianId,
-            familyId,
-            period: assignment.period,
-            volunteerType: assignment.volunteerType,
-            volunteerJobId: assignment.volunteerJobId,
-            status: 'assigned'
-          })
+          const existingHold = await tx
+            .select({ id: volunteerAssignments.id })
+            .from(volunteerAssignments)
+            .where(and(
+              eq(volunteerAssignments.sessionId, sessionId),
+              eq(volunteerAssignments.familyId, familyId),
+              eq(volunteerAssignments.guardianId, assignment.guardianId),
+              eq(volunteerAssignments.volunteerJobId, assignment.volunteerJobId),
+              eq(volunteerAssignments.period, normalizedPeriod),
+              eq(volunteerAssignments.status, 'hold'),
+              gt(volunteerAssignments.holdExpiresAt, holdReferenceTime)
+            ))
+            .limit(1)
+
+          if (existingHold.length > 0) {
+            await tx
+              .update(volunteerAssignments)
+              .set({
+                status: 'assigned',
+                holdExpiresAt: null,
+                updatedAt: new Date().toISOString()
+              })
+              .where(eq(volunteerAssignments.id, existingHold[0].id))
+          } else {
+            const assignmentId = randomUUID()
+            await tx.insert(volunteerAssignments).values({
+              id: assignmentId,
+              sessionId,
+              guardianId: assignment.guardianId,
+              familyId,
+              period: normalizedPeriod,
+              volunteerType: assignment.volunteerType,
+              volunteerJobId: assignment.volunteerJobId,
+              status: 'assigned'
+            })
+          }
         } else {
           throw new Error(`Invalid volunteer assignment: missing scheduleId or volunteerJobId`)
         }
@@ -763,6 +975,8 @@ export async function POST(request: Request) {
       console.error('Error calculating fees:', feeError)
       // Don't fail the registration if fee calculation fails, just log it
     }
+
+    publishRegistrationUpdate(sessionId)
 
     return NextResponse.json({ 
       success: true, 

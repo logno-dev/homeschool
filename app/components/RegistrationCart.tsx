@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRegistration } from './RegistrationContext'
 import { useToast } from './ToastContainer'
 import Modal from './Modal'
+import { PaymentForm } from './PaymentForm'
 
 
 const PERIODS = [
@@ -43,6 +44,18 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
   const [showCart, setShowCart] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [showAdminOverrideModal, setShowAdminOverrideModal] = useState(false)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [pendingPaymentFee, setPendingPaymentFee] = useState<{
+    id: string
+    sessionName: string
+    registrationFee: number
+    classFees: number
+    totalFee: number
+    paidAmount: number
+    remainingAmount: number
+    dueDate: string
+    isOverdue: boolean
+  } | null>(null)
   const [overrideReason, setOverrideReason] = useState('')
   const [overrideContext, setOverrideContext] = useState<'volunteer' | 'grade_range' | 'mixed'>('volunteer')
   const [gradeRangeConflicts, setGradeRangeConflicts] = useState<string[]>([])
@@ -52,6 +65,28 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
     fulfilledHours: number
     canRequestOverride: boolean
   } | null>(null)
+
+  const [timeReference, setTimeReference] = useState(Date.now())
+
+  useEffect(() => {
+    if (!showCart) return
+    const interval = setInterval(() => setTimeReference(Date.now()), 60000)
+    return () => clearInterval(interval)
+  }, [showCart])
+
+  const formatHoldCountdown = (expiresAt?: string | null) => {
+    if (!expiresAt) return null
+    const remainingMs = new Date(expiresAt).getTime() - timeReference
+    if (Number.isNaN(remainingMs)) return null
+    if (remainingMs <= 0) return 'Hold expired'
+    const totalMinutes = Math.ceil(remainingMs / 60000)
+    const hours = Math.floor(totalMinutes / 60)
+    const minutes = totalMinutes % 60
+    if (hours > 0) {
+      return `Hold expires in ${hours}h ${minutes}m`
+    }
+    return `Hold expires in ${minutes}m`
+  }
 
   const submitAllRegistrations = async (requestAdminOverride = false) => {
     if (pendingRegistrations.length === 0) {
@@ -133,15 +168,17 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
           'Registration Complete!', 
           `Successfully registered ${result.registeredCount} child${result.registeredCount === 1 ? '' : 'ren'} and ${result.volunteerCount} volunteer${result.volunteerCount === 1 ? '' : 's'}.`
         )
+        await loadPaymentPrompt()
       }
       
       // Clear the cart and close modal
-      clearAllRegistrations()
+      await clearAllRegistrations(false)
       setShowCart(false)
       setShowAdminOverrideModal(false)
-      
-      // Refresh the page to show updated data
-      window.location.reload()
+
+      if (result.adminOverrideRequested) {
+        window.location.reload()
+      }
       
     } catch (error) {
       console.error('Error submitting registrations:', error)
@@ -149,6 +186,41 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const loadPaymentPrompt = async () => {
+    try {
+      const response = await fetch('/api/family/fees')
+      if (!response.ok) {
+        window.location.reload()
+        return
+      }
+
+      const payload = await response.json()
+      const fee = (payload.fees || []).find((entry: { sessionId: string }) => entry.sessionId === sessionId)
+
+      if (!fee || fee.remainingAmount <= 0) {
+        window.location.reload()
+        return
+      }
+
+      setPendingPaymentFee(fee)
+      setShowPaymentModal(true)
+    } catch (error) {
+      console.error('Failed to load payment data:', error)
+      window.location.reload()
+    }
+  }
+
+  const handlePaymentSuccess = () => {
+    setShowPaymentModal(false)
+    window.location.reload()
+  }
+
+  const handlePaymentDefer = () => {
+    showError('Payment deferred', 'Your selections may not be guaranteed if payment is not completed promptly.')
+    setShowPaymentModal(false)
+    window.location.reload()
   }
 
   const handleAdminOverrideRequest = async () => {
@@ -335,9 +407,16 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
                         {registration.status === 'waitlisted' && (
                           <p className="text-xs text-yellow-700 font-medium">Waitlist</p>
                         )}
+                        {registration.holdExpiresAt && (
+                          <p className="text-xs text-amber-600 mt-1">
+                            {formatHoldCountdown(registration.holdExpiresAt)}
+                          </p>
+                        )}
                       </div>
                         <button
-                          onClick={() => removeChildRegistration(registration.childId, registration.period, registration.scheduleId)}
+                          onClick={async () => {
+                            await removeChildRegistration(registration.childId, registration.period, registration.scheduleId)
+                          }}
                           className="text-red-600 hover:text-red-800 text-sm"
                         >
                         Remove
@@ -369,9 +448,16 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
                             {assignment.teacher} • {assignment.classroom}
                           </p>
                         )}
+                        {assignment.holdExpiresAt && (
+                          <p className="text-xs text-amber-600 mt-1">
+                            {formatHoldCountdown(assignment.holdExpiresAt)}
+                          </p>
+                        )}
                       </div>
                       <button
-                        onClick={() => removeVolunteerAssignment(assignment.period)}
+                        onClick={async () => {
+                          await removeVolunteerAssignment(assignment.period)
+                        }}
                         className="text-red-600 hover:text-red-800 text-sm"
                       >
                         Remove
@@ -386,8 +472,8 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
           {/* Action Buttons */}
           <div className="flex justify-between pt-4 border-t">
             <button
-              onClick={() => {
-                clearAllRegistrations()
+              onClick={async () => {
+                await clearAllRegistrations(true)
                 setShowCart(false)
               }}
               className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400 transition-colors"
@@ -422,6 +508,60 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
           </div>
         </div>
       </Modal>
+
+      {showPaymentModal && pendingPaymentFee && (
+        <Modal
+          isOpen={showPaymentModal}
+          onClose={handlePaymentDefer}
+          title={`Pay Session Fee - ${pendingPaymentFee.sessionName}`}
+          size="lg"
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              Payment is due upon registration. If you defer payment, your selections may not be guaranteed.
+            </div>
+            <div className="bg-gray-50 p-4 rounded-md">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-600">Registration Fee:</span>
+                  <span className="ml-2 font-medium">${pendingPaymentFee.registrationFee.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Class Fees:</span>
+                  <span className="ml-2 font-medium">${pendingPaymentFee.classFees.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Total Fee:</span>
+                  <span className="ml-2 font-medium">${pendingPaymentFee.totalFee.toFixed(2)}</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Amount Paid:</span>
+                  <span className="ml-2 font-medium">${pendingPaymentFee.paidAmount.toFixed(2)}</span>
+                </div>
+                <div className="col-span-2 pt-2 border-t border-gray-200">
+                  <span className="text-gray-600">Amount Due:</span>
+                  <span className="ml-2 font-bold text-lg">${pendingPaymentFee.remainingAmount.toFixed(2)}</span>
+                </div>
+                <div className="col-span-2">
+                  <span className="text-gray-600">Due Date:</span>
+                  <span className="ml-2 font-medium">{new Date(pendingPaymentFee.dueDate).toLocaleDateString()}</span>
+                  {pendingPaymentFee.isOverdue && (
+                    <span className="ml-2 text-red-600 font-medium">(OVERDUE)</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <PaymentForm
+              familySessionFeeId={pendingPaymentFee.id}
+              amount={pendingPaymentFee.remainingAmount}
+              onSuccess={handlePaymentSuccess}
+              onCancel={handlePaymentDefer}
+              cancelLabel="Defer Payment"
+            />
+          </div>
+        </Modal>
+      )}
 
       {/* Admin Override Request Modal */}
       <Modal

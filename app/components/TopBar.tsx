@@ -28,6 +28,7 @@ export default function TopBar() {
     if (pathname === '/calendar') return 'Calendar'
     if (pathname.startsWith('/family/profile')) return 'Family Profile'
     if (pathname.startsWith('/family/payments')) return 'Family Payments'
+    if (pathname.startsWith('/resources')) return 'Resources'
     if (pathname.startsWith('/family/')) return 'Family'
     if (pathname.startsWith('/admin')) return 'Admin Panel'
     if (pathname.startsWith('/registration')) return 'Class Registration'

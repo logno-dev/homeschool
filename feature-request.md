@@ -1,9 +1,9 @@
 # Requested Features
 
 - [ ] Reports - Printable
-    - [ ] Class rosters (to post on doors)
-    - [ ] Attendance sheets
-    - [ ] Other
+    - [x] Class rosters (to post on doors)
+    - [x] Attendance sheets
+    - [ ] Other?
 - [x] Registration Improvements
     - [x] Fix volunteer rules
     - [x] Smart grade range detection
@@ -14,4 +14,10 @@
 - [ ] Scholarship application
 - [ ] Scholarship fund donation at fee payment
 - [x] Class wait list
-- [ ] Auto increment student grades
+- [x] Auto increment student grades
+- [ ] enhance payments section
+    - [ ] Include itemized class fee reports
+    - [ ] Scholarship fund tracking
+    - [ ] class fee compensation tracking
+- [ ] Completed Session schedule available to users
+- [ ] "My Schedule" showing the families class schedule for the session

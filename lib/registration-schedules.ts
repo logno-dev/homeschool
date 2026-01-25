@@ -11,9 +11,10 @@ import {
   sessionVolunteerJobs,
   volunteerAssignments
 } from '@/lib/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or, gt, inArray } from 'drizzle-orm'
 
 export async function getRegistrationSchedules(sessionId: string) {
+  const now = new Date().toISOString()
   const [publishedSchedules, registrationData, volunteerData, periodBasedJobs, nonPeriodJobs] = await Promise.all([
     db
       .select({
@@ -38,6 +39,8 @@ export async function getRegistrationSchedules(sessionId: string) {
     db
       .select({
         scheduleId: classRegistrations.scheduleId,
+        status: classRegistrations.status,
+        holdExpiresAt: classRegistrations.holdExpiresAt,
         child: {
           id: children.id,
           firstName: children.firstName,
@@ -49,12 +52,17 @@ export async function getRegistrationSchedules(sessionId: string) {
       .innerJoin(children, eq(classRegistrations.childId, children.id))
       .where(and(
         eq(classRegistrations.sessionId, sessionId),
-        eq(classRegistrations.status, 'registered')
+        or(
+          inArray(classRegistrations.status, ['registered', 'pending']),
+          and(eq(classRegistrations.status, 'hold'), gt(classRegistrations.holdExpiresAt, now))
+        )
       )),
 
     db
       .select({
         scheduleId: volunteerAssignments.scheduleId,
+        status: volunteerAssignments.status,
+        holdExpiresAt: volunteerAssignments.holdExpiresAt,
         guardian: {
           id: guardians.id,
           firstName: guardians.firstName,
@@ -64,7 +72,13 @@ export async function getRegistrationSchedules(sessionId: string) {
       })
       .from(volunteerAssignments)
       .innerJoin(guardians, eq(volunteerAssignments.guardianId, guardians.id))
-      .where(eq(volunteerAssignments.sessionId, sessionId)),
+      .where(and(
+        eq(volunteerAssignments.sessionId, sessionId),
+        or(
+          inArray(volunteerAssignments.status, ['assigned', 'pending']),
+          and(eq(volunteerAssignments.status, 'hold'), gt(volunteerAssignments.holdExpiresAt, now))
+        )
+      )),
 
     db
       .select({
@@ -111,18 +125,28 @@ export async function getRegistrationSchedules(sessionId: string) {
     if (scheduleId) {
       registrationCountMap[scheduleId] = (registrationCountMap[scheduleId] || 0) + 1
 
-      if (!rosterMap[scheduleId]) {
-        rosterMap[scheduleId] = []
+      if (item.status === 'registered') {
+        if (!rosterMap[scheduleId]) {
+          rosterMap[scheduleId] = []
+        }
+        rosterMap[scheduleId].push(item.child)
       }
-      rosterMap[scheduleId].push(item.child)
     }
   })
 
   const volunteersMap: Record<string, Array<{ guardian: { id: string; firstName: string; lastName: string }; volunteerType: string }>> = {}
+  const volunteerCountMap: Record<string, Array<string>> = {}
 
   volunteerData.forEach((item) => {
     const scheduleId = item.scheduleId
-    if (scheduleId) {
+    if (!scheduleId) return
+
+    if (!volunteerCountMap[scheduleId]) {
+      volunteerCountMap[scheduleId] = []
+    }
+    volunteerCountMap[scheduleId].push(item.volunteerType)
+
+    if (item.status === 'assigned') {
       if (!volunteersMap[scheduleId]) {
         volunteersMap[scheduleId] = []
       }
@@ -134,7 +158,7 @@ export async function getRegistrationSchedules(sessionId: string) {
   })
 
   const enhancedSchedules = publishedSchedules.map((item) => {
-    const currentHelpers = volunteersMap[item.schedule.id]?.filter((v) => v.volunteerType === 'helper').length || 0
+    const currentHelpers = volunteerCountMap[item.schedule.id]?.filter((v) => v === 'helper').length || 0
     return {
       ...item,
       currentRegistrations: registrationCountMap[item.schedule.id] || 0,

@@ -7,7 +7,7 @@ import Link from 'next/link'
 
 interface AdminLayoutProps {
   userName: string
-  activeTab: 'users' | 'sessions' | 'class-requests' | 'classrooms' | 'volunteer-jobs' | 'registration-overrides' | 'events' | 'payments' | 'registrations' | 'settings'
+  activeTab: 'users' | 'sessions' | 'class-requests' | 'classrooms' | 'volunteer-jobs' | 'registration-overrides' | 'events' | 'payments' | 'registrations' | 'settings' | 'reports' | 'scholarships'
   children: React.ReactNode
 }
 
@@ -44,6 +44,16 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      )
+    },
+    {
+      name: 'Reports',
+      href: '/admin/reports',
+      key: 'reports',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m4 6V7m4 10v-4M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H9l-4 4v12a2 2 0 002 2z" />
         </svg>
       )
     },
@@ -104,6 +114,17 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+        </svg>
+      )
+    }
+    ,
+    {
+      name: 'Scholarships',
+      href: '/admin/scholarships',
+      key: 'scholarships',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-3.314 0-6 1.79-6 4v6h12v-6c0-2.21-2.686-4-6-4zm0 0V4m0 0l-3 3m3-3l3 3" />
         </svg>
       )
     }

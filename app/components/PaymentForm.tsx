@@ -9,15 +9,19 @@ interface PaymentFormProps {
   amount: number
   onSuccess: () => void
   onCancel: () => void
+  cancelLabel?: string
 }
 
-export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel }: PaymentFormProps) {
+export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, cancelLabel = 'Cancel' }: PaymentFormProps) {
   const [isProcessing, setIsProcessing] = useState(false)
   const [cardComplete, setCardComplete] = useState(false)
   const [cardError, setCardError] = useState<string | null>(null)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [customAmount, setCustomAmount] = useState(amount.toString())
   const [useCustomAmount, setUseCustomAmount] = useState(false)
+  const [includeDonation, setIncludeDonation] = useState(false)
+  const [donationPreset, setDonationPreset] = useState<number | null>(null)
+  const [donationAmount, setDonationAmount] = useState('')
 
   const stripe = useStripe()
 
@@ -38,9 +42,18 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel }:
 
     try {
       const paymentAmount = useCustomAmount ? parseFloat(customAmount) : amount
+      const resolvedDonationAmount = includeDonation
+        ? (donationPreset ?? parseFloat(donationAmount))
+        : 0
 
       if (paymentAmount <= 0 || paymentAmount > amount) {
         setPaymentError(`Payment amount must be between $0.01 and $${amount.toFixed(2)}`)
+        setIsProcessing(false)
+        return
+      }
+
+      if (includeDonation && (!resolvedDonationAmount || Number.isNaN(resolvedDonationAmount) || resolvedDonationAmount <= 0)) {
+        setPaymentError('Please enter a valid scholarship donation amount.')
         setIsProcessing(false)
         return
       }
@@ -53,7 +66,8 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel }:
         },
         body: JSON.stringify({
           familySessionFeeId,
-          amount: paymentAmount
+          amount: paymentAmount,
+          donationAmount: resolvedDonationAmount
         }),
       })
 
@@ -80,6 +94,7 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel }:
             paymentIntentId: result.paymentIntent.id,
             status: 'succeeded',
             amount: Math.round(paymentAmount * 100), // Convert to cents
+            donationAmount: Math.round(resolvedDonationAmount * 100),
             familySessionFeeId
           }),
         })
@@ -93,6 +108,11 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel }:
       setIsProcessing(false)
     }
   }
+
+  const resolvedDonationAmount = includeDonation
+    ? (donationPreset ?? (parseFloat(donationAmount) || 0))
+    : 0
+  const totalCharge = (useCustomAmount ? parseFloat(customAmount) || 0 : amount) + resolvedDonationAmount
 
   return (
     <MockElements>
@@ -153,6 +173,82 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel }:
           </div>
         </div>
 
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-3">
+          <label className="flex items-center gap-3 text-sm font-medium text-gray-800">
+            <input
+              type="checkbox"
+              checked={includeDonation}
+              onChange={(event) => {
+                setIncludeDonation(event.target.checked)
+                if (!event.target.checked) {
+                  setDonationPreset(null)
+                  setDonationAmount('')
+                }
+              }}
+              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300"
+            />
+            Add a scholarship fund donation
+          </label>
+          {includeDonation && (
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {[5, 10, 20].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => {
+                      setDonationPreset(preset)
+                      setDonationAmount(preset.toString())
+                    }}
+                    className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
+                      donationPreset === preset
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-700 border-indigo-200 hover:border-indigo-400'
+                    }`}
+                  >
+                    ${preset}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setDonationPreset(null)}
+                  className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
+                    donationPreset === null
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-white text-gray-700 border-indigo-200 hover:border-indigo-400'
+                  }`}
+                >
+                  Custom
+                </button>
+              </div>
+              {donationPreset === null && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Donation Amount
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={donationAmount}
+                      onChange={(event) => setDonationAmount(event.target.value)}
+                      className="pl-8 w-full px-4 py-3 text-lg border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+              )}
+              {resolvedDonationAmount > 0 && (
+                <p className="text-sm text-indigo-700">
+                  Scholarship donation: ${resolvedDonationAmount.toFixed(2)}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-3">
             Card Details
@@ -183,7 +279,7 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel }:
             disabled={isProcessing}
             className="w-full sm:w-auto py-3 sm:py-2 text-base sm:text-sm"
           >
-            Cancel
+            {cancelLabel}
           </Button>
           <Button
             type="submit"
@@ -196,7 +292,7 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel }:
                 Processing...
               </div>
             ) : (
-              `Pay $${(useCustomAmount ? parseFloat(customAmount) || 0 : amount).toFixed(2)}`
+              `Pay $${totalCharge.toFixed(2)}`
             )}
           </Button>
         </div>

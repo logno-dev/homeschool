@@ -181,7 +181,8 @@ export const classRegistrations = sqliteTable('class_registrations', {
   childId: text('child_id').notNull().references(() => children.id, { onDelete: 'cascade' }),
   familyId: text('family_id').notNull().references(() => families.id, { onDelete: 'cascade' }),
   registeredBy: text('registered_by').notNull().references(() => guardians.id, { onDelete: 'cascade' }),
-  status: text('status').notNull().default('registered'), // registered, waitlisted, cancelled
+  status: text('status').notNull().default('registered'), // registered, waitlisted, cancelled, pending, hold
+  holdExpiresAt: text('hold_expires_at'),
   registeredAt: text('registered_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -198,7 +199,8 @@ export const volunteerAssignments = sqliteTable('volunteer_assignments', {
   // Reference to the specific volunteer opportunity (one of these will be populated based on type)
   scheduleId: text('schedule_id').references(() => schedules.id, { onDelete: 'cascade' }), // For teacher/helper/co_teacher
   volunteerJobId: text('volunteer_job_id').references(() => volunteerJobs.id, { onDelete: 'cascade' }), // For volunteer_job
-  status: text('status').notNull().default('assigned'), // assigned, completed, cancelled
+  status: text('status').notNull().default('assigned'), // assigned, completed, cancelled, pending, hold
+  holdExpiresAt: text('hold_expires_at'),
   assignedAt: text('assigned_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -260,6 +262,37 @@ export const feePayments = sqliteTable('fee_payments', {
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const scholarshipApplications = sqliteTable('scholarship_applications', {
+  id: text('id').primaryKey(),
+  familyId: text('family_id').notNull().references(() => families.id, { onDelete: 'cascade' }),
+  sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
+  guardianId: text('guardian_id').notNull().references(() => guardians.id, { onDelete: 'cascade' }),
+  scholarshipType: text('scholarship_type').notNull(), // full, partial
+  requestedAmount: real('requested_amount'),
+  reason: text('reason').notNull(),
+  additionalInfo: text('additional_info'),
+  status: text('status').notNull().default('pending'), // pending, approved, rejected, withdrawn
+  approvedAmount: real('approved_amount'),
+  reviewNotes: text('review_notes'),
+  reviewedBy: text('reviewed_by').references(() => guardians.id),
+  reviewedAt: text('reviewed_at'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const scholarshipFundTransactions = sqliteTable('scholarship_fund_transactions', {
+  id: text('id').primaryKey(),
+  amount: real('amount').notNull(),
+  transactionType: text('transaction_type').notNull(), // donation, award, adjustment
+  source: text('source').notNull(), // online, cash, admin
+  familyId: text('family_id').references(() => families.id, { onDelete: 'cascade' }),
+  sessionId: text('session_id').references(() => sessions.id, { onDelete: 'cascade' }),
+  applicationId: text('application_id').references(() => scholarshipApplications.id, { onDelete: 'set null' }),
+  notes: text('notes'),
+  createdBy: text('created_by').references(() => guardians.id, { onDelete: 'set null' }),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
 // Events table (for calendar events and important dates)
 export const events = sqliteTable('events', {
   id: text('id').primaryKey(),
@@ -314,6 +347,8 @@ export type FamilyRegistrationStatus = typeof familyRegistrationStatus.$inferSel
 export type SessionFeeConfig = typeof sessionFeeConfigs.$inferSelect
 export type FamilySessionFee = typeof familySessionFees.$inferSelect
 export type FeePayment = typeof feePayments.$inferSelect
+export type ScholarshipApplication = typeof scholarshipApplications.$inferSelect
+export type ScholarshipFundTransaction = typeof scholarshipFundTransactions.$inferSelect
 export type Event = typeof events.$inferSelect
 export type User = typeof users.$inferSelect
 
@@ -335,5 +370,7 @@ export type NewFamilyRegistrationStatus = typeof familyRegistrationStatus.$infer
 export type NewSessionFeeConfig = typeof sessionFeeConfigs.$inferInsert
 export type NewFamilySessionFee = typeof familySessionFees.$inferInsert
 export type NewFeePayment = typeof feePayments.$inferInsert
+export type NewScholarshipApplication = typeof scholarshipApplications.$inferInsert
+export type NewScholarshipFundTransaction = typeof scholarshipFundTransactions.$inferInsert
 export type NewEvent = typeof events.$inferInsert
 export type NewUser = typeof users.$inferInsert
