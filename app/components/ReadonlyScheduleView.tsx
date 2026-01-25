@@ -47,6 +47,9 @@ interface VolunteerAssignment {
   classTeachingRequest?: {
     className: string
   }
+  volunteerJob?: {
+    title: string
+  }
   classroom?: {
     name: string
   }
@@ -168,7 +171,9 @@ export default function ReadonlyScheduleView({
                           {volunteers.map((vol) => (
                             <div key={vol.assignment.id} className="bg-green-50 rounded-md p-3">
                               <h4 className="font-medium text-green-900 text-sm">
-                                {vol.classTeachingRequest?.className || 'General Volunteer'}
+                                {vol.assignment.volunteerType === 'volunteer_job'
+                                  ? vol.volunteerJob?.title || 'General Volunteer'
+                                  : vol.classTeachingRequest?.className || 'General Volunteer'}
                               </h4>
                               <p className="text-xs text-green-700">
                                 Role: {vol.assignment.volunteerType}
@@ -221,7 +226,9 @@ export default function ReadonlyScheduleView({
               <ul className="mt-2 text-sm text-gray-600">
                 {volunteerAssignments.map((vol) => (
                   <li key={vol.assignment.id}>
-                    • {vol.assignment.volunteerType} - {vol.classTeachingRequest?.className || 'General Volunteer'}
+                    • {vol.assignment.volunteerType === 'volunteer_job'
+                      ? vol.volunteerJob?.title || 'General Volunteer'
+                      : vol.classTeachingRequest?.className || 'General Volunteer'}
                   </li>
                 ))}
               </ul>

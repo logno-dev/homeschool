@@ -145,18 +145,25 @@ export async function POST(request: Request) {
       }
 
       const currentAssignments = await db
-        .select({ id: volunteerAssignments.id })
+        .select()
         .from(volunteerAssignments)
         .where(and(
           eq(volunteerAssignments.sessionId, sessionId),
           eq(volunteerAssignments.volunteerJobId, volunteerJobId),
+          eq(volunteerAssignments.period, normalizedPeriod),
           or(
             inArray(volunteerAssignments.status, ['assigned', 'pending']),
             and(eq(volunteerAssignments.status, 'hold'), gt(volunteerAssignments.holdExpiresAt, now))
           )
         ))
 
-      if (currentAssignments.length >= sessionJob[0].quantityAvailable) {
+      const totalAssignments = currentAssignments.filter((entry) =>
+        entry.status === 'assigned' ||
+        entry.status === 'pending' ||
+        (entry.status === 'hold' && entry.holdExpiresAt && entry.holdExpiresAt > now && entry.familyId !== guardian.familyId)
+      ).length
+
+      if (totalAssignments >= sessionJob[0].quantityAvailable) {
         return NextResponse.json({ error: 'Volunteer job is full' }, { status: 409 })
       }
     }

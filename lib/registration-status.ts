@@ -7,6 +7,7 @@ import {
   schedules,
   classTeachingRequests,
   sessionClassrooms,
+  volunteerJobs,
   children
 } from '@/lib/schema'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -61,12 +62,14 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
         assignment: volunteerAssignments,
         schedule: schedules,
         classTeachingRequest: classTeachingRequests,
-        classroom: sessionClassrooms
+        classroom: sessionClassrooms,
+        volunteerJob: volunteerJobs
       })
       .from(volunteerAssignments)
       .leftJoin(schedules, eq(volunteerAssignments.scheduleId, schedules.id))
       .leftJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
       .leftJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
+      .leftJoin(volunteerJobs, eq(volunteerAssignments.volunteerJobId, volunteerJobs.id))
       .where(and(
         eq(volunteerAssignments.familyId, familyId),
         eq(volunteerAssignments.sessionId, sessionId),

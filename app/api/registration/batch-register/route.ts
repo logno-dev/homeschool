@@ -319,19 +319,26 @@ async function validateRegistration(
           .where(and(
             eq(volunteerAssignments.sessionId, sessionId),
             eq(volunteerAssignments.volunteerJobId, assignment.volunteerJobId),
+            eq(volunteerAssignments.period, normalizedPeriod),
             or(
               inArray(volunteerAssignments.status, ['assigned', 'pending']),
               and(eq(volunteerAssignments.status, 'hold'), gt(volunteerAssignments.holdExpiresAt, now))
             )
           ))
 
-        if (currentAssignments.length >= sessionJob[0].quantityAvailable) {
+        const totalAssignments = currentAssignments.filter((entry) =>
+          entry.status === 'assigned' ||
+          entry.status === 'pending' ||
+          (entry.status === 'hold' && entry.holdExpiresAt && entry.holdExpiresAt > now && entry.familyId !== familyId)
+        ).length
+
+        if (totalAssignments >= sessionJob[0].quantityAvailable) {
           conflicts.push({
             type: 'volunteer_full',
             volunteerJobId: assignment.volunteerJobId,
             period: normalizedPeriod,
             jobTitle: assignment.jobTitle,
-            message: `No spots available for "${assignment.jobTitle || 'volunteer job'}" (${currentAssignments.length}/${sessionJob[0].quantityAvailable})`
+            message: `No spots available for "${assignment.jobTitle || 'volunteer job'}" (${totalAssignments}/${sessionJob[0].quantityAvailable})`
           })
         }
       }
