@@ -12,7 +12,7 @@ export async function POST() {
     const { session } = auth
 
     // Check if user already exists in local database
-    const appRole = await getAppRole(session)
+    const appRole = await getAppRole(session.user ? (session as { role?: string; roles?: string[]; user?: { id: string } }) : null)
     let user = await getUserById(session.user.id)
     
     if (!user) {
