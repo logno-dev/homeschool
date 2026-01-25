@@ -57,11 +57,11 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
   if (!isOpen) return null
 
   const sizeClasses = {
-    sm: 'max-w-md',
-    md: 'max-w-lg',
-    lg: 'max-w-2xl',
-    xl: 'max-w-4xl',
-    full: 'max-w-full mx-2 sm:mx-4'
+    sm: 'sm:max-w-md',
+    md: 'sm:max-w-lg',
+    lg: 'sm:max-w-2xl',
+    xl: 'sm:max-w-4xl',
+    full: 'sm:max-w-full sm:mx-4'
   }
 
   return (
@@ -73,10 +73,10 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
       />
       
       {/* Modal */}
-      <div className="flex min-h-full items-center justify-center p-2 sm:p-4">
+      <div className="flex min-h-full items-start sm:items-center justify-center p-0 sm:p-4">
         <div 
           ref={modalRef}
-          className={`relative bg-white rounded-lg shadow-xl w-full ${sizeClasses[size]} transform transition-all max-h-[90vh] flex flex-col`}
+          className={`relative bg-white shadow-xl w-full ${sizeClasses[size]} transform transition-all max-h-[100vh] sm:max-h-[90vh] flex flex-col rounded-none sm:rounded-lg`}
           onClick={(e) => e.stopPropagation()}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}

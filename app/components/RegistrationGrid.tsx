@@ -207,7 +207,12 @@ export default function RegistrationGrid({
       source.close()
     }
 
+    const interval = setInterval(() => {
+      refreshScheduleData()
+    }, 30000)
+
     return () => {
+      clearInterval(interval)
       source.close()
     }
   }, [sessionId])
