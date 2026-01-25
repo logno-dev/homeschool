@@ -49,7 +49,7 @@ interface VolunteerAssignment {
   }
   volunteerJob?: {
     title: string
-  }
+  } | null
   classroom?: {
     name: string
   }
