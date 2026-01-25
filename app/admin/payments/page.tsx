@@ -19,6 +19,22 @@ interface PaymentData {
   remainingBalance: number
 }
 
+interface TeacherReimbursement {
+  id: string
+  sessionId: string
+  sessionName: string
+  classTeachingRequestId: string
+  guardianId: string
+  className: string
+  teacherFirstName: string | null
+  teacherLastName: string | null
+  amount: number
+  status: string
+  paidDate?: string | null
+  notes?: string | null
+  createdAt: string
+}
+
 interface Family {
   id: string
   name: string
@@ -29,12 +45,29 @@ interface Session {
   name: string
 }
 
+interface ClassFeeSummary {
+  classTeachingRequestId: string
+  sessionId: string
+  sessionName: string
+  className: string
+  feeAmount: number
+  guardianId: string
+  teacherFirstName: string | null
+  teacherLastName: string | null
+  enrolledCount: number
+  totalFees: number
+}
+
 export default function PaymentsPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [payments, setPayments] = useState<PaymentData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'family' | 'classFees' | 'reimbursements'>('family')
+  const [classFeeSummaries, setClassFeeSummaries] = useState<ClassFeeSummary[]>([])
+  const [reimbursements, setReimbursements] = useState<TeacherReimbursement[]>([])
+  const [updatingReimbursementId, setUpdatingReimbursementId] = useState<string | null>(null)
   
   // Filter and sort states
   const [searchTerm, setSearchTerm] = useState('')
@@ -59,6 +92,13 @@ export default function PaymentsPage() {
   const [submittingPayment, setSubmittingPayment] = useState(false)
   const [loadingAmountDue, setLoadingAmountDue] = useState(false)
   const [familySessionFee, setFamilySessionFee] = useState<any>(null)
+  const [reimbursementForm, setReimbursementForm] = useState({
+    sessionId: '',
+    classTeachingRequestId: '',
+    guardianId: '',
+    amount: '',
+    notes: ''
+  })
 
   useEffect(() => {
     if (authLoading) return
@@ -70,6 +110,8 @@ export default function PaymentsPage() {
 
     fetchPayments()
     fetchFamiliesAndSessions()
+    fetchClassFeeSummaries()
+    fetchReimbursements()
   }, [user, authLoading, router])
 
   const fetchPayments = async () => {
@@ -106,6 +148,32 @@ export default function PaymentsPage() {
       }
     } catch (err) {
       console.error('Error fetching families and sessions:', err)
+    }
+  }
+
+  const fetchClassFeeSummaries = async () => {
+    try {
+      const response = await fetch('/api/admin/class-fee-summary')
+      if (!response.ok) {
+        throw new Error('Failed to fetch class fee summary')
+      }
+      const data = await response.json()
+      setClassFeeSummaries(data.classes || [])
+    } catch (err) {
+      console.error('Error fetching class fee summary:', err)
+    }
+  }
+
+  const fetchReimbursements = async () => {
+    try {
+      const response = await fetch('/api/admin/teacher-reimbursements')
+      if (!response.ok) {
+        throw new Error('Failed to fetch reimbursements')
+      }
+      const data = await response.json()
+      setReimbursements(data.reimbursements || [])
+    } catch (err) {
+      console.error('Error fetching reimbursements:', err)
     }
   }
 
@@ -193,6 +261,60 @@ export default function PaymentsPage() {
       setError(err instanceof Error ? err.message : 'Failed to create payment')
     } finally {
       setSubmittingPayment(false)
+    }
+  }
+
+  const handleReimbursementSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
+    try {
+      const response = await fetch('/api/admin/teacher-reimbursements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: reimbursementForm.sessionId,
+          classTeachingRequestId: reimbursementForm.classTeachingRequestId,
+          guardianId: reimbursementForm.guardianId,
+          amount: parseFloat(reimbursementForm.amount),
+          notes: reimbursementForm.notes
+        })
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create reimbursement')
+      }
+      setReimbursementForm({ sessionId: '', classTeachingRequestId: '', guardianId: '', amount: '', notes: '' })
+      await fetchReimbursements()
+      await fetchClassFeeSummaries()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create reimbursement')
+    }
+  }
+
+  const handleReimbursementStatusToggle = async (reimbursement: TeacherReimbursement) => {
+    try {
+      setUpdatingReimbursementId(reimbursement.id)
+      const nextStatus = reimbursement.status === 'paid' ? 'pending' : 'paid'
+      const paidDate = nextStatus === 'paid'
+        ? new Date().toISOString().split('T')[0]
+        : null
+      const response = await fetch('/api/admin/teacher-reimbursements', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: reimbursement.id,
+          status: nextStatus,
+          paidDate
+        })
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to update reimbursement')
+      }
+      await fetchReimbursements()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update reimbursement')
+    } finally {
+      setUpdatingReimbursementId(null)
     }
   }
 
@@ -293,6 +415,15 @@ export default function PaymentsPage() {
     })
   }
 
+  const formatPersonName = (firstName?: string | null, lastName?: string | null) => {
+    const name = [firstName, lastName].filter(Boolean).join(' ')
+    return name || 'Unknown'
+  }
+
+  const formatClassFeeLabel = (summary: ClassFeeSummary) => {
+    return `${summary.className} (${summary.sessionName})`
+  }
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -307,6 +438,16 @@ export default function PaymentsPage() {
   if (!user) return null
 
   const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+  const reimbursementLookup = new Map(
+    reimbursements.map(reimbursement => [
+      `${reimbursement.classTeachingRequestId}-${reimbursement.sessionId}`,
+      reimbursement
+    ])
+  )
+  const totalClassFees = classFeeSummaries.reduce((sum, item) => sum + item.totalFees, 0)
+  const selectedClassFeeSummary = classFeeSummaries.find(
+    item => item.classTeachingRequestId === reimbursementForm.classTeachingRequestId
+  )
 
   return (
     <AdminLayout userName={userName || 'Admin'} activeTab="payments">
@@ -314,6 +455,41 @@ export default function PaymentsPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Management</h1>
           <p className="text-gray-600">View, filter, and export all fee payments</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('family')}
+              className={`px-4 py-2 rounded-md text-sm font-medium border ${
+                activeTab === 'family'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              Family Payments
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('classFees')}
+              className={`px-4 py-2 rounded-md text-sm font-medium border ${
+                activeTab === 'classFees'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              Class Fees
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('reimbursements')}
+              className={`px-4 py-2 rounded-md text-sm font-medium border ${
+                activeTab === 'reimbursements'
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              Teacher Reimbursements
+            </button>
+          </div>
         </div>
 
         {error && (
@@ -322,260 +498,521 @@ export default function PaymentsPage() {
           </div>
         )}
 
-        {/* Filters and Controls */}
-        <div className="bg-white rounded-lg shadow mb-6 p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Search
-              </label>
-              <input
-                type="text"
-                placeholder="Search families or sessions..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Status
-              </label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="partial">Partial</option>
-                <option value="paid">Paid</option>
-                <option value="overdue">Overdue</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Payment Method
-              </label>
-              <select
-                value={paymentMethodFilter}
-                onChange={(e) => setPaymentMethodFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="all">All Methods</option>
-                <option value="cash">Cash</option>
-                <option value="check">Check</option>
-                <option value="online">Online</option>
-                <option value="scholarship">Scholarship</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Export
-              </label>
-              <button
-                onClick={exportToCSV}
-                className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Export to CSV
-              </button>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Manual Payment
-              </label>
-              <button
-                onClick={() => setShowManualPaymentForm(true)}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                Add Payment
-              </button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Start Date
-              </label>
-              <input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                End Date
-              </label>
-              <input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Summary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Total Payments</div>
-            <div className="text-2xl font-bold text-gray-900">{filteredAndSortedPayments.length}</div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Total Amount</div>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(filteredAndSortedPayments.reduce((sum, p) => sum + p.amount, 0))}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Outstanding Balance</div>
-            <div className="text-2xl font-bold text-red-600">
-              {formatCurrency(filteredAndSortedPayments.reduce((sum, p) => sum + p.remainingBalance, 0))}
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="text-sm font-medium text-gray-500">Paid Families</div>
-            <div className="text-2xl font-bold text-blue-600">
-              {filteredAndSortedPayments.filter(p => p.status === 'paid').length}
-            </div>
-          </div>
-        </div>
-
-        {/* Payments Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('familyName')}
-                  >
-                    Family Name
-                    {sortBy === 'familyName' && (
-                      <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('sessionName')}
-                  >
-                    Session
-                    {sortBy === 'sessionName' && (
-                      <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('amount')}
-                  >
-                    Amount
-                    {sortBy === 'amount' && (
-                      <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('paymentDate')}
-                  >
-                    Payment Date
-                    {sortBy === 'paymentDate' && (
-                      <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('paymentMethod')}
-                  >
-                    Method
-                    {sortBy === 'paymentMethod' && (
-                      <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('status')}
-                  >
+        {activeTab === 'family' && (
+          <>
+            <div className="bg-white rounded-lg shadow mb-6 p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Search
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Search families or sessions..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Status
-                    {sortBy === 'status' && (
-                      <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </th>
-                  <th
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                    onClick={() => handleSort('remainingBalance')}
+                  </label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    Balance
-                    {sortBy === 'remainingBalance' && (
-                      <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                    )}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Notes
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredAndSortedPayments.map((payment) => (
-                  <tr key={payment.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {payment.familyName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {payment.sessionName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(payment.amount)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(payment.paymentDate)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-                      {payment.paymentMethod}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                        payment.status === 'paid' 
-                          ? 'bg-green-100 text-green-800'
-                          : payment.status === 'partial'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : payment.status === 'overdue'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {payment.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(payment.remainingBalance)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                      {payment.notes}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          {filteredAndSortedPayments.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-gray-500">No payments found matching your criteria.</div>
+                    <option value="all">All Statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="partial">Partial</option>
+                    <option value="paid">Paid</option>
+                    <option value="overdue">Overdue</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Payment Method
+                  </label>
+                  <select
+                    value={paymentMethodFilter}
+                    onChange={(e) => setPaymentMethodFilter(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Methods</option>
+                    <option value="cash">Cash</option>
+                    <option value="check">Check</option>
+                    <option value="online">Online</option>
+                    <option value="scholarship">Scholarship</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Export
+                  </label>
+                  <button
+                    onClick={exportToCSV}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                  >
+                    Export to CSV
+                  </button>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Manual Payment
+                  </label>
+                  <button
+                    onClick={() => setShowManualPaymentForm(true)}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                  >
+                    Add Payment
+                  </button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date
+                  </label>
+                  <input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    End Date
+                  </label>
+                  <input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Manual Payment Modal */}
-        {showManualPaymentForm && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="text-sm font-medium text-gray-500">Total Payments</div>
+                <div className="text-2xl font-bold text-gray-900">{filteredAndSortedPayments.length}</div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="text-sm font-medium text-gray-500">Total Amount</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {formatCurrency(filteredAndSortedPayments.reduce((sum, p) => sum + p.amount, 0))}
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="text-sm font-medium text-gray-500">Outstanding Balance</div>
+                <div className="text-2xl font-bold text-red-600">
+                  {formatCurrency(filteredAndSortedPayments.reduce((sum, p) => sum + p.remainingBalance, 0))}
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="text-sm font-medium text-gray-500">Paid Families</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {filteredAndSortedPayments.filter(p => p.status === 'paid').length}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('familyName')}
+                      >
+                        Family Name
+                        {sortBy === 'familyName' && (
+                          <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('sessionName')}
+                      >
+                        Session
+                        {sortBy === 'sessionName' && (
+                          <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('amount')}
+                      >
+                        Amount
+                        {sortBy === 'amount' && (
+                          <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('paymentDate')}
+                      >
+                        Payment Date
+                        {sortBy === 'paymentDate' && (
+                          <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('paymentMethod')}
+                      >
+                        Method
+                        {sortBy === 'paymentMethod' && (
+                          <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('status')}
+                      >
+                        Status
+                        {sortBy === 'status' && (
+                          <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </th>
+                      <th
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                        onClick={() => handleSort('remainingBalance')}
+                      >
+                        Balance
+                        {sortBy === 'remainingBalance' && (
+                          <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                        )}
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Notes
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredAndSortedPayments.map((payment) => (
+                      <tr key={payment.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {payment.familyName}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {payment.sessionName}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatCurrency(payment.amount)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(payment.paymentDate)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
+                          {payment.paymentMethod}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            payment.status === 'paid' 
+                              ? 'bg-green-100 text-green-800'
+                              : payment.status === 'partial'
+                              ? 'bg-yellow-100 text-yellow-800'
+                              : payment.status === 'overdue'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {payment.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatCurrency(payment.remainingBalance)}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                          {payment.notes}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {filteredAndSortedPayments.length === 0 && (
+                <div className="text-center py-12">
+                  <div className="text-gray-500">No payments found matching your criteria.</div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {activeTab === 'classFees' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="text-sm font-medium text-gray-500">Classes With Fees</div>
+                <div className="text-2xl font-bold text-gray-900">{classFeeSummaries.length}</div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="text-sm font-medium text-gray-500">Total Enrolled</div>
+                <div className="text-2xl font-bold text-blue-600">
+                  {classFeeSummaries.reduce((sum, item) => sum + item.enrolledCount, 0)}
+                </div>
+              </div>
+              <div className="bg-white rounded-lg shadow p-6">
+                <div className="text-sm font-medium text-gray-500">Total Fees Owed</div>
+                <div className="text-2xl font-bold text-green-600">{formatCurrency(totalClassFees)}</div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Session</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teacher</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Fee / Student</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Fees</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reimbursement</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {classFeeSummaries.map(summary => {
+                      const reimbursement = reimbursementLookup.get(
+                        `${summary.classTeachingRequestId}-${summary.sessionId}`
+                      )
+                      return (
+                        <tr key={`${summary.classTeachingRequestId}-${summary.sessionId}`} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{summary.sessionName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{summary.className}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {formatPersonName(summary.teacherFirstName, summary.teacherLastName)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                            {formatCurrency(summary.feeAmount)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                            {summary.enrolledCount}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                            {formatCurrency(summary.totalFees)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {reimbursement ? (
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                reimbursement.status === 'paid'
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {reimbursement.status}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-gray-500">Not recorded</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {classFeeSummaries.length === 0 && (
+                <div className="text-center py-12">
+                  <div className="text-gray-500">No class fees found for enrolled students.</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'reimbursements' && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-lg shadow p-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Create Teacher Reimbursement</h2>
+              <form onSubmit={handleReimbursementSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Session *</label>
+                  <select
+                    value={reimbursementForm.sessionId}
+                    onChange={(e) => setReimbursementForm(prev => ({
+                      ...prev,
+                      sessionId: e.target.value,
+                      classTeachingRequestId: '',
+                      guardianId: ''
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select a session</option>
+                    {sessions.map(session => (
+                      <option key={session.id} value={session.id}>{session.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Class *</label>
+                  <select
+                    value={reimbursementForm.classTeachingRequestId}
+                    onChange={(e) => {
+                      const summary = classFeeSummaries.find(item => item.classTeachingRequestId === e.target.value)
+                      setReimbursementForm(prev => ({
+                        ...prev,
+                        classTeachingRequestId: e.target.value,
+                        guardianId: summary?.guardianId || '',
+                        sessionId: summary?.sessionId || prev.sessionId,
+                        amount: summary?.totalFees ? summary.totalFees.toString() : prev.amount
+                      }))
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">Select a class</option>
+                    {(reimbursementForm.sessionId
+                      ? classFeeSummaries.filter(summary => summary.sessionId === reimbursementForm.sessionId)
+                      : classFeeSummaries
+                    ).map(summary => (
+                      <option key={summary.classTeachingRequestId} value={summary.classTeachingRequestId}>
+                        {formatClassFeeLabel(summary)}
+                      </option>
+                    ))}
+                  </select>
+                  {reimbursementForm.classTeachingRequestId && (
+                    <p className="mt-2 text-sm text-gray-600">
+                      Enrolled: {selectedClassFeeSummary?.enrolledCount || 0} ·
+                      Total fees: {formatCurrency(selectedClassFeeSummary?.totalFees || 0)}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Amount *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={reimbursementForm.amount}
+                    onChange={(e) => setReimbursementForm(prev => ({ ...prev, amount: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0.00"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <input
+                    type="text"
+                    value={reimbursementForm.notes}
+                    onChange={(e) => setReimbursementForm(prev => ({ ...prev, notes: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Optional notes"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <button
+                    type="submit"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+                  >
+                    Create Reimbursement
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Session</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teacher</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Fee Total</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Reimbursement</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {reimbursements.map(reimbursement => {
+                      const summary = classFeeSummaries.find(item => (
+                        item.classTeachingRequestId === reimbursement.classTeachingRequestId &&
+                        item.sessionId === reimbursement.sessionId
+                      ))
+                      return (
+                        <tr key={reimbursement.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{reimbursement.sessionName}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{reimbursement.className}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {formatPersonName(reimbursement.teacherFirstName, reimbursement.teacherLastName)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                            {summary?.enrolledCount ?? 0}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                            {formatCurrency(summary?.totalFees ?? 0)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
+                            {formatCurrency(reimbursement.amount)}
+                          </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                            reimbursement.status === 'paid'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {reimbursement.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {reimbursement.paidDate ? formatDate(reimbursement.paidDate) : '—'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{reimbursement.notes}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <button
+                            type="button"
+                            onClick={() => handleReimbursementStatusToggle(reimbursement)}
+                            disabled={updatingReimbursementId === reimbursement.id}
+                            className={`px-3 py-1 rounded-md text-sm font-medium ${
+                              reimbursement.status === 'paid'
+                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-green-600 text-white hover:bg-green-700'
+                            } disabled:opacity-50`}
+                          >
+                            {updatingReimbursementId === reimbursement.id
+                              ? 'Updating...'
+                              : reimbursement.status === 'paid'
+                              ? 'Mark Pending'
+                              : 'Mark Paid'}
+                          </button>
+                        </td>
+                      </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {reimbursements.length === 0 && (
+                <div className="text-center py-12">
+                  <div className="text-gray-500">No reimbursements recorded yet.</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'family' && showManualPaymentForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Manual Payment</h3>

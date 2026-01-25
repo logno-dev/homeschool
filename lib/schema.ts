@@ -277,6 +277,42 @@ export const feePayments = sqliteTable('fee_payments', {
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const classMaterialCharges = sqliteTable('class_material_charges', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
+  classTeachingRequestId: text('class_teaching_request_id').notNull().references(() => classTeachingRequests.id, { onDelete: 'cascade' }),
+  amount: real('amount').notNull(),
+  notes: text('notes'),
+  createdBy: text('created_by').references(() => guardians.id),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const classMaterialPayments = sqliteTable('class_material_payments', {
+  id: text('id').primaryKey(),
+  chargeId: text('charge_id').notNull().references(() => classMaterialCharges.id, { onDelete: 'cascade' }),
+  familyId: text('family_id').references(() => families.id, { onDelete: 'set null' }),
+  payerName: text('payer_name'),
+  amount: real('amount').notNull(),
+  paymentDate: text('payment_date').notNull(),
+  paymentMethod: text('payment_method').notNull(),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const teacherReimbursements = sqliteTable('teacher_reimbursements', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
+  classTeachingRequestId: text('class_teaching_request_id').notNull().references(() => classTeachingRequests.id, { onDelete: 'cascade' }),
+  guardianId: text('guardian_id').notNull().references(() => guardians.id, { onDelete: 'cascade' }),
+  amount: real('amount').notNull(),
+  status: text('status').notNull().default('pending'), // pending, paid
+  paidDate: text('paid_date'),
+  notes: text('notes'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
 export const scholarshipApplications = sqliteTable('scholarship_applications', {
   id: text('id').primaryKey(),
   familyId: text('family_id').notNull().references(() => families.id, { onDelete: 'cascade' }),
@@ -363,6 +399,9 @@ export type FamilyRegistrationStatus = typeof familyRegistrationStatus.$inferSel
 export type SessionFeeConfig = typeof sessionFeeConfigs.$inferSelect
 export type FamilySessionFee = typeof familySessionFees.$inferSelect
 export type FeePayment = typeof feePayments.$inferSelect
+export type ClassMaterialCharge = typeof classMaterialCharges.$inferSelect
+export type ClassMaterialPayment = typeof classMaterialPayments.$inferSelect
+export type TeacherReimbursement = typeof teacherReimbursements.$inferSelect
 export type ScholarshipApplication = typeof scholarshipApplications.$inferSelect
 export type ScholarshipFundTransaction = typeof scholarshipFundTransactions.$inferSelect
 export type Event = typeof events.$inferSelect
@@ -387,6 +426,9 @@ export type NewFamilyRegistrationStatus = typeof familyRegistrationStatus.$infer
 export type NewSessionFeeConfig = typeof sessionFeeConfigs.$inferInsert
 export type NewFamilySessionFee = typeof familySessionFees.$inferInsert
 export type NewFeePayment = typeof feePayments.$inferInsert
+export type NewClassMaterialCharge = typeof classMaterialCharges.$inferInsert
+export type NewClassMaterialPayment = typeof classMaterialPayments.$inferInsert
+export type NewTeacherReimbursement = typeof teacherReimbursements.$inferInsert
 export type NewScholarshipApplication = typeof scholarshipApplications.$inferInsert
 export type NewScholarshipFundTransaction = typeof scholarshipFundTransactions.$inferInsert
 export type NewEvent = typeof events.$inferInsert

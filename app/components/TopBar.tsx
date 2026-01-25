@@ -2,12 +2,14 @@
 
 import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { getReturnToUrl } from '@/lib/client-env'
-import { useRouter, usePathname } from 'next/navigation'
+import { usePathname } from 'next/navigation'
+import { useState } from 'react'
 
 export default function TopBar() {
   const { user, signOut } = useAuth()
-  const router = useRouter()
   const pathname = usePathname()
+  const [showMenu, setShowMenu] = useState(false)
+  const [showMore, setShowMore] = useState(false)
 
   const userName = user
     ? [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
@@ -18,45 +20,81 @@ export default function TopBar() {
     return null
   }
 
-  // Don't show back to dashboard link on the dashboard itself
-  const isDashboard = pathname === '/dashboard'
+  const mainNav = [
+    { label: 'Dashboard', href: '/dashboard' },
+    { label: 'Registration', href: '/registration' },
+    { label: 'Schedule', href: '/schedule' },
+    { label: 'Payments', href: '/family/payments' },
+    { label: 'Resources', href: '/resources' }
+  ]
 
-  // Get page title based on pathname
-  const getPageTitle = () => {
-    if (pathname === '/dashboard') return 'DVCLC Dashboard'
-    if (pathname === '/teacher') return 'Teacher Dashboard'
-    if (pathname === '/class-teaching') return 'Class Teaching Registration'
-    if (pathname === '/calendar') return 'Calendar'
-    if (pathname.startsWith('/family/profile')) return 'Family Profile'
-    if (pathname.startsWith('/family/payments')) return 'Family Payments'
-    if (pathname.startsWith('/resources')) return 'Resources'
-    if (pathname.startsWith('/family/')) return 'Family'
-    if (pathname.startsWith('/admin')) return 'Admin Panel'
-    if (pathname.startsWith('/registration')) return 'Class Registration'
-    return 'DVCLC'
-  }
+  const moreNav = [
+    { label: 'Family Profile', href: '/family/profile' },
+    { label: 'Teacher Dashboard', href: '/teacher' },
+    { label: 'Calendar', href: '/calendar' },
+    { label: 'Admin Panel', href: '/admin' }
+  ]
 
   return (
     <nav className="bg-white shadow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex items-center min-w-0 flex-1">
-            <h1 className="text-lg sm:text-xl font-semibold text-gray-900 truncate">
-              {getPageTitle()}
-            </h1>
+        <div className="flex items-center justify-between h-16 gap-4">
+          <div className="flex items-center gap-4 min-w-0">
+            <button
+              onClick={() => setShowMenu((prev) => !prev)}
+              className="sm:hidden p-2 rounded-md border border-gray-200 text-gray-600"
+              aria-label="Toggle navigation"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <a href="/dashboard" className="text-lg font-semibold text-gray-900 whitespace-nowrap">
+              DVCLC
+            </a>
+            <div className="hidden sm:flex items-center gap-2">
+              {mainNav.map((item) => {
+                const active = pathname.startsWith(item.href)
+                return (
+                  <a
+                    key={item.href}
+                    href={item.href}
+                    className={`px-3 py-2 text-sm font-medium rounded-md ${
+                      active ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                  >
+                    {item.label}
+                  </a>
+                )
+              })}
+              <div className="relative">
+                <button
+                  onClick={() => setShowMore((prev) => !prev)}
+                  className="px-3 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                >
+                  More
+                </button>
+                {showMore && (
+                  <div className="absolute left-0 mt-2 w-56 rounded-md border border-gray-200 bg-white shadow-lg z-50">
+                    <div className="py-2">
+                      {moreNav.map((item) => (
+                        <a
+                          key={item.href}
+                          href={item.href}
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        >
+                          {item.label}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0">
-            {!isDashboard && (
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="text-gray-700 hover:text-gray-900 px-2 sm:px-3 py-2 rounded-md text-xs sm:text-sm font-medium whitespace-nowrap"
-              >
-                <span className="hidden sm:inline">Back to Dashboard</span>
-                <span className="sm:hidden">Dashboard</span>
-              </button>
-            )}
+          <div className="flex items-center gap-3">
             {userName && (
-              <span className="text-gray-700 text-xs sm:text-sm truncate max-w-24 sm:max-w-none">
+              <span className="text-gray-600 text-xs sm:text-sm truncate max-w-24 sm:max-w-none">
                 {userName}
               </span>
             )}
@@ -72,6 +110,32 @@ export default function TopBar() {
           </div>
         </div>
       </div>
+      {showMenu && (
+        <div className="sm:hidden border-t border-gray-200 px-4 pb-4">
+          <div className="grid gap-2 pt-3">
+            {mainNav.map((item) => (
+              <a
+                key={item.href}
+                href={item.href}
+                className="px-3 py-2 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-100"
+              >
+                {item.label}
+              </a>
+            ))}
+            <div className="border-t border-gray-200 pt-2 mt-2">
+              {moreNav.map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="block px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   )
 }
