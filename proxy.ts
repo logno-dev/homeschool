@@ -7,6 +7,7 @@ export default authkitMiddleware({
     unauthenticatedPaths: [
       '/',
       '/signin',
+      '/signup',
       '/forgot-password',
       '/reset-password',
       '/api/auth',

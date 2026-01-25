@@ -5,7 +5,7 @@ import { scholarshipApplications, familySessionFees, feePayments, scholarshipFun
 import { and, eq, sql } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 
-export async function PATCH(request: Request, { params }: { params: { applicationId: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ applicationId: string }> }) {
   try {
     const auth = await getAuthenticatedAdmin()
     if ('error' in auth) {
@@ -13,7 +13,8 @@ export async function PATCH(request: Request, { params }: { params: { applicatio
     }
 
     const body = await request.json()
-    const resolvedApplicationId = params.applicationId || body?.applicationId
+    const { applicationId: paramId } = await params
+    const resolvedApplicationId = paramId || body?.applicationId
     if (!resolvedApplicationId || typeof resolvedApplicationId !== 'string' || !resolvedApplicationId.trim()) {
       return NextResponse.json({ error: 'Missing scholarship application id.' }, { status: 400 })
     }
