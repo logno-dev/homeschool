@@ -88,9 +88,19 @@ export async function checkAdminRole(session: { role?: string; roles?: string[];
   return role === 'admin' || role === 'moderator'
 }
 
+export async function checkAdminRoleFromSession(
+  session: { role?: string; roles?: string[]; user?: { id: string } } | { user?: null } | null
+): Promise<boolean> {
+  if (!session || !('user' in session) || !session.user) {
+    return false
+  }
+
+  return checkAdminRole(session as { role?: string; roles?: string[]; user?: { id: string } })
+}
+
 export async function requireAdminAccess() {
   const session = await getAuthenticatedUser()
-  const isAdmin = await checkAdminRole(session)
+  const isAdmin = await checkAdminRole(session as { role?: string; roles?: string[]; user?: { id: string } })
   
   if (!isAdmin) {
     redirect('/dashboard')
@@ -105,12 +115,12 @@ export async function getAuthenticatedAdmin() {
     return { error: 'Unauthorized', status: 401 }
   }
 
-  const isAdmin = await checkAdminRole(session)
+  const isAdmin = await checkAdminRole(session as { role?: string; roles?: string[]; user?: { id: string } })
   if (!isAdmin) {
     return { error: 'Forbidden', status: 403 }
   }
 
-  const role = await getAppRole(session)
+  const role = await getAppRole(session as { role?: string; roles?: string[]; user?: { id: string } })
   return { session, isAdmin: true, role }
 }
 
