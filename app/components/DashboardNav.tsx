@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { getReturnToUrl } from '@/lib/client-env'
 
 interface DashboardNavProps {
   userName: string
@@ -23,7 +24,7 @@ export default function DashboardNav({ userName }: DashboardNavProps) {
             </span>
             <button
               onClick={() => {
-                void signOut({ returnTo: '/' })
+                void signOut({ returnTo: getReturnToUrl() })
               }}
               className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
             >

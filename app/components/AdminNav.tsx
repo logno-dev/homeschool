@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { getReturnToUrl } from '@/lib/client-env'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -67,7 +68,7 @@ export default function AdminNav({ userName, activeTab }: AdminNavProps) {
               </span>
               <button
                 onClick={() => {
-                  void signOut({ returnTo: '/' })
+                  void signOut({ returnTo: getReturnToUrl() })
                 }}
                 className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-md text-sm font-medium"
               >
@@ -144,7 +145,7 @@ export default function AdminNav({ userName, activeTab }: AdminNavProps) {
               </button>
               <button
                 onClick={() => {
-                  void signOut({ returnTo: '/' })
+                  void signOut({ returnTo: getReturnToUrl() })
                 }}
                 className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50"
               >

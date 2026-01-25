@@ -1,6 +1,7 @@
 'use client'
 
 import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { getReturnToUrl } from '@/lib/client-env'
 import { useRouter, usePathname } from 'next/navigation'
 
 export default function TopBar() {
@@ -61,7 +62,7 @@ export default function TopBar() {
             )}
             <button
               onClick={() => {
-                void signOut({ returnTo: '/' })
+                void signOut({ returnTo: getReturnToUrl() })
               }}
               className="bg-red-600 hover:bg-red-700 text-white px-3 sm:px-4 py-2 rounded-md text-xs sm:text-sm font-medium whitespace-nowrap"
             >

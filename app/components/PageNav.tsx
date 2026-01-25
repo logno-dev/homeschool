@@ -2,6 +2,7 @@
 
 import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
+import { getReturnToUrl } from '@/lib/client-env'
 
 interface PageNavProps {
   title: string
@@ -47,10 +48,10 @@ export default function PageNav({
               </span>
             )}
             {showSignOut && (
-              <button
-                onClick={() => {
-                  void signOut({ returnTo: '/' })
-                }}
+                <button
+                  onClick={() => {
+                    void signOut({ returnTo: getReturnToUrl() })
+                  }}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium"
               >
                 Sign Out

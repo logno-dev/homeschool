@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { getReturnToUrl } from '@/lib/client-env'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 
@@ -214,7 +215,7 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
               
               <button
                 onClick={() => {
-                  void signOut({ returnTo: '/' })
+                  void signOut({ returnTo: getReturnToUrl() })
                 }}
                 className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               >
