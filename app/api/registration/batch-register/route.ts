@@ -151,27 +151,27 @@ async function validateRegistration(
       }
       
       if (registration.status !== 'waitlisted') {
-      const currentRegistrations = await db
-        .select()
-        .from(classRegistrations)
-        .where(eq(classRegistrations.scheduleId, registration.scheduleId))
+        const currentRegistrations = await db
+          .select()
+          .from(classRegistrations)
+          .where(eq(classRegistrations.scheduleId, registration.scheduleId))
 
-      const totalRegistrations = currentRegistrations.filter((row) =>
-        row.status === 'registered' ||
-        row.status === 'pending' ||
-        (row.status === 'hold' && row.holdExpiresAt && row.holdExpiresAt > now)
-      ).length
+        const totalRegistrations = currentRegistrations.filter((row) =>
+          row.status === 'registered' ||
+          row.status === 'pending' ||
+          (row.status === 'hold' && row.holdExpiresAt && row.holdExpiresAt > now && row.familyId !== familyId)
+        ).length
 
-      if (totalRegistrations >= classTeachingRequest.maxStudents) {
-        conflicts.push({
-          type: 'class_full',
-          scheduleId: registration.scheduleId,
-          period: registration.period,
-          className: registration.className,
-          message: `Class "${registration.className}" is full (${totalRegistrations}/${classTeachingRequest.maxStudents})`
-        })
+        if (totalRegistrations >= classTeachingRequest.maxStudents) {
+          conflicts.push({
+            type: 'class_full',
+            scheduleId: registration.scheduleId,
+            period: registration.period,
+            className: registration.className,
+            message: `Class "${registration.className}" is full (${totalRegistrations}/${classTeachingRequest.maxStudents})`
+          })
+        }
       }
-    }
     }
 
     // Check for child period conflicts
@@ -747,7 +747,7 @@ export async function POST(request: Request) {
           const totalRegistrations = currentRegistrations.filter((row) =>
             row.status === 'registered' ||
             row.status === 'pending' ||
-            (row.status === 'hold' && row.holdExpiresAt && row.holdExpiresAt > holdReferenceTime)
+            (row.status === 'hold' && row.holdExpiresAt && row.holdExpiresAt > holdReferenceTime && row.familyId !== familyId)
           ).length
 
           if (totalRegistrations >= classTeachingRequest.maxStudents) {

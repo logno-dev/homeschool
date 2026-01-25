@@ -399,7 +399,7 @@ export default function RegistrationGrid({
                                 ? 'bg-red-50 border-red-300 hover:bg-red-100 cursor-pointer'
                                 : getEffectiveAvailableSpots(schedule) > 0
                                 ? 'bg-blue-50 border-blue-200 hover:bg-blue-100 cursor-pointer'
-                                : 'bg-gray-50 border-gray-200 cursor-not-allowed opacity-60'
+                                : 'bg-gray-50 border-gray-200 hover:bg-gray-100 cursor-pointer'
                             }`}
                           >
                             <h4 className={`font-medium text-sm ${
@@ -419,6 +419,11 @@ export default function RegistrationGrid({
                             <p className="text-xs text-blue-600 mt-1">
                               {getEffectiveAvailableSpots(schedule)} spots available
                             </p>
+                            {getEffectiveAvailableSpots(schedule) <= 0 && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Class full — open for waitlist and volunteers
+                              </p>
+                            )}
                             {schedule.classTeachingRequest.requiresFee && (
                               <p className="text-xs text-red-600 mt-1">
                                 Fee: ${schedule.classTeachingRequest.feeAmount}
@@ -475,12 +480,8 @@ export default function RegistrationGrid({
                               ? 'bg-red-50 border-red-300 active:bg-red-100'
                               : getEffectiveAvailableSpots(schedule) > 0
                               ? 'bg-blue-50 border-blue-200 active:bg-blue-100'
-                              : 'bg-gray-50 border-gray-200 opacity-60'
-                          } ${
-                            getEffectiveAvailableSpots(schedule) > 0 || isScheduleConflicted(schedule.schedule.id)
-                              ? 'cursor-pointer touch-manipulation'
-                              : 'cursor-not-allowed'
-                          }`}
+                              : 'bg-gray-50 border-gray-200'
+                          } cursor-pointer touch-manipulation`}
                         >
                           <div className="space-y-2">
                             <h4 className={`font-semibold text-base ${
@@ -501,6 +502,11 @@ export default function RegistrationGrid({
                               <p className="text-blue-600">
                                 <span className="font-medium">Available:</span> {getEffectiveAvailableSpots(schedule)} of {schedule.classTeachingRequest.maxStudents} spots
                               </p>
+                              {getEffectiveAvailableSpots(schedule) <= 0 && (
+                                <p className="text-xs text-gray-500">
+                                  Class full — open for waitlist and volunteers
+                                </p>
+                              )}
                               {schedule.classTeachingRequest.requiresFee && (
                                 <p className="text-red-600 font-medium">
                                   Fee: ${schedule.classTeachingRequest.feeAmount}
@@ -511,6 +517,13 @@ export default function RegistrationGrid({
                               <div className="pt-2 border-t border-blue-200">
                                 <p className="text-xs text-blue-600 font-medium">
                                   Tap to register →
+                                </p>
+                              </div>
+                            )}
+                            {getEffectiveAvailableSpots(schedule) <= 0 && (
+                              <div className="pt-2 border-t border-gray-200">
+                                <p className="text-xs text-gray-500 font-medium">
+                                  Tap for waitlist or volunteer options →
                                 </p>
                               </div>
                             )}
