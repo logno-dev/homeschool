@@ -25,9 +25,10 @@ interface Guardian {
 interface NonPeriodVolunteerJobsProps {
   volunteerJobs: VolunteerJob[]
   guardians: Guardian[]
+  jobAssignmentCounts?: Record<string, number>
 }
 
-export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians }: NonPeriodVolunteerJobsProps) {
+export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians, jobAssignmentCounts = {} }: NonPeriodVolunteerJobsProps) {
   const { showSuccess, showError } = useToast()
   const { 
     addVolunteerAssignment,
@@ -85,8 +86,10 @@ export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians }: Non
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {volunteerJobs.map((job) => {
-            const assignments = getJobAssignments(job.id)
-            const availableSpots = job.quantityAvailable - assignments.length
+                  const assignments = getJobAssignments(job.id)
+                  const assignmentKey = `${job.sessionVolunteerJobId}:non_period`
+                  const reservedCount = jobAssignmentCounts[assignmentKey] || 0
+                  const availableSpots = job.quantityAvailable - reservedCount
             
             return (
               <div key={job.id} className="bg-white rounded-lg shadow border overflow-hidden">
@@ -154,9 +157,9 @@ export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians }: Non
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{selectedJob.title}</h3>
               <p className="text-sm text-gray-600 mb-2">{selectedJob.description}</p>
-              <p className="text-sm text-gray-500">
-                Available spots: <strong>{selectedJob.quantityAvailable - getJobAssignments(selectedJob.id).length}</strong>
-              </p>
+                <p className="text-sm text-gray-500">
+                  Available spots: <strong>{Math.max(0, selectedJob.quantityAvailable - (jobAssignmentCounts[`${selectedJob.sessionVolunteerJobId}:non_period`] || 0))}</strong>
+                </p>
             </div>
             
             <p className="text-sm text-gray-600">

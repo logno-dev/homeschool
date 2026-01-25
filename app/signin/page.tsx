@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getSignInUrl } from '@workos-inc/authkit-nextjs'
 
 export default async function SignIn() {
-  const signInUrl = await getSignInUrl()
+  const organizationId = process.env.WORKOS_ORGANIZATION_ID
+  const signInUrl = await getSignInUrl({ organizationId })
   redirect(signInUrl)
 }

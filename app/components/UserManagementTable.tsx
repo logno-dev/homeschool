@@ -4,16 +4,12 @@ import { useState } from 'react'
 
 interface User {
   id: string
+  userId?: string
   email: string
   firstName: string
   lastName: string
   role: string
-  familyId: string | null
-  dateOfBirth: string | null
-  grade: string | null
-  emergencyContact: string | null
-  createdAt: string
-  updatedAt: string
+  status?: string
 }
 
 interface PaginationInfo {
@@ -56,17 +52,17 @@ export default function UserManagementTable({
         body: JSON.stringify({ role: newRole }),
       })
 
+      const data = await res.json()
       if (res.ok) {
-        setMessage(`User role updated to ${newRole}`)
+        const appliedRole = data.role || newRole
+        setMessage(`User role updated to ${appliedRole}`)
         setMessageType('success')
-        // Refresh the user list
         const updatedUsers = users.map(user => 
-          user.id === userId ? { ...user, role: newRole } : user
+          user.id === userId ? { ...user, role: appliedRole } : user
         )
         setUsers(updatedUsers)
         setTimeout(() => setMessage(''), 3000)
       } else {
-        const data = await res.json()
         setMessage(data.error || 'Failed to update user role')
         setMessageType('error')
         setTimeout(() => setMessage(''), 3000)
@@ -111,14 +107,33 @@ export default function UserManagementTable({
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
+      case 'org-admin':
       case 'admin':
         return 'bg-red-100 text-red-800'
-      case 'moderator':
+      case 'org-staff':
+      case 'staff':
         return 'bg-blue-100 text-blue-800'
-      case 'member':
+      case 'org-user':
+      case 'user':
         return 'bg-green-100 text-green-800'
       default:
         return 'bg-gray-100 text-gray-800'
+    }
+  }
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'org-admin':
+      case 'admin':
+        return 'Admin'
+      case 'org-staff':
+      case 'staff':
+        return 'Staff'
+      case 'org-user':
+      case 'user':
+        return 'User'
+      default:
+        return role
     }
   }
 
@@ -129,7 +144,7 @@ export default function UserManagementTable({
           User Role Management
         </h2>
         <p className="text-sm text-gray-600 mb-6">
-          Manage user roles and permissions. You can promote users to moderators or admins, or deactivate accounts.
+          Manage WorkOS organization roles for your members. Assign admin or staff access as needed.
         </p>
 
         {message && (
@@ -177,26 +192,25 @@ export default function UserManagementTable({
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
-                      {user.role}
+                      {getRoleLabel(user.role)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                      Active
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.status === 'inactive' ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-800'}`}>
+                      {user.status === 'inactive' ? 'Inactive' : 'Active'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                    {user.id !== currentUserId && (
+                    {user.userId !== currentUserId && (
                       <>
                         <select
                           value={user.role}
                           onChange={(e) => updateUserRole(user.id, e.target.value)}
                           className="text-sm border border-gray-300 rounded-md px-2 py-1 text-gray-900 bg-white"
                         >
-                          <option value="user">User</option>
-                          <option value="member">Member</option>
-                          <option value="moderator">Moderator</option>
-                          <option value="admin">Admin</option>
+                          <option value="org-user">User</option>
+                          <option value="org-staff">Staff</option>
+                          <option value="org-admin">Admin</option>
                         </select>
                         <button
                           onClick={() => deactivateUser(user.id)}
@@ -206,7 +220,7 @@ export default function UserManagementTable({
                         </button>
                       </>
                     )}
-                    {user.id === currentUserId && (
+                    {user.userId === currentUserId && (
                       <span className="text-gray-500 text-sm">You</span>
                     )}
                   </td>
@@ -242,8 +256,8 @@ export default function UserManagementTable({
                     <p className="text-sm text-gray-600 truncate">{user.email}</p>
                   </div>
                   <div className="flex-shrink-0 ml-4">
-                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                      Active
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${user.status === 'inactive' ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-800'}`}>
+                      {user.status === 'inactive' ? 'Inactive' : 'Active'}
                     </span>
                   </div>
                 </div>
@@ -251,13 +265,13 @@ export default function UserManagementTable({
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <span className="text-sm text-gray-500">Current Role:</span>
-                    <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
-                      {user.role}
-                    </span>
+                      <span className={`ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadgeColor(user.role)}`}>
+                        {getRoleLabel(user.role)}
+                      </span>
                   </div>
                 </div>
 
-                {user.id !== currentUserId && (
+                {user.userId !== currentUserId && (
                   <div className="space-y-3 pt-3 border-t border-gray-200">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -268,11 +282,10 @@ export default function UserManagementTable({
                         onChange={(e) => updateUserRole(user.id, e.target.value)}
                         className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
-                        <option value="user">User</option>
-                        <option value="member">Member</option>
-                        <option value="moderator">Moderator</option>
-                        <option value="admin">Admin</option>
-                      </select>
+                          <option value="org-user">User</option>
+                          <option value="org-staff">Staff</option>
+                          <option value="org-admin">Admin</option>
+                        </select>
                     </div>
                     <button
                       onClick={() => deactivateUser(user.id)}
@@ -283,7 +296,7 @@ export default function UserManagementTable({
                   </div>
                 )}
                 
-                {user.id === currentUserId && (
+                {user.userId === currentUserId && (
                   <div className="pt-3 border-t border-gray-200">
                     <p className="text-sm text-gray-500 text-center">This is your account</p>
                   </div>

@@ -5,7 +5,16 @@ import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '@/app/components/AdminLayout'
 import UserManagementTable from '@/app/components/UserManagementTable'
-import type { User } from '@/lib/schema'
+import { useToast } from '@/app/components/ToastContainer'
+interface WorkosUser {
+  id: string
+  userId?: string
+  email: string
+  firstName: string
+  lastName: string
+  role: string
+  status?: string
+}
 
 interface PaginationInfo {
   page: number
@@ -19,10 +28,12 @@ interface PaginationInfo {
 export default function AdminUsersPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const [users, setUsers] = useState<User[]>([])
+  const { showError } = useToast()
+  const [users, setUsers] = useState<WorkosUser[]>([])
   const [pagination, setPagination] = useState<PaginationInfo | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   // Fetch users data
   const fetchUsers = async (page: number = 1) => {
@@ -34,9 +45,17 @@ export default function AdminUsersPage() {
         setUsers(data.users || [])
         setPagination(data.pagination)
         setCurrentPage(page)
+        setLoadError(null)
+      } else {
+        const payload = await response.json()
+        const message = payload.error || 'Failed to load users'
+        setLoadError(message)
+        showError('User load failed', message)
       }
     } catch (error) {
       console.error('Error fetching users:', error)
+      setLoadError('Failed to load users')
+      showError('User load failed', 'Failed to load users')
     } finally {
       setIsLoading(false)
     }
@@ -77,6 +96,11 @@ export default function AdminUsersPage() {
     >
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
+          {loadError && (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
           <UserManagementTable 
             initialUsers={users} 
             currentUserId={user.id}

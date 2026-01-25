@@ -1,26 +1,29 @@
 import 'server-only'
 import { db } from '@/lib/db'
+import { ensureSessionClassrooms, ensureSessionVolunteerJobs } from '@/lib/database'
 import {
   schedules,
   classTeachingRequests,
   guardians,
-  classrooms,
+  sessionClassrooms,
   classRegistrations,
   children,
   volunteerJobs,
   sessionVolunteerJobs,
   volunteerAssignments
 } from '@/lib/schema'
-import { and, eq, or, gt, inArray } from 'drizzle-orm'
+import { and, eq, or, gt, inArray, isNotNull } from 'drizzle-orm'
 
 export async function getRegistrationSchedules(sessionId: string) {
+  await ensureSessionClassrooms(sessionId)
+  await ensureSessionVolunteerJobs(sessionId)
   const now = new Date().toISOString()
-  const [publishedSchedules, registrationData, volunteerData, periodBasedJobs, nonPeriodJobs] = await Promise.all([
+  const [publishedSchedules, registrationData, volunteerData, volunteerJobAssignments, sessionJobsRaw] = await Promise.all([
     db
       .select({
         schedule: schedules,
         classTeachingRequest: classTeachingRequests,
-        classroom: classrooms,
+        classroom: sessionClassrooms,
         teacher: {
           id: guardians.id,
           firstName: guardians.firstName,
@@ -29,7 +32,7 @@ export async function getRegistrationSchedules(sessionId: string) {
       })
       .from(schedules)
       .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-      .innerJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+      .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
       .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
       .where(and(
         eq(schedules.sessionId, sessionId),
@@ -82,20 +85,19 @@ export async function getRegistrationSchedules(sessionId: string) {
 
     db
       .select({
-        id: volunteerJobs.id,
-        sessionVolunteerJobId: sessionVolunteerJobs.id,
-        title: volunteerJobs.title,
-        description: volunteerJobs.description,
-        quantityAvailable: sessionVolunteerJobs.quantityAvailable,
-        jobType: volunteerJobs.jobType,
-        isActive: sessionVolunteerJobs.isActive
+        volunteerJobId: volunteerAssignments.volunteerJobId,
+        period: volunteerAssignments.period,
+        status: volunteerAssignments.status,
+        holdExpiresAt: volunteerAssignments.holdExpiresAt
       })
-      .from(sessionVolunteerJobs)
-      .innerJoin(volunteerJobs, eq(sessionVolunteerJobs.volunteerJobId, volunteerJobs.id))
+      .from(volunteerAssignments)
       .where(and(
-        eq(sessionVolunteerJobs.sessionId, sessionId),
-        eq(volunteerJobs.jobType, 'period_based'),
-        eq(sessionVolunteerJobs.isActive, true)
+        eq(volunteerAssignments.sessionId, sessionId),
+        isNotNull(volunteerAssignments.volunteerJobId),
+        or(
+          inArray(volunteerAssignments.status, ['assigned', 'pending']),
+          and(eq(volunteerAssignments.status, 'hold'), gt(volunteerAssignments.holdExpiresAt, now))
+        )
       )),
 
     db
@@ -105,32 +107,74 @@ export async function getRegistrationSchedules(sessionId: string) {
         title: volunteerJobs.title,
         description: volunteerJobs.description,
         quantityAvailable: sessionVolunteerJobs.quantityAvailable,
-        jobType: volunteerJobs.jobType,
+        jobType: sessionVolunteerJobs.jobType,
+        fallbackJobType: volunteerJobs.jobType,
         isActive: sessionVolunteerJobs.isActive
       })
       .from(sessionVolunteerJobs)
       .innerJoin(volunteerJobs, eq(sessionVolunteerJobs.volunteerJobId, volunteerJobs.id))
       .where(and(
         eq(sessionVolunteerJobs.sessionId, sessionId),
-        eq(volunteerJobs.jobType, 'non_period'),
         eq(sessionVolunteerJobs.isActive, true)
       ))
   ])
 
+  const normalizeJobType = (value?: string | null) => {
+    if (!value) return 'non_period'
+    if (value === 'non-period') return 'non_period'
+    if (value === 'period') return 'period_based'
+    return value
+  }
+
+  const sessionJobs = (sessionJobsRaw as unknown) as Array<{
+    id: string
+    sessionVolunteerJobId: string
+    title: string
+    description: string
+    quantityAvailable: number
+    jobType: string | null
+    fallbackJobType: string | null
+    isActive: boolean
+  }>
+
+  const periodBasedJobs = sessionJobs
+    .filter((job) => normalizeJobType(job.jobType || job.fallbackJobType) === 'period_based')
+    .map((job) => ({
+      ...job,
+      jobType: normalizeJobType(job.jobType || job.fallbackJobType)
+    }))
+
+  const nonPeriodJobs = sessionJobs
+    .filter((job) => normalizeJobType(job.jobType || job.fallbackJobType) === 'non_period')
+    .map((job) => ({
+      ...job,
+      jobType: normalizeJobType(job.jobType || job.fallbackJobType)
+    }))
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('Registration job split', {
+      sessionId,
+      sessionJobs: sessionJobs.length,
+      periodBased: periodBasedJobs.length,
+      nonPeriod: nonPeriodJobs.length
+    })
+  }
+
   const registrationCountMap: Record<string, number> = {}
-  const rosterMap: Record<string, Array<{ id: string; firstName: string; lastName: string; grade: string }>> = {}
+  const rosterMap: Record<string, Array<{ id: string; firstName: string; lastName: string; grade: string; status: string }>> = {}
 
   registrationData.forEach((item) => {
     const scheduleId = item.scheduleId
     if (scheduleId) {
       registrationCountMap[scheduleId] = (registrationCountMap[scheduleId] || 0) + 1
 
-      if (item.status === 'registered') {
-        if (!rosterMap[scheduleId]) {
-          rosterMap[scheduleId] = []
-        }
-        rosterMap[scheduleId].push(item.child)
+      if (!rosterMap[scheduleId]) {
+        rosterMap[scheduleId] = []
       }
+      rosterMap[scheduleId].push({
+        ...item.child,
+        status: item.status
+      })
     }
   })
 
@@ -169,9 +213,65 @@ export async function getRegistrationSchedules(sessionId: string) {
     }
   })
 
+  const volunteerJobAssignmentsList = (volunteerJobAssignments as unknown) as Array<{
+    volunteerJobId: string | null
+    period: string | null
+    status: string
+    holdExpiresAt: string | null
+  }>
+
+  const normalizePeriod = (period: string | null) => {
+    if (!period) return null
+    switch (period) {
+      case '1':
+      case 'first':
+        return 'first'
+      case '2':
+      case 'second':
+        return 'second'
+      case '3':
+      case 'third':
+        return 'third'
+      case 'non_period':
+        return 'non_period'
+      case 'lunch':
+        return 'lunch'
+      default:
+        return period
+    }
+  }
+
+  const allSessionJobs = [...periodBasedJobs, ...nonPeriodJobs] as Array<{
+    id: string
+    sessionVolunteerJobId: string
+  }>
+
+  const jobIdToSessionIds = allSessionJobs.reduce((acc, job) => {
+    if (!acc[job.id]) {
+      acc[job.id] = []
+    }
+    acc[job.id].push(job.sessionVolunteerJobId)
+    return acc
+  }, {} as Record<string, string[]>)
+
+  const volunteerJobAssignmentCounts = volunteerJobAssignmentsList.reduce((acc, assignment) => {
+    const jobId = assignment.volunteerJobId
+    const period = normalizePeriod(assignment.period)
+    if (!jobId || !period) return acc
+
+    const sessionJobIds = jobIdToSessionIds[jobId] || []
+    sessionJobIds.forEach((sessionJobId) => {
+      const key = `${sessionJobId}:${period}`
+      acc[key] = (acc[key] || 0) + 1
+    })
+
+    return acc
+  }, {} as Record<string, number>)
+
   return {
     schedules: enhancedSchedules,
     volunteerJobs: periodBasedJobs,
-    nonPeriodVolunteerJobs: nonPeriodJobs
+    nonPeriodVolunteerJobs: nonPeriodJobs,
+    volunteerJobAssignmentCounts
   }
 }

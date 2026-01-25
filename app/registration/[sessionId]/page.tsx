@@ -82,7 +82,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
   const hasDeniedOverride = registrationStatus && registrationStatus.registrationState === 'denied'
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-8 overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {hasPendingOverride ? (
           // Show pending override status with readonly view
@@ -176,6 +176,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
                 volunteerJobs={scheduleBundle.volunteerJobs}
                 nonPeriodVolunteerJobs={scheduleBundle.nonPeriodVolunteerJobs}
                 teachingAssignments={scheduleBundle.teachingAssignments}
+                volunteerJobAssignmentCounts={scheduleBundle.volunteerJobAssignmentCounts}
               />
             </RegistrationProvider>
           </div>
@@ -315,6 +316,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
                 volunteerJobs={scheduleBundle.volunteerJobs}
                 nonPeriodVolunteerJobs={scheduleBundle.nonPeriodVolunteerJobs}
                 teachingAssignments={scheduleBundle.teachingAssignments}
+                volunteerJobAssignmentCounts={scheduleBundle.volunteerJobAssignmentCounts}
               />
             </RegistrationProvider>
           </div>

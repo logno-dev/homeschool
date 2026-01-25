@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { schedules } from '@/lib/schema'
+import { schedules, sessionClassrooms } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 
 // Helper function to generate IDs
@@ -26,18 +26,31 @@ export async function POST(
     // Clear existing draft entries for this session
     await db.delete(schedules).where(eq(schedules.sessionId, sessionId))
 
+    const sessionRooms = await db
+      .select({ id: sessionClassrooms.id, classroomId: sessionClassrooms.classroomId })
+      .from(sessionClassrooms)
+      .where(eq(sessionClassrooms.sessionId, sessionId))
+    const roomLookup = new Map(sessionRooms.map((room) => [room.id, room.classroomId]))
+
     // Insert new schedule entries
     if (scheduleEntries && scheduleEntries.length > 0) {
-      const newEntries = scheduleEntries.map((entry: any) => ({
+      const newEntries = scheduleEntries.map((entry: any) => {
+        const resolvedClassroomId = roomLookup.get(entry.classroomId)
+        if (!resolvedClassroomId) {
+          throw new Error('Classroom not found for schedule entry')
+        }
+        return {
         id: generateId(),
         sessionId: sessionId,
         classTeachingRequestId: entry.classTeachingRequestId,
-        classroomId: entry.classroomId,
+        classroomId: resolvedClassroomId,
+        sessionClassroomId: entry.classroomId,
         period: entry.period,
         status: 'draft',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-      }))
+        }
+      })
 
       await db.insert(schedules).values(newEntries)
     }

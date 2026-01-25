@@ -39,7 +39,6 @@ export default function TeacherScheduleReview() {
 
   useEffect(() => {
     fetchSessions()
-    fetchClassrooms()
   }, [])
 
   useEffect(() => {
@@ -66,25 +65,14 @@ export default function TeacherScheduleReview() {
     }
   }
 
-  const fetchClassrooms = async () => {
-    try {
-      const response = await fetch('/api/admin/classrooms')
-      if (response.ok) {
-        const data = await response.json()
-        setClassrooms(data.classrooms || [])
-      }
-    } catch (error) {
-      console.error('Error fetching classrooms:', error)
-    }
-  }
-
   const fetchScheduleData = async () => {
     if (!selectedSession) return
 
     try {
       const response = await fetch(`/api/admin/schedule/${selectedSession}`)
-      if (response.ok) {
-        const data = await response.json()
+        if (response.ok) {
+          const data = await response.json()
+          setClassrooms(data.classrooms || [])
         
         // Create a map of class teaching request ID to teacher info
         const teacherMap: { [key: string]: { name: string, gradeRange: string, className: string } } = {}

@@ -6,7 +6,6 @@ import Toast from './Toast'
 
 interface VolunteerJob {
   id: string
-  sessionId: string
   title: string
   description: string
   quantityAvailable: number
@@ -18,11 +17,7 @@ interface VolunteerJob {
   createdByLastName: string
 }
 
-interface VolunteerJobsManagementProps {
-  sessionId: string
-}
-
-export function VolunteerJobsManagement({ sessionId }: VolunteerJobsManagementProps) {
+export function VolunteerJobsManagement() {
   const [jobs, setJobs] = useState<VolunteerJob[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -39,11 +34,11 @@ export function VolunteerJobsManagement({ sessionId }: VolunteerJobsManagementPr
 
   useEffect(() => {
     fetchJobs()
-  }, [sessionId])
+  }, [])
 
   const fetchJobs = async () => {
     try {
-      const response = await fetch(`/api/admin/volunteer-jobs?sessionId=${sessionId}`)
+      const response = await fetch('/api/admin/volunteer-jobs')
       if (response.ok) {
         const data = await response.json()
         setJobs(data)
@@ -88,9 +83,7 @@ export function VolunteerJobsManagement({ sessionId }: VolunteerJobsManagementPr
       
       const method = editingJob ? 'PUT' : 'POST'
       
-      const body = editingJob 
-        ? formData
-        : { ...formData, sessionId }
+      const body = formData
 
       const response = await fetch(url, {
         method,

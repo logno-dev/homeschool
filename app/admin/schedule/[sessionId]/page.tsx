@@ -3,7 +3,7 @@ import Link from 'next/link'
 import AdminLayout from '@/app/components/AdminLayout'
 import ScheduleGrid from '@/app/components/ScheduleGrid'
 import { requireAdminAccess } from '@/lib/server-auth'
-import { getApprovedClassesForSession, getClassrooms, getScheduleWithDetails, getSessionById } from '@/lib/database'
+import { getApprovedClassesForSession, getSessionClassrooms, getScheduleWithDetails, getSessionById, ensureSessionClassrooms } from '@/lib/database'
 
 interface AdminSchedulePageProps {
   params: Promise<{ sessionId: string }>
@@ -18,10 +18,11 @@ export default async function AdminSchedulePage({ params }: AdminSchedulePagePro
     notFound()
   }
 
+  await ensureSessionClassrooms(sessionId)
   const [scheduleEntries, approvedClasses, classrooms] = await Promise.all([
     getScheduleWithDetails(sessionId),
     getApprovedClassesForSession(sessionId),
-    getClassrooms()
+    getSessionClassrooms(sessionId)
   ])
 
   const rawStatus = scheduleEntries[0]?.status

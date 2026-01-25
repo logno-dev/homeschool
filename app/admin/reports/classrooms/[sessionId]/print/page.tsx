@@ -1,6 +1,6 @@
 import { requireAdminAccess } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { classrooms, schedules, classTeachingRequests, guardians } from '@/lib/schema'
+import { sessionClassrooms, schedules, classTeachingRequests, guardians } from '@/lib/schema'
 import { and, eq } from 'drizzle-orm'
 import PrintTrigger from './PrintTrigger'
 import Link from 'next/link'
@@ -27,16 +27,16 @@ export default async function ClassroomPrintPage({ params, searchParams }: Print
   const session = await getSessionById(sessionId)
 
   const [classroomRows, scheduleRows] = await Promise.all([
-    db.select().from(classrooms),
+    db.select().from(sessionClassrooms).where(eq(sessionClassrooms.sessionId, sessionId)),
     db
       .select({
-        classroomId: classrooms.id,
+        classroomId: sessionClassrooms.id,
         period: schedules.period,
         className: classTeachingRequests.className
       })
       .from(schedules)
       .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-      .innerJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+      .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
       .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
       .where(and(
         eq(schedules.sessionId, sessionId),

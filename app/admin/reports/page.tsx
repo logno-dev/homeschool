@@ -5,7 +5,7 @@ import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '../../components/AdminLayout'
 import { useToast } from '../../components/ToastContainer'
-import type { Session, Classroom, Family, Guardian, Child } from '../../../lib/schema'
+import type { Session, SessionClassroom, Family, Guardian, Child } from '../../../lib/schema'
 
 interface ScheduleRow {
   scheduleId: string
@@ -30,7 +30,7 @@ interface RosterRow {
 
 interface ReportData {
   session: Session
-  classrooms: Classroom[]
+  classrooms: SessionClassroom[]
   schedules: ScheduleRow[]
   roster: RosterRow[]
   families: Family[]

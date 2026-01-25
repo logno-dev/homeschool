@@ -239,14 +239,10 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
 
   const totalItems = getTotalPendingRegistrations() + pendingVolunteerAssignments.length
 
-  if (totalItems === 0) {
-    return null
-  }
-
   return (
     <>
       {/* Floating Cart Button */}
-      <div className="fixed bottom-6 right-6 z-40">
+      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
         <button
           onClick={() => setShowCart(true)}
           className="bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"

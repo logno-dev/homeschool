@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { sessions, type NewSession } from '@/lib/schema'
+import { ensureSessionClassrooms, ensureSessionVolunteerJobs } from '@/lib/database'
 
 // Helper function to generate IDs (same as in database.ts)
 function generateId(): string {
@@ -72,6 +73,8 @@ export async function POST(request: Request) {
     }
 
     const [createdSession] = await db.insert(sessions).values(newSession).returning()
+    await ensureSessionClassrooms(createdSession.id)
+    await ensureSessionVolunteerJobs(createdSession.id)
     return NextResponse.json({ session: createdSession }, { status: 201 })
   } catch (error) {
     console.error('Error creating session:', error)

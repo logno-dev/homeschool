@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { volunteerJobs, sessionVolunteerJobs, guardians } from '@/lib/schema'
-import { eq } from 'drizzle-orm'
+import { volunteerJobs, sessionVolunteerJobs, guardians, sessions } from '@/lib/schema'
+import { and, eq, inArray } from 'drizzle-orm'
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
   try {
@@ -47,6 +47,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Volunteer job not found' }, { status: 404 })
     }
 
+    const activeSessions = await db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(eq(sessions.isActive, true))
+
+    if (activeSessions.length > 0) {
+      await db.update(sessionVolunteerJobs)
+        .set({
+          quantityAvailable,
+          jobType: jobType || updatedJob[0].jobType,
+          updatedAt: new Date().toISOString()
+        })
+        .where(and(
+          eq(sessionVolunteerJobs.volunteerJobId, jobId),
+          inArray(sessionVolunteerJobs.sessionId, activeSessions.map((session) => session.id))
+        ))
+    }
+
     return NextResponse.json(updatedJob[0])
   } catch (error) {
     console.error('Error updating volunteer job:', error)
@@ -69,6 +87,19 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     if (!deletedJob.length) {
       return NextResponse.json({ error: 'Volunteer job not found' }, { status: 404 })
+    }
+
+    const activeSessions = await db
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(eq(sessions.isActive, true))
+
+    if (activeSessions.length > 0) {
+      await db.delete(sessionVolunteerJobs)
+        .where(and(
+          eq(sessionVolunteerJobs.volunteerJobId, jobId),
+          inArray(sessionVolunteerJobs.sessionId, activeSessions.map((session) => session.id))
+        ))
     }
 
     return NextResponse.json({ message: 'Volunteer job deleted successfully' })

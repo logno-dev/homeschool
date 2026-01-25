@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import {
-  classrooms,
+  sessionClassrooms,
   schedules,
   classTeachingRequests,
   guardians,
@@ -32,12 +32,12 @@ export async function GET(request: Request) {
     }
 
     const [classroomRows, scheduleRows, rosterRows, familyRows, guardianRows, childRows] = await Promise.all([
-      db.select().from(classrooms),
+      db.select().from(sessionClassrooms).where(eq(sessionClassrooms.sessionId, sessionId)),
       db
         .select({
           scheduleId: schedules.id,
-          classroomId: classrooms.id,
-          classroomName: classrooms.name,
+          classroomId: sessionClassrooms.id,
+          classroomName: sessionClassrooms.name,
           period: schedules.period,
           className: classTeachingRequests.className,
           teacherFirstName: guardians.firstName,
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
         })
         .from(schedules)
         .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-        .innerJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+        .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
         .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
         .where(and(
           eq(schedules.sessionId, sessionId),

@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import {
   schedules,
   classTeachingRequests,
-  classrooms,
+  sessionClassrooms,
   guardians,
   classRegistrations,
   children,
@@ -42,14 +42,14 @@ export default async function ClassroomAttendancePrintPage({ params, searchParam
         scheduleId: schedules.id,
         period: schedules.period,
         className: classTeachingRequests.className,
-        classroomName: classrooms.name,
+        classroomName: sessionClassrooms.name,
         teacherId: guardians.id,
         teacherFirstName: guardians.firstName,
         teacherLastName: guardians.lastName
       })
       .from(schedules)
       .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-      .innerJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+      .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
       .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
       .where(and(
         eq(schedules.sessionId, sessionId),

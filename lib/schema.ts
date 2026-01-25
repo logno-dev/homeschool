@@ -74,6 +74,18 @@ export const classrooms = sqliteTable('classrooms', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   description: text('description'),
+  orderIndex: integer('order_index').notNull().default(0),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const sessionClassrooms = sqliteTable('session_classrooms', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
+  classroomId: text('classroom_id').notNull().references(() => classrooms.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  orderIndex: integer('order_index').notNull().default(0),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
@@ -84,6 +96,7 @@ export const schedules = sqliteTable('schedules', {
   sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
   classTeachingRequestId: text('class_teaching_request_id').notNull().references(() => classTeachingRequests.id, { onDelete: 'cascade' }),
   classroomId: text('classroom_id').notNull().references(() => classrooms.id, { onDelete: 'cascade' }),
+  sessionClassroomId: text('session_classroom_id').references(() => sessionClassrooms.id, { onDelete: 'set null' }),
   period: text('period').notNull(), // 'first', 'second', 'lunch', 'third'
   status: text('status').notNull().default('draft'), // 'draft', 'submitted', 'published'
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -108,6 +121,7 @@ export const scheduleDraftEntries = sqliteTable('schedule_draft_entries', {
   draftId: text('draft_id').notNull().references(() => scheduleDrafts.id, { onDelete: 'cascade' }),
   classTeachingRequestId: text('class_teaching_request_id').notNull().references(() => classTeachingRequests.id, { onDelete: 'cascade' }),
   classroomId: text('classroom_id').notNull().references(() => classrooms.id, { onDelete: 'cascade' }),
+  sessionClassroomId: text('session_classroom_id').references(() => sessionClassrooms.id, { onDelete: 'set null' }),
   period: text('period').notNull(), // 'first', 'second', 'lunch', 'third'
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -168,6 +182,7 @@ export const sessionVolunteerJobs = sqliteTable('session_volunteer_jobs', {
   sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
   volunteerJobId: text('volunteer_job_id').notNull().references(() => volunteerJobs.id, { onDelete: 'cascade' }),
   quantityAvailable: integer('quantity_available').notNull().default(1), // Override quantity for this session
+  jobType: text('job_type').notNull().default('non_period'), // 'period_based' or 'non_period'
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true), // Whether this job is active for this session
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -334,6 +349,7 @@ export type Guardian = typeof guardians.$inferSelect
 export type Child = typeof children.$inferSelect
 export type Session = typeof sessions.$inferSelect
 export type Classroom = typeof classrooms.$inferSelect
+export type SessionClassroom = typeof sessionClassrooms.$inferSelect
 export type Schedule = typeof schedules.$inferSelect
 export type ScheduleDraft = typeof scheduleDrafts.$inferSelect
 export type ScheduleDraftEntry = typeof scheduleDraftEntries.$inferSelect
@@ -357,6 +373,7 @@ export type NewGuardian = typeof guardians.$inferInsert
 export type NewChild = typeof children.$inferInsert
 export type NewSession = typeof sessions.$inferInsert
 export type NewClassroom = typeof classrooms.$inferInsert
+export type NewSessionClassroom = typeof sessionClassrooms.$inferInsert
 export type NewSchedule = typeof schedules.$inferInsert
 export type NewScheduleDraft = typeof scheduleDrafts.$inferInsert
 export type NewScheduleDraftEntry = typeof scheduleDraftEntries.$inferInsert

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { Classroom, ClassTeachingRequest, Session } from '@/lib/schema'
+import type { SessionClassroom, ClassTeachingRequest, Session } from '@/lib/schema'
 import { useToast } from './ToastContainer'
 import ConfirmModal from './ConfirmModal'
 import ClassDetailsPopover from './ClassDetailsPopover'
@@ -16,7 +16,7 @@ interface ScheduleGridProps {
 
 interface ScheduleData {
   approvedClasses: (ClassTeachingRequest & { session: Session, guardian: { firstName: string, lastName: string } })[]
-  classrooms: Classroom[]
+  classrooms: SessionClassroom[]
 }
 
 
@@ -131,7 +131,8 @@ export default function ScheduleGrid({
         // Convert draft entries to draftSchedule format
         const draftScheduleData: DraftSchedule = {}
         data.entries.forEach((entry: any) => {
-          const key = `${entry.classroomId}-${entry.period}`
+          const classroomId = entry.sessionClassroomId || entry.classroomId
+          const key = `${classroomId}-${entry.period}`
           draftScheduleData[key] = entry.classTeachingRequestId
         })
         setDraftSchedule(draftScheduleData)

@@ -12,6 +12,8 @@ export default function ClassroomManagement({ initialClassrooms }: ClassroomMana
   const [isLoading, setIsLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingClassroom, setEditingClassroom] = useState<Classroom | null>(null)
+  const [draggedId, setDraggedId] = useState<string | null>(null)
+  const [isReordering, setIsReordering] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     description: ''
@@ -99,6 +101,52 @@ export default function ClassroomManagement({ initialClassrooms }: ClassroomMana
     }
   }
 
+  const handleDragStart = (classroomId: string) => {
+    setDraggedId(classroomId)
+  }
+
+  const handleDrop = async (targetId: string) => {
+    if (!draggedId || draggedId === targetId) return
+
+    const currentIndex = classrooms.findIndex((room) => room.id === draggedId)
+    const targetIndex = classrooms.findIndex((room) => room.id === targetId)
+    if (currentIndex < 0 || targetIndex < 0) return
+
+    const updated = [...classrooms]
+    const [moved] = updated.splice(currentIndex, 1)
+    updated.splice(targetIndex, 0, moved)
+
+    const reordered = updated.map((room, index) => ({
+      ...room,
+      orderIndex: index
+    }))
+
+    setClassrooms(reordered)
+    setDraggedId(null)
+    setIsReordering(true)
+
+    try {
+      const response = await fetch('/api/admin/classrooms/order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          order: reordered.map((room) => ({ id: room.id, orderIndex: room.orderIndex }))
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to update order')
+      }
+    } catch (error) {
+      console.error('Error updating classroom order:', error)
+      alert('Failed to update classroom order')
+    } finally {
+      setIsReordering(false)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString()
   }
@@ -176,12 +224,25 @@ export default function ClassroomManagement({ initialClassrooms }: ClassroomMana
             </li>
           ) : (
             classrooms.map((classroom) => (
-              <li key={classroom.id} className="px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-medium text-gray-900">
-                      {classroom.name}
-                    </h3>
+              <li
+                key={classroom.id}
+                className="px-6 py-4"
+                draggable
+                onDragStart={() => handleDragStart(classroom.id)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={() => handleDrop(classroom.id)}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1">
+                    <div className="mt-1 cursor-grab text-gray-400" title="Drag to reorder">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8M8 15h8M4 9h0M4 15h0M20 9h0M20 15h0" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900">
+                        {classroom.name}
+                      </h3>
                     {classroom.description && (
                       <p className="mt-1 text-sm text-gray-600">{classroom.description}</p>
                     )}
@@ -193,18 +254,19 @@ export default function ClassroomManagement({ initialClassrooms }: ClassroomMana
                         </span>
                       )}
                     </div>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 shrink-0">
                     <button
                       onClick={() => handleEdit(classroom)}
-                      disabled={isLoading}
+                      disabled={isLoading || isReordering}
                       className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => handleDelete(classroom.id)}
-                      disabled={isLoading}
+                      disabled={isLoading || isReordering}
                       className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm font-medium disabled:opacity-50"
                     >
                       Delete
@@ -215,6 +277,11 @@ export default function ClassroomManagement({ initialClassrooms }: ClassroomMana
             ))
           )}
         </ul>
+        {isReordering && (
+          <div className="px-6 py-3 text-sm text-gray-500 border-t border-gray-200">
+            Saving new order...
+          </div>
+        )}
       </div>
     </div>
   )

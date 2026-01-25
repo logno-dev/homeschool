@@ -3,7 +3,8 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { 
   getScheduleWithDetails, 
   getApprovedClassesForSession,
-  getClassrooms,
+  getSessionClassrooms,
+  ensureSessionClassrooms,
   createScheduleEntry,
   deleteScheduleByClassroomAndPeriod
 } from '@/lib/database'
@@ -20,10 +21,11 @@ export async function GET(
     }
 
     // Fetch schedule data, approved classes, and classrooms
+    await ensureSessionClassrooms(sessionId)
     const [scheduleEntries, approvedClasses, classrooms] = await Promise.all([
       getScheduleWithDetails(sessionId),
       getApprovedClassesForSession(sessionId),
-      getClassrooms()
+      getSessionClassrooms(sessionId)
     ])
 
     return NextResponse.json({ 
@@ -78,7 +80,7 @@ export async function POST(
     const scheduleEntry = await createScheduleEntry({
       sessionId: sessionId,
       classTeachingRequestId,
-      classroomId,
+      sessionClassroomId: classroomId,
       period
     })
 

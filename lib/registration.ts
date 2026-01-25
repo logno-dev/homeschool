@@ -7,7 +7,7 @@ import {
   volunteerAssignments,
   schedules,
   classTeachingRequests,
-  classrooms,
+  sessionClassrooms,
   guardians,
   volunteerJobs
 } from '@/lib/schema'
@@ -40,6 +40,7 @@ export async function getRegistrationScheduleBundle(sessionId: string, userId?: 
     schedules: scheduleData.schedules,
     volunteerJobs: scheduleData.volunteerJobs,
     nonPeriodVolunteerJobs: scheduleData.nonPeriodVolunteerJobs,
+    volunteerJobAssignmentCounts: scheduleData.volunteerJobAssignmentCounts,
     guardians: familyData.guardians,
     children: familyData.children,
     teachingAssignments,
@@ -101,13 +102,13 @@ async function getFamilyHoldSelections(sessionId: string, userId: string) {
         className: classTeachingRequests.className,
         teacherFirstName: guardians.firstName,
         teacherLastName: guardians.lastName,
-        classroomName: classrooms.name,
+        classroomName: sessionClassrooms.name,
         holdExpiresAt: classRegistrations.holdExpiresAt
       })
       .from(classRegistrations)
       .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
       .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-      .innerJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+      .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
       .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
       .where(and(
         eq(classRegistrations.sessionId, sessionId),
@@ -127,14 +128,14 @@ async function getFamilyHoldSelections(sessionId: string, userId: string) {
         guardianFirstName: guardians.firstName,
         guardianLastName: guardians.lastName,
         className: classTeachingRequests.className,
-        classroomName: classrooms.name,
+        classroomName: sessionClassrooms.name,
         jobTitle: volunteerJobs.title
       })
       .from(volunteerAssignments)
       .innerJoin(guardians, eq(volunteerAssignments.guardianId, guardians.id))
       .leftJoin(schedules, eq(volunteerAssignments.scheduleId, schedules.id))
       .leftJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-      .leftJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+      .leftJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
       .leftJoin(volunteerJobs, eq(volunteerAssignments.volunteerJobId, volunteerJobs.id))
       .where(and(
         eq(volunteerAssignments.sessionId, sessionId),

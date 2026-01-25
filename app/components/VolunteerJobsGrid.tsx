@@ -26,6 +26,7 @@ interface VolunteerJobsGridProps {
   volunteerJobs: VolunteerJob[]
   guardians: Guardian[]
   schedules?: any[] // Teaching assignments data for conflict detection
+  jobAssignmentCounts?: Record<string, number>
 }
 
 const PERIODS = [
@@ -34,7 +35,7 @@ const PERIODS = [
   { id: 'third', name: 'Third Period' }
 ]
 
-export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules = [] }: VolunteerJobsGridProps) {
+export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules = [], jobAssignmentCounts = {} }: VolunteerJobsGridProps) {
   const { showSuccess, showError } = useToast()
   const { 
     addVolunteerAssignment, 
@@ -135,15 +136,20 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                     {PERIODS.map((period) => {
                       const currentAssignment = getVolunteerAssignmentForPeriod(period.id)
                       const isAssigned = currentAssignment && currentAssignment.sessionVolunteerJobId === job.sessionVolunteerJobId
+                      const assignmentKey = `${job.sessionVolunteerJobId}:${period.id}`
+                      const reservedCount = jobAssignmentCounts[assignmentKey] || 0
+                      const availableSpots = job.quantityAvailable - reservedCount
 
                       return (
                         <td key={period.id} className="px-6 py-4 whitespace-nowrap">
                           <div
-                            onClick={() => !isAssigned && handleJobClick(job, period.id)}
+                            onClick={() => !isAssigned && availableSpots > 0 && handleJobClick(job, period.id)}
                             className={`rounded-md p-3 transition-colors border ${
                               isAssigned
                                 ? 'bg-green-50 border-green-200'
-                                : 'bg-blue-50 border-blue-200 hover:bg-blue-100 cursor-pointer'
+                                : availableSpots > 0
+                                  ? 'bg-blue-50 border-blue-200 hover:bg-blue-100 cursor-pointer'
+                                  : 'bg-gray-100 border-gray-200 text-gray-400'
                             }`}
                           >
                             {isAssigned ? (
@@ -153,10 +159,15 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                                 </div>
                                 <div className="text-xs text-green-600">Assigned</div>
                               </div>
-                            ) : (
+                            ) : availableSpots > 0 ? (
                               <div className="text-center">
                                 <div className="text-sm font-medium text-blue-800">Available</div>
                                 <div className="text-xs text-blue-600">Click to assign</div>
+                              </div>
+                            ) : (
+                              <div className="text-center">
+                                <div className="text-sm font-medium text-gray-500">Full</div>
+                                <div className="text-xs text-gray-400">No spots left</div>
                               </div>
                             )}
                           </div>
@@ -193,6 +204,9 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                 {PERIODS.map((period) => {
                   const currentAssignment = getVolunteerAssignmentForPeriod(period.id)
                   const isAssigned = currentAssignment && currentAssignment.sessionVolunteerJobId === job.sessionVolunteerJobId
+                  const assignmentKey = `${job.sessionVolunteerJobId}:${period.id}`
+                  const reservedCount = jobAssignmentCounts[assignmentKey] || 0
+                  const availableSpots = job.quantityAvailable - reservedCount
                   
                   return (
                     <div key={period.id} className="border rounded-lg overflow-hidden">
@@ -201,11 +215,13 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                       </div>
                       <div className="p-3">
                         <div
-                          onClick={() => !isAssigned && handleJobClick(job, period.id)}
+                          onClick={() => !isAssigned && availableSpots > 0 && handleJobClick(job, period.id)}
                           className={`rounded-md p-4 transition-colors border-2 ${
                             isAssigned
                               ? 'bg-green-50 border-green-200'
-                              : 'bg-blue-50 border-blue-200 active:bg-blue-100 cursor-pointer touch-manipulation'
+                              : availableSpots > 0
+                                ? 'bg-blue-50 border-blue-200 active:bg-blue-100 cursor-pointer touch-manipulation'
+                                : 'bg-gray-100 border-gray-200 text-gray-400'
                           }`}
                         >
                           {isAssigned ? (
@@ -215,10 +231,15 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                               </div>
                               <div className="text-sm text-green-600">✓ Assigned</div>
                             </div>
-                          ) : (
+                          ) : availableSpots > 0 ? (
                             <div className="text-center">
                               <div className="text-base font-medium text-blue-800 mb-1">Available</div>
                               <div className="text-sm text-blue-600">Tap to assign volunteer →</div>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <div className="text-base font-medium text-gray-500 mb-1">Full</div>
+                              <div className="text-sm text-gray-400">No spots left</div>
                             </div>
                           )}
                         </div>

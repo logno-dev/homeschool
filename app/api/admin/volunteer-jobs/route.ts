@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { volunteerJobs, sessionVolunteerJobs, guardians } from '@/lib/schema'
+import { ensureSessionVolunteerJobs, getActiveSession } from '@/lib/database'
 import { eq } from 'drizzle-orm'
 
 function generateId(): string {
@@ -15,31 +16,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const { searchParams } = new URL(request.url)
-    const sessionId = searchParams.get('sessionId')
-
-    if (!sessionId) {
-      return NextResponse.json({ error: 'Session ID is required' }, { status: 400 })
-    }
-
     const jobs = await db.select({
       id: volunteerJobs.id,
-      sessionVolunteerJobId: volunteerJobs.id, // Using volunteer job ID directly since we removed session junction
       title: volunteerJobs.title,
       description: volunteerJobs.description,
-      quantityAvailable: sessionVolunteerJobs.quantityAvailable,
+      quantityAvailable: volunteerJobs.quantityAvailable,
       jobType: volunteerJobs.jobType,
-      isActive: sessionVolunteerJobs.isActive,
+      isActive: volunteerJobs.isActive,
       createdBy: volunteerJobs.createdBy,
       createdAt: volunteerJobs.createdAt,
       updatedAt: volunteerJobs.updatedAt,
       createdByName: guardians.firstName,
       createdByLastName: guardians.lastName,
     })
-    .from(sessionVolunteerJobs)
-    .innerJoin(volunteerJobs, eq(sessionVolunteerJobs.volunteerJobId, volunteerJobs.id))
+    .from(volunteerJobs)
     .leftJoin(guardians, eq(volunteerJobs.createdBy, guardians.id))
-    .where(eq(sessionVolunteerJobs.sessionId, sessionId))
 
     return NextResponse.json(jobs)
   } catch (error) {
@@ -63,9 +54,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { sessionId, title, description, quantityAvailable, jobType } = body
+    const { title, description, quantityAvailable, jobType } = body
 
-    if (!sessionId || !title || !description || quantityAvailable === undefined) {
+    if (!title || !description || quantityAvailable === undefined) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
@@ -89,20 +80,15 @@ export async function POST(request: NextRequest) {
       createdBy: guardian[0].id,
     }).returning()
 
-    // Link it to the session
-    const sessionJobId = generateId()
-    const sessionJob = await db.insert(sessionVolunteerJobs).values({
-      id: sessionJobId,
-      sessionId,
-      volunteerJobId: jobId,
-      quantityAvailable,
-      isActive: true,
-    }).returning()
+    const activeSession = await getActiveSession()
+    if (activeSession) {
+      await ensureSessionVolunteerJobs(activeSession.id)
+    }
 
     return NextResponse.json({
       ...newJob[0],
-      sessionVolunteerJobId: jobId, // Using volunteer job ID directly since we removed session junction
-      isActive: true
+      jobType: newJob[0].jobType,
+      isActive: newJob[0].isActive
     }, { status: 201 })
   } catch (error) {
     console.error('Error creating volunteer job:', error)

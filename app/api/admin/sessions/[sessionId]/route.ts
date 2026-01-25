@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { sessions } from '@/lib/schema'
+import { ensureSessionClassrooms, ensureSessionVolunteerJobs } from '@/lib/database'
 import { eq } from 'drizzle-orm'
 
 export async function GET(
@@ -86,6 +87,8 @@ export async function PATCH(
       )
     }
 
+    await ensureSessionClassrooms(sessionId)
+    await ensureSessionVolunteerJobs(sessionId)
     return NextResponse.json({ session: updatedSession[0] })
   } catch (error) {
     console.error('Error updating session:', error)

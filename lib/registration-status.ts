@@ -6,7 +6,7 @@ import {
   volunteerAssignments,
   schedules,
   classTeachingRequests,
-  classrooms,
+  sessionClassrooms,
   children
 } from '@/lib/schema'
 import { and, eq, inArray } from 'drizzle-orm'
@@ -43,13 +43,13 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
         registration: classRegistrations,
         schedule: schedules,
         classTeachingRequest: classTeachingRequests,
-        classroom: classrooms,
+        classroom: sessionClassrooms,
         child: children
       })
       .from(classRegistrations)
       .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
       .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-      .innerJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+      .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
       .innerJoin(children, eq(classRegistrations.childId, children.id))
       .where(and(
         eq(classRegistrations.familyId, familyId),
@@ -61,12 +61,12 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
         assignment: volunteerAssignments,
         schedule: schedules,
         classTeachingRequest: classTeachingRequests,
-        classroom: classrooms
+        classroom: sessionClassrooms
       })
       .from(volunteerAssignments)
       .leftJoin(schedules, eq(volunteerAssignments.scheduleId, schedules.id))
       .leftJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-      .leftJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+      .leftJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
       .where(and(
         eq(volunteerAssignments.familyId, familyId),
         eq(volunteerAssignments.sessionId, sessionId),

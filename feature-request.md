@@ -11,13 +11,15 @@
 - [x] Teacher class request editing
 - [ ] Registration Fee blocking? 
 - [x] Staff modifications post registration
-- [ ] Scholarship application
-- [ ] Scholarship fund donation at fee payment
+- [x] Scholarship application
+- [x] Scholarship fund donation at fee payment
 - [x] Class wait list
 - [x] Auto increment student grades
 - [ ] enhance payments section
     - [ ] Include itemized class fee reports
-    - [ ] Scholarship fund tracking
+    - [x] Scholarship fund tracking
     - [ ] class fee compensation tracking
 - [ ] Completed Session schedule available to users
 - [ ] "My Schedule" showing the families class schedule for the session
+- [ ] revamp dashboard
+- [ ] revamp nav bar

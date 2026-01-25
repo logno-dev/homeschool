@@ -5,7 +5,7 @@ import {
   classRegistrations,
   schedules,
   classTeachingRequests,
-  classrooms,
+  sessionClassrooms,
   children,
   guardians,
   volunteerAssignments,
@@ -49,30 +49,30 @@ export async function GET(request: Request) {
             className: classTeachingRequests.className
           },
           classroom: {
-            name: classrooms.name
+            name: sessionClassrooms.name
           }
         })
         .from(classRegistrations)
         .innerJoin(children, eq(classRegistrations.childId, children.id))
         .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
         .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-        .innerJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+        .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
         .where(eq(classRegistrations.sessionId, sessionId)),
 
       db
         .select({
           id: schedules.id,
-          classroomId: classrooms.id,
+          classroomId: sessionClassrooms.id,
           period: schedules.period,
           className: classTeachingRequests.className,
-          classroom: classrooms.name,
+          classroom: sessionClassrooms.name,
           teacherFirstName: guardians.firstName,
           teacherLastName: guardians.lastName,
           maxStudents: classTeachingRequests.maxStudents
         })
         .from(schedules)
         .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-        .innerJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+        .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
         .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
         .where(eq(schedules.sessionId, sessionId)),
 
@@ -90,14 +90,14 @@ export async function GET(request: Request) {
           scheduleId: volunteerAssignments.scheduleId,
           volunteerJobId: volunteerAssignments.volunteerJobId,
           className: classTeachingRequests.className,
-          classroom: classrooms.name,
+          classroom: sessionClassrooms.name,
           jobTitle: volunteerJobs.title
         })
         .from(volunteerAssignments)
         .leftJoin(guardians, eq(volunteerAssignments.guardianId, guardians.id))
         .leftJoin(schedules, eq(volunteerAssignments.scheduleId, schedules.id))
         .leftJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-        .leftJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+        .leftJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
         .leftJoin(volunteerJobs, eq(volunteerAssignments.volunteerJobId, volunteerJobs.id))
         .where(eq(volunteerAssignments.sessionId, sessionId)),
 
@@ -136,10 +136,12 @@ export async function GET(request: Request) {
 
       db
         .select({
-          id: classrooms.id,
-          name: classrooms.name
+          id: sessionClassrooms.id,
+          name: sessionClassrooms.name,
+          classroomId: sessionClassrooms.classroomId
         })
-        .from(classrooms)
+        .from(sessionClassrooms)
+        .where(eq(sessionClassrooms.sessionId, sessionId))
     ])
 
     const registrationCountMap = registrationRows.reduce((acc, row) => {

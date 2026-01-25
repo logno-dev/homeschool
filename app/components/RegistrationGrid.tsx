@@ -36,6 +36,7 @@ interface Classroom {
   id: string
   name: string
   description?: string | null
+  orderIndex?: number
 }
 
 interface Teacher {
@@ -49,6 +50,7 @@ interface RosterChild {
   firstName: string
   lastName: string
   grade: string
+  status?: string
 }
 
 interface PendingRosterChild extends RosterChild {
@@ -107,6 +109,7 @@ interface RegistrationGridProps {
   volunteerJobs: any[]
   nonPeriodVolunteerJobs: any[]
   teachingAssignments: TeachingAssignment[]
+  volunteerJobAssignmentCounts?: Record<string, number>
 }
 
 const PERIODS = [
@@ -123,7 +126,8 @@ export default function RegistrationGrid({
   children,
   volunteerJobs,
   nonPeriodVolunteerJobs,
-  teachingAssignments
+  teachingAssignments,
+  volunteerJobAssignmentCounts = {}
 }: RegistrationGridProps) {
   const { showSuccess, showError } = useToast()
   const { 
@@ -139,9 +143,20 @@ export default function RegistrationGrid({
     isScheduleConflicted,
     getPendingRegistrationsForSchedule
   } = useRegistration()
+  const dedupeJobs = <T extends { id: string; sessionVolunteerJobId?: string }>(jobs: T[]) => {
+    const seen = new Set<string>()
+    return jobs.filter((job) => {
+      const key = job.sessionVolunteerJobId || job.id
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }
+
   const [scheduleData, setScheduleData] = useState(schedules)
-  const [volunteerJobsData, setVolunteerJobsData] = useState(volunteerJobs)
-  const [nonPeriodJobsData, setNonPeriodJobsData] = useState(nonPeriodVolunteerJobs)
+  const [volunteerJobsData, setVolunteerJobsData] = useState(dedupeJobs(volunteerJobs))
+  const [nonPeriodJobsData, setNonPeriodJobsData] = useState(dedupeJobs(nonPeriodVolunteerJobs))
+  const [jobAssignmentCounts, setJobAssignmentCounts] = useState(volunteerJobAssignmentCounts)
   
   const [selectedClass, setSelectedClass] = useState<EnhancedSchedule | null>(null)
   const [showRegistrationModal, setShowRegistrationModal] = useState(false)
@@ -157,6 +172,15 @@ export default function RegistrationGrid({
       return acc
     }, [] as Classroom[])
   }, [scheduleData])
+
+  const orderedClassrooms = useMemo(() => {
+    return [...classrooms].sort((a, b) => {
+      const orderA = typeof a.orderIndex === 'number' ? a.orderIndex : 0
+      const orderB = typeof b.orderIndex === 'number' ? b.orderIndex : 0
+      if (orderA !== orderB) return orderA - orderB
+      return a.name.localeCompare(b.name)
+    })
+  }, [classrooms])
 
   const groupedSchedules = useMemo(() => {
     return scheduleData.reduce((acc, schedule) => {
@@ -184,15 +208,29 @@ export default function RegistrationGrid({
   const refreshScheduleData = async () => {
     try {
       const response = await fetch(`/api/registration/schedules/${sessionId}`)
-      if (!response.ok) return
+      if (!response.ok) {
+        console.warn('Registration schedule refresh failed', {
+          sessionId,
+          status: response.status
+        })
+        return
+      }
       const payload = await response.json()
+      console.log('Registration schedule refresh', {
+        sessionId,
+        volunteerJobs: payload.volunteerJobs?.length,
+        nonPeriodJobs: payload.nonPeriodVolunteerJobs?.length,
+        volunteerJobAssignmentCounts: Object.keys(payload.volunteerJobAssignmentCounts || {}).length
+      })
       setScheduleData(payload.schedules || [])
-      setVolunteerJobsData(payload.volunteerJobs || [])
-      setNonPeriodJobsData(payload.nonPeriodVolunteerJobs || [])
+      setVolunteerJobsData(dedupeJobs(payload.volunteerJobs || []))
+      setNonPeriodJobsData(dedupeJobs(payload.nonPeriodVolunteerJobs || []))
+      setJobAssignmentCounts(payload.volunteerJobAssignmentCounts || {})
     } catch (error) {
       console.error('Failed to refresh registration data:', error)
     }
   }
+
 
   useEffect(() => {
     setSessionId(sessionId)
@@ -216,6 +254,13 @@ export default function RegistrationGrid({
       source.close()
     }
   }, [sessionId])
+
+  useEffect(() => {
+    console.log('Registration jobs payload', {
+      periodJobs: volunteerJobsData,
+      nonPeriodJobs: nonPeriodJobsData
+    })
+  }, [volunteerJobsData, nonPeriodJobsData])
 
   const handleChildRegistration = async (child: Child, schedule: EnhancedSchedule) => {
     // Check if adding this child would exceed available spots
@@ -333,7 +378,7 @@ export default function RegistrationGrid({
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {classrooms.map((classroom) => (
+              {orderedClassrooms.map((classroom) => (
                 <tr key={classroom.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm font-medium text-gray-900">{classroom.name}</div>
@@ -390,7 +435,7 @@ export default function RegistrationGrid({
                   })}
                 </tr>
               ))}
-              {classrooms.length === 0 && (
+              {orderedClassrooms.length === 0 && (
                 <tr>
                   <td colSpan={PERIODS.length + 1} className="px-6 py-4 text-center text-gray-500">
                     No classrooms available.
@@ -551,12 +596,19 @@ export default function RegistrationGrid({
               {selectedClass.roster.length > 0 || pendingRoster.length > 0 ? (
                 <div className="bg-gray-50 rounded-lg p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {selectedClass.roster.map((student) => (
-                      <div key={student.id} className="flex items-center space-x-2 text-sm">
-                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                        <span>{student.firstName} {student.lastName} (Grade {student.grade})</span>
-                      </div>
-                    ))}
+                    {selectedClass.roster.map((student) => {
+                      const status = student.status || 'registered'
+                      const isReserved = status === 'hold' || status === 'pending'
+                      return (
+                        <div key={student.id} className="flex items-center space-x-2 text-sm">
+                          <div className={`w-2 h-2 rounded-full ${isReserved ? 'bg-amber-500' : 'bg-green-500'}`}></div>
+                          <span>{student.firstName} {student.lastName} (Grade {student.grade})</span>
+                          {isReserved && (
+                            <span className="text-xs text-amber-700">Reserved</span>
+                          )}
+                        </div>
+                      )
+                    })}
                     {pendingRoster.map((student) => (
                       <div key={`pending-${student.id}`} className="flex items-center space-x-2 text-sm">
                         <div className={`w-2 h-2 rounded-full ${student.status === 'waitlisted' ? 'bg-yellow-500' : 'bg-blue-500'}`}></div>
@@ -769,6 +821,7 @@ export default function RegistrationGrid({
           volunteerJobs={volunteerJobsData}
           guardians={guardians || []}
           schedules={scheduleData || []}
+          jobAssignmentCounts={jobAssignmentCounts}
         />
       )}
 
@@ -777,6 +830,7 @@ export default function RegistrationGrid({
         <NonPeriodVolunteerJobs 
           volunteerJobs={nonPeriodJobsData}
           guardians={guardians || []}
+          jobAssignmentCounts={jobAssignmentCounts}
         />
       )}
 

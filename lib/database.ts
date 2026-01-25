@@ -1,7 +1,7 @@
 import { eq, and, or, desc, asc, isNull, isNotNull, sql } from 'drizzle-orm'
 import { db, client, hasDatabaseConnection } from './db'
-import { families, guardians, children, feePayments, users, sessions, classrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments, globalSettings } from './schema'
-import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, Schedule, ScheduleDraft, ScheduleDraftEntry, ClassTeachingRequest, ScheduleComment, NewFamily, NewGuardian, NewChild, NewFeePayment, NewUser, NewSession, NewClassroom, NewSchedule, NewScheduleDraft, NewScheduleDraftEntry, NewClassTeachingRequest, NewScheduleComment } from './schema'
+import { families, guardians, children, feePayments, users, sessions, classrooms, sessionClassrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments, globalSettings, volunteerJobs, sessionVolunteerJobs } from './schema'
+import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, SessionClassroom, Schedule, ScheduleDraft, ScheduleDraftEntry, ClassTeachingRequest, ScheduleComment, NewFamily, NewGuardian, NewChild, NewFeePayment, NewUser, NewSession, NewClassroom, NewSessionClassroom, NewSchedule, NewScheduleDraft, NewScheduleDraftEntry, NewClassTeachingRequest, NewScheduleComment, NewSessionVolunteerJob } from './schema'
 import { incrementGradeValue } from './grades'
 
 // Helper function to generate sharing codes
@@ -810,19 +810,147 @@ export async function deleteClassTeachingRequest(id: string): Promise<boolean> {
 
 // Classroom management functions
 export async function createClassroom(classroomData: Omit<NewClassroom, 'id' | 'createdAt' | 'updatedAt'>): Promise<Classroom> {
+  const orderRow = await db
+    .select({ maxOrder: sql<number>`max(${classrooms.orderIndex})` })
+    .from(classrooms)
+  const nextOrder = (orderRow[0]?.maxOrder ?? -1) + 1
+
   const newClassroom: NewClassroom = {
     ...classroomData,
     id: generateId(),
+    orderIndex: nextOrder,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   }
   
   const result = await db.insert(classrooms).values(newClassroom).returning()
-  return result[0]
+  const created = result[0]
+
+  const activeSession = await db
+    .select({ id: sessions.id })
+    .from(sessions)
+    .where(eq(sessions.isActive, true))
+    .limit(1)
+
+  if (activeSession.length > 0) {
+    const now = new Date().toISOString()
+    await db.insert(sessionClassrooms).values({
+      id: `${activeSession[0].id}_${created.id}`,
+      sessionId: activeSession[0].id,
+      classroomId: created.id,
+      name: created.name,
+      description: created.description,
+      orderIndex: created.orderIndex,
+      createdAt: now,
+      updatedAt: now
+    })
+  }
+
+  return created
 }
 
 export async function getClassrooms(): Promise<Classroom[]> {
-  return await db.select().from(classrooms)
+  return await db
+    .select()
+    .from(classrooms)
+    .orderBy(asc(classrooms.orderIndex), asc(classrooms.createdAt))
+}
+
+export async function getSessionClassrooms(sessionId: string): Promise<SessionClassroom[]> {
+  return await db
+    .select()
+    .from(sessionClassrooms)
+    .where(eq(sessionClassrooms.sessionId, sessionId))
+    .orderBy(asc(sessionClassrooms.orderIndex), asc(sessionClassrooms.createdAt))
+}
+
+export async function createSessionClassrooms(sessionId: string): Promise<SessionClassroom[]> {
+  const baseClassrooms = await db.select().from(classrooms)
+  if (baseClassrooms.length === 0) return []
+
+  const now = new Date().toISOString()
+  const rows: NewSessionClassroom[] = baseClassrooms.map((room) => ({
+    id: `${sessionId}_${room.id}`,
+    sessionId,
+    classroomId: room.id,
+    name: room.name,
+    description: room.description,
+    orderIndex: room.orderIndex,
+    createdAt: now,
+    updatedAt: now
+  }))
+
+  const result = await db.insert(sessionClassrooms).values(rows).returning()
+  return result
+}
+
+export async function ensureSessionClassrooms(sessionId: string): Promise<void> {
+  const existing = await db
+    .select({ id: sessionClassrooms.id })
+    .from(sessionClassrooms)
+    .where(eq(sessionClassrooms.sessionId, sessionId))
+    .limit(1)
+
+  if (existing.length > 0) return
+
+  await createSessionClassrooms(sessionId)
+}
+
+export async function createSessionVolunteerJobs(sessionId: string): Promise<void> {
+  const baseJobs = await db.select().from(volunteerJobs).where(eq(volunteerJobs.isActive, true))
+  if (baseJobs.length === 0) return
+
+  const now = new Date().toISOString()
+  const rows: NewSessionVolunteerJob[] = baseJobs.map((job) => ({
+    id: `${sessionId}_${job.id}`,
+    sessionId,
+    volunteerJobId: job.id,
+    quantityAvailable: job.quantityAvailable,
+    jobType: job.jobType,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now
+  }))
+
+  await db.insert(sessionVolunteerJobs).values(rows)
+}
+
+export async function ensureSessionVolunteerJobs(sessionId: string): Promise<void> {
+  const existingJobs = await db
+    .select({ volunteerJobId: sessionVolunteerJobs.volunteerJobId })
+    .from(sessionVolunteerJobs)
+    .where(eq(sessionVolunteerJobs.sessionId, sessionId))
+
+  const existingJobIds = new Set(existingJobs.map((job) => job.volunteerJobId))
+  const baseJobs = await db.select().from(volunteerJobs).where(eq(volunteerJobs.isActive, true))
+  const missingJobs = baseJobs.filter((job) => !existingJobIds.has(job.id))
+
+  await db
+    .update(sessionVolunteerJobs)
+    .set({
+      jobType: sql`(
+        SELECT volunteer_jobs.job_type
+        FROM volunteer_jobs
+        WHERE volunteer_jobs.id = session_volunteer_jobs.volunteer_job_id
+      )`
+    })
+    .where(eq(sessionVolunteerJobs.sessionId, sessionId))
+
+  if (missingJobs.length === 0) return
+
+  const now = new Date().toISOString()
+  const rows: NewSessionVolunteerJob[] = missingJobs.map((job) => ({
+    id: `${sessionId}_${job.id}`,
+    sessionId,
+    volunteerJobId: job.id,
+    quantityAvailable: job.quantityAvailable,
+    jobType: job.jobType,
+    isActive: true,
+    createdAt: now,
+    updatedAt: now
+  }))
+
+  await db.insert(sessionVolunteerJobs).values(rows)
 }
 
 export async function getClassroomById(id: string): Promise<Classroom | null> {
@@ -850,9 +978,28 @@ export async function deleteClassroom(id: string): Promise<boolean> {
 }
 
 // Schedule management functions
-export async function createScheduleEntry(scheduleData: Omit<NewSchedule, 'id' | 'createdAt' | 'updatedAt'>): Promise<Schedule> {
+export async function createScheduleEntry(
+  scheduleData: Omit<NewSchedule, 'id' | 'createdAt' | 'updatedAt' | 'classroomId'> & { classroomId?: string }
+): Promise<Schedule> {
+  let classroomId = scheduleData.classroomId
+
+  if (!classroomId && scheduleData.sessionClassroomId) {
+    const sessionRoom = await db
+      .select({ classroomId: sessionClassrooms.classroomId })
+      .from(sessionClassrooms)
+      .where(eq(sessionClassrooms.id, scheduleData.sessionClassroomId))
+      .limit(1)
+
+    classroomId = sessionRoom[0]?.classroomId
+  }
+
+  if (!classroomId) {
+    throw new Error('Missing classroom reference for schedule entry.')
+  }
+
   const newSchedule: NewSchedule = {
     ...scheduleData,
+    classroomId,
     id: generateId(),
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -868,14 +1015,15 @@ export async function getScheduleBySession(sessionId: string): Promise<Schedule[
 
 export async function getScheduleWithDetails(sessionId: string): Promise<(Schedule & { 
   classTeachingRequest: ClassTeachingRequest, 
-  classroom: Classroom 
+  classroom: SessionClassroom 
 })[]> {
+  await ensureSessionClassrooms(sessionId)
   const result = await db
     .select({
       id: schedules.id,
       sessionId: schedules.sessionId,
       classTeachingRequestId: schedules.classTeachingRequestId,
-      classroomId: schedules.classroomId,
+      classroomId: schedules.sessionClassroomId,
       period: schedules.period,
       status: schedules.status,
       createdAt: schedules.createdAt,
@@ -902,19 +1050,19 @@ export async function getScheduleWithDetails(sessionId: string): Promise<(Schedu
         updatedAt: classTeachingRequests.updatedAt,
       },
       classroom: {
-        id: classrooms.id,
-        name: classrooms.name,
-        description: classrooms.description,
-        createdAt: classrooms.createdAt,
-        updatedAt: classrooms.updatedAt,
+        id: sessionClassrooms.id,
+        name: sessionClassrooms.name,
+        description: sessionClassrooms.description,
+        createdAt: sessionClassrooms.createdAt,
+        updatedAt: sessionClassrooms.updatedAt,
       }
     })
     .from(schedules)
     .leftJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-    .leftJoin(classrooms, eq(schedules.classroomId, classrooms.id))
+    .leftJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
     .where(eq(schedules.sessionId, sessionId))
   
-  return result as (Schedule & { classTeachingRequest: ClassTeachingRequest, classroom: Classroom })[]
+  return result as (Schedule & { classTeachingRequest: ClassTeachingRequest, classroom: SessionClassroom })[]
 }
 
 export async function updateScheduleEntry(id: string, updates: Partial<Omit<Schedule, 'id' | 'createdAt'>>): Promise<Schedule | null> {
@@ -940,7 +1088,7 @@ export async function deleteScheduleByClassroomAndPeriod(sessionId: string, clas
   const result = await db.delete(schedules)
     .where(and(
       eq(schedules.sessionId, sessionId),
-      eq(schedules.classroomId, classroomId),
+      eq(schedules.sessionClassroomId, classroomId),
       eq(schedules.period, period)
     ))
     .returning()
@@ -1148,11 +1296,29 @@ export async function saveScheduleDraftEntries(draftId: string, entries: { class
 
   // Insert new entries
   if (entries.length > 0) {
+    const draft = await db
+      .select({ sessionId: scheduleDrafts.sessionId })
+      .from(scheduleDrafts)
+      .where(eq(scheduleDrafts.id, draftId))
+      .limit(1)
+
+    if (!draft.length) {
+      throw new Error('Draft not found')
+    }
+
+    const sessionRooms = await db
+      .select({ id: sessionClassrooms.id, classroomId: sessionClassrooms.classroomId })
+      .from(sessionClassrooms)
+      .where(eq(sessionClassrooms.sessionId, draft[0].sessionId))
+
+    const roomLookup = new Map(sessionRooms.map((room) => [room.id, room.classroomId]))
+
     const newEntries: NewScheduleDraftEntry[] = entries.map(entry => ({
       id: generateId(),
       draftId,
       classTeachingRequestId: entry.classTeachingRequestId,
-      classroomId: entry.classroomId,
+      classroomId: roomLookup.get(entry.classroomId) || entry.classroomId,
+      sessionClassroomId: roomLookup.has(entry.classroomId) ? entry.classroomId : null,
       period: entry.period,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -1213,7 +1379,7 @@ export async function detectScheduleConflicts(sessionId: string): Promise<{
       draftName: scheduleDrafts.name,
       creatorFirstName: guardians.firstName,
       creatorLastName: guardians.lastName,
-      classroomId: scheduleDraftEntries.classroomId,
+      classroomId: scheduleDraftEntries.sessionClassroomId,
       period: scheduleDraftEntries.period,
       classTeachingRequestId: scheduleDraftEntries.classTeachingRequestId,
       className: classTeachingRequests.className
