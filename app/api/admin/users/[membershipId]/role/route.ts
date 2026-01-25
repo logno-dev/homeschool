@@ -21,7 +21,7 @@ export async function PATCH(
     const { WorkOS } = await import('@workos-inc/node') as unknown as {
       WorkOS: new (apiKey: string) => {
         userManagement: {
-          updateOrganizationMembership: (id: string, params: { role: string }) => Promise<void>
+          updateOrganizationMembership: (id: string, params: { roleSlug?: string; roleSlugs?: string[] }) => Promise<{ id: string; role?: { slug?: string } }>
         }
       }
     }
