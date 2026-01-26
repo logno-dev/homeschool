@@ -16,10 +16,10 @@
 - [x] Class wait list
 - [x] Auto increment student grades
 - [ ] enhance payments section
-    - [ ] Include itemized class fee reports
+    - [x] Include itemized class fee reports
     - [x] Scholarship fund tracking
-    - [ ] class fee compensation tracking
-- [ ] Completed Session schedule available to users
-- [ ] "My Schedule" showing the families class schedule for the session
-- [ ] revamp dashboard
-- [ ] revamp nav bar
+    - [x] class fee compensation tracking
+- [x] Completed Session schedule available to users
+- [x] "My Schedule" showing the families class schedule for the session
+- [x] revamp dashboard
+- [x] revamp nav bar

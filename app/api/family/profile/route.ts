@@ -52,3 +52,46 @@ export async function GET() {
     )
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const auth = await getAuthenticatedUserSession()
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+    const { session: authSession } = auth
+
+    const currentGuardian = await getGuardianById(authSession.user.id)
+    if (!currentGuardian) {
+      return NextResponse.json({ error: 'No family found' }, { status: 404 })
+    }
+
+    const { name, address, phone, email } = await request.json()
+
+    if (!name || !address || !phone || !email) {
+      return NextResponse.json({ error: 'Name, address, phone, and email are required' }, { status: 400 })
+    }
+
+    const updatedAt = new Date().toISOString()
+    const updatedFamily = await db
+      .update(families)
+      .set({
+        name: name.trim(),
+        address: address.trim(),
+        phone: phone.trim(),
+        email: email.trim(),
+        updatedAt
+      })
+      .where(eq(families.id, currentGuardian.familyId))
+      .returning()
+
+    if (!updatedFamily[0]) {
+      return NextResponse.json({ error: 'Family not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ family: updatedFamily[0] })
+  } catch (error) {
+    console.error('Error updating family profile:', error)
+    return NextResponse.json({ error: 'Failed to update family profile' }, { status: 500 })
+  }
+}

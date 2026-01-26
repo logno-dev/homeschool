@@ -3,17 +3,38 @@
 import { useAuth } from '@workos-inc/authkit-nextjs/components'
 import { getReturnToUrl } from '@/lib/client-env'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { isUserAdmin, userSession } from '@/lib/user-session'
 
 export default function TopBar() {
   const { user, signOut } = useAuth()
   const pathname = usePathname()
   const [showMenu, setShowMenu] = useState(false)
   const [showMore, setShowMore] = useState(false)
+  const [showAdminLinks, setShowAdminLinks] = useState(false)
 
   const userName = user
     ? [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
     : ''
+
+  useEffect(() => {
+    if (!user) return
+    const cached = userSession.getUserData()
+    if (cached) {
+      setShowAdminLinks(isUserAdmin())
+      return
+    }
+
+    let isActive = true
+    userSession.refreshUserData().then(() => {
+      if (isActive) {
+        setShowAdminLinks(isUserAdmin())
+      }
+    })
+    return () => {
+      isActive = false
+    }
+  }, [user])
 
   // Don't show the top bar on auth pages or if no session
   if (!user || pathname === '/signin' || pathname === '/register' || pathname === '/forgot-password' || pathname === '/reset-password') {
@@ -32,7 +53,7 @@ export default function TopBar() {
     { label: 'Family Profile', href: '/family/profile' },
     { label: 'Teacher Dashboard', href: '/teacher' },
     { label: 'Calendar', href: '/calendar' },
-    { label: 'Admin Panel', href: '/admin' }
+    ...(showAdminLinks ? [{ label: 'Admin Panel', href: '/admin' }] : [])
   ]
 
   return (

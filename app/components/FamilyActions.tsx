@@ -19,8 +19,17 @@ interface FamilyActionsProps {
 }
 
 export default function FamilyActions({ family }: FamilyActionsProps) {
+  const [familyData, setFamilyData] = useState(family)
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [formData, setFormData] = useState({
+    name: family.name,
+    address: family.address,
+    phone: family.phone,
+    email: family.email
+  })
   const [showSharingCode, setShowSharingCode] = useState(false)
-  const { showSuccess } = useToast()
+  const { showSuccess, showError } = useToast()
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -28,29 +37,155 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
     })
   }
 
+  const startEditing = () => {
+    setFormData({
+      name: familyData.name,
+      address: familyData.address,
+      phone: familyData.phone,
+      email: familyData.email
+    })
+    setIsEditing(true)
+  }
+
+  const cancelEditing = () => {
+    setFormData({
+      name: familyData.name,
+      address: familyData.address,
+      phone: familyData.phone,
+      email: familyData.email
+    })
+    setIsEditing(false)
+  }
+
+  const handleSave = async (event: React.FormEvent) => {
+    event.preventDefault()
+    try {
+      setIsSaving(true)
+      const response = await fetch('/api/family/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          address: formData.address.trim(),
+          phone: formData.phone.trim(),
+          email: formData.email.trim()
+        })
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to update family information')
+      }
+
+      const data = await response.json()
+      setFamilyData(data.family)
+      setIsEditing(false)
+      showSuccess('Family information updated')
+    } catch (error) {
+      showError('Update failed', error instanceof Error ? error.message : 'Unable to update family information')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
 
 
   return (
     <div className="bg-white shadow rounded-lg p-6">
         <div className="mb-4">
-          <h2 className="text-lg font-medium text-gray-900">Family Information</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-medium text-gray-900">Family Information</h2>
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={cancelEditing}
+                className="text-sm font-medium text-gray-500 hover:text-gray-700"
+                disabled={isSaving}
+              >
+                Cancel
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={startEditing}
+                className="text-sm font-medium text-blue-600 hover:text-blue-800"
+              >
+                Edit
+              </button>
+            )}
+          </div>
         </div>
         
-        <div className="space-y-3">
-          <div>
-            <label className="text-sm font-medium text-gray-500">Address</label>
-            <p className="text-gray-900">{family.address}</p>
+        {isEditing ? (
+          <form onSubmit={handleSave} className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-500">Family Name</label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(event) => setFormData(prev => ({ ...prev, name: event.target.value }))}
+                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Address</label>
+              <input
+                type="text"
+                value={formData.address}
+                onChange={(event) => setFormData(prev => ({ ...prev, address: event.target.value }))}
+                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Phone</label>
+              <input
+                type="text"
+                value={formData.phone}
+                onChange={(event) => setFormData(prev => ({ ...prev, phone: event.target.value }))}
+                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Email</label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(event) => setFormData(prev => ({ ...prev, email: event.target.value }))}
+                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-60"
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </form>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <label className="text-sm font-medium text-gray-500">Family Name</label>
+              <p className="text-gray-900">{familyData.name}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Address</label>
+              <p className="text-gray-900">{familyData.address}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Phone</label>
+              <p className="text-gray-900">{familyData.phone}</p>
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-500">Email</label>
+              <p className="text-gray-900">{familyData.email}</p>
+            </div>
           </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Phone</label>
-            <p className="text-gray-900">{family.phone}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium text-gray-500">Email</label>
-            <p className="text-gray-900">{family.email}</p>
-          </div>
-
-        </div>
+        )}
 
 
 
@@ -65,10 +200,10 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
             <div className="mt-2 p-3 bg-gray-50 rounded-md">
               <div className="flex items-center justify-between">
                 <span className="text-lg font-mono font-bold text-gray-900">
-                  {family.sharingCode}
+                  {familyData.sharingCode}
                 </span>
                 <button
-                  onClick={() => copyToClipboard(family.sharingCode)}
+                  onClick={() => copyToClipboard(familyData.sharingCode)}
                   className="text-blue-600 hover:text-blue-800 text-sm"
                 >
                   Copy
