@@ -13,8 +13,6 @@
   },
   "dependencies": {
     "@libsql/client": "^0.17.0",
-    "@workos-inc/authkit-nextjs": "^2.13.0",
-    "@workos-inc/node": "^8.0.0",
     "date-fns": "^4.1.0",
     "drizzle-orm": "^0.45.1",
     "next": "16.0.10",

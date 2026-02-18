@@ -1,6 +1,6 @@
 'use client'
 
-import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { useAuth } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import ClassTeachingRequests from '@/app/components/ClassTeachingRequests'

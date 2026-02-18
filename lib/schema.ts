@@ -379,6 +379,28 @@ export const users = sqliteTable('users', {
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const authAccounts = sqliteTable('auth_accounts', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  email: text('email').notNull().unique(),
+  passwordHash: text('password_hash').notNull(),
+  mustResetPassword: integer('must_reset_password', { mode: 'boolean' }).notNull().default(false),
+  resetTokenHash: text('reset_token_hash'),
+  resetTokenExpiresAt: text('reset_token_expires_at'),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  lastLoginAt: text('last_login_at'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`)
+})
+
+export const authSessions = sqliteTable('auth_sessions', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash: text('token_hash').notNull().unique(),
+  expiresAt: text('expires_at').notNull(),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`)
+})
+
 // Type exports for TypeScript
 export type Family = typeof families.$inferSelect
 export type Guardian = typeof guardians.$inferSelect
@@ -406,6 +428,8 @@ export type ScholarshipApplication = typeof scholarshipApplications.$inferSelect
 export type ScholarshipFundTransaction = typeof scholarshipFundTransactions.$inferSelect
 export type Event = typeof events.$inferSelect
 export type User = typeof users.$inferSelect
+export type AuthAccount = typeof authAccounts.$inferSelect
+export type AuthSession = typeof authSessions.$inferSelect
 
 export type NewFamily = typeof families.$inferInsert
 export type NewGuardian = typeof guardians.$inferInsert
@@ -433,3 +457,5 @@ export type NewScholarshipApplication = typeof scholarshipApplications.$inferIns
 export type NewScholarshipFundTransaction = typeof scholarshipFundTransactions.$inferInsert
 export type NewEvent = typeof events.$inferInsert
 export type NewUser = typeof users.$inferInsert
+export type NewAuthAccount = typeof authAccounts.$inferInsert
+export type NewAuthSession = typeof authSessions.$inferInsert

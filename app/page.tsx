@@ -1,7 +1,7 @@
 'use client'
 
 import Link from "next/link";
-import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { useAuth } from '@/lib/auth-client'
 
 export default function Home() {
   const { user, loading } = useAuth()

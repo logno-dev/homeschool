@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { eq } from 'drizzle-orm'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
+import { db } from '@/lib/db'
+import { authAccounts, authSessions } from '@/lib/schema'
 
 export async function DELETE(
   request: NextRequest,
@@ -13,23 +16,19 @@ export async function DELETE(
 
     const { membershipId } = await params
     if (!membershipId) {
-      return NextResponse.json({ error: 'Membership id is required' }, { status: 400 })
+      return NextResponse.json({ error: 'User id is required' }, { status: 400 })
     }
 
-    const { WorkOS } = await import('@workos-inc/node') as unknown as {
-      WorkOS: new (apiKey: string) => {
-        userManagement: {
-          deactivateOrganizationMembership: (id: string) => Promise<void>
-        }
-      }
-    }
+    await db
+      .update(authAccounts)
+      .set({ isActive: false, updatedAt: new Date().toISOString() })
+      .where(eq(authAccounts.userId, membershipId))
 
-    const workos = new WorkOS(process.env.WORKOS_API_KEY || '')
-    await workos.userManagement.deactivateOrganizationMembership(membershipId)
+    await db.delete(authSessions).where(eq(authSessions.userId, membershipId))
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deactivating WorkOS membership:', error)
+    console.error('Error deactivating user:', error)
     return NextResponse.json({ error: 'Failed to deactivate user' }, { status: 500 })
   }
 }

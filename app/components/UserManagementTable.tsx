@@ -112,6 +112,7 @@ export default function UserManagementTable({
         return 'bg-red-100 text-red-800'
       case 'org-staff':
       case 'staff':
+      case 'moderator':
         return 'bg-blue-100 text-blue-800'
       case 'org-user':
       case 'user':
@@ -128,7 +129,8 @@ export default function UserManagementTable({
         return 'Admin'
       case 'org-staff':
       case 'staff':
-        return 'Staff'
+      case 'moderator':
+        return 'Moderator'
       case 'org-user':
       case 'user':
         return 'User'
@@ -143,9 +145,9 @@ export default function UserManagementTable({
         <h2 className="text-lg font-medium text-gray-900 mb-4">
           User Role Management
         </h2>
-        <p className="text-sm text-gray-600 mb-6">
-          Manage WorkOS organization roles for your members. Assign admin or staff access as needed.
-        </p>
+          <p className="text-sm text-gray-600 mb-6">
+          Manage local account roles for your members. Assign admin or moderator access as needed.
+          </p>
 
         {message && (
           <div className={`mb-4 p-4 rounded-md ${
@@ -208,9 +210,9 @@ export default function UserManagementTable({
                           onChange={(e) => updateUserRole(user.id, e.target.value)}
                           className="text-sm border border-gray-300 rounded-md px-2 py-1 text-gray-900 bg-white"
                         >
-                          <option value="org-user">User</option>
-                          <option value="org-staff">Staff</option>
-                          <option value="org-admin">Admin</option>
+                          <option value="user">User</option>
+                          <option value="moderator">Moderator</option>
+                          <option value="admin">Admin</option>
                         </select>
                         <button
                           onClick={() => deactivateUser(user.id)}
@@ -282,9 +284,9 @@ export default function UserManagementTable({
                         onChange={(e) => updateUserRole(user.id, e.target.value)}
                         className="w-full text-sm border border-gray-300 rounded-md px-3 py-2 text-gray-900 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
-                          <option value="org-user">User</option>
-                          <option value="org-staff">Staff</option>
-                          <option value="org-admin">Admin</option>
+                          <option value="user">User</option>
+                          <option value="moderator">Moderator</option>
+                          <option value="admin">Admin</option>
                         </select>
                     </div>
                     <button

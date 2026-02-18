@@ -1,6 +1,6 @@
 'use client'
 
-import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { useAuth } from '@/lib/auth-client'
 import { getReturnToUrl } from '@/lib/client-env'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -50,6 +50,7 @@ export default function TopBar() {
   ]
 
   const moreNav = [
+    { label: 'Account Settings', href: '/account' },
     { label: 'Family Profile', href: '/family/profile' },
     { label: 'Teacher Dashboard', href: '/teacher' },
     { label: 'Calendar', href: '/calendar' },

@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { useAuth } from '@/lib/auth-client'
 import { userSession } from '@/lib/user-session'
 
 interface UserSessionProviderProps {

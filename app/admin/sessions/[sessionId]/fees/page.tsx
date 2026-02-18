@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { useAuth } from '@/lib/auth-client'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import AdminLayout from '@/app/components/AdminLayout'

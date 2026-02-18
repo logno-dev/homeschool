@@ -1,6 +1,6 @@
 'use client'
 
-import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { useAuth } from '@/lib/auth-client'
 import { getReturnToUrl } from '@/lib/client-env'
 
 interface DashboardNavProps {

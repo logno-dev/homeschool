@@ -1,5 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { eq } from 'drizzle-orm'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
+import { db } from '@/lib/db'
+import { guardians, users } from '@/lib/schema'
+
+const ALLOWED_ROLES = new Set(['user', 'staff', 'moderator', 'admin'])
+
+function normalizeRole(input: string) {
+  if (input === 'org-user') return 'user'
+  if (input === 'org-staff') return 'staff'
+  if (input === 'org-admin') return 'admin'
+  return input
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -12,27 +24,20 @@ export async function PATCH(
     }
 
     const { membershipId } = await params
-    const { role } = await request.json()
+    const body = await request.json()
+    const role = normalizeRole(String(body?.role || ''))
 
-    if (!membershipId || !role) {
-      return NextResponse.json({ error: 'Membership id and role are required' }, { status: 400 })
+    if (!membershipId || !ALLOWED_ROLES.has(role)) {
+      return NextResponse.json({ error: 'Valid user id and role are required' }, { status: 400 })
     }
 
-    const { WorkOS } = await import('@workos-inc/node') as unknown as {
-      WorkOS: new (apiKey: string) => {
-        userManagement: {
-          updateOrganizationMembership: (id: string, params: { roleSlug?: string; roleSlugs?: string[] }) => Promise<{ id: string; role?: { slug?: string } }>
-        }
-      }
-    }
+    const normalizedRole = role === 'staff' ? 'moderator' : role
+    await db.update(users).set({ role: normalizedRole, updatedAt: new Date().toISOString() }).where(eq(users.id, membershipId))
+    await db.update(guardians).set({ role: normalizedRole, updatedAt: new Date().toISOString() }).where(eq(guardians.id, membershipId))
 
-    const workos = new WorkOS(process.env.WORKOS_API_KEY || '')
-    const updated = await workos.userManagement.updateOrganizationMembership(membershipId, { roleSlug: role })
-
-    return NextResponse.json({ success: true, role, membership: updated })
+    return NextResponse.json({ success: true, role: normalizedRole })
   } catch (error) {
-    console.error('Error updating WorkOS role:', error)
-    const message = error instanceof Error ? error.message : 'Failed to update role'
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error('Error updating role:', error)
+    return NextResponse.json({ error: 'Failed to update role' }, { status: 500 })
   }
 }

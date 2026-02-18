@@ -1,6 +1,6 @@
 'use client'
 
-import { useAuth } from '@workos-inc/authkit-nextjs/components'
+import { useAuth } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import { getReturnToUrl } from '@/lib/client-env'
 

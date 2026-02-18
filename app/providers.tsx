@@ -1,13 +1,13 @@
 'use client'
 
-import { AuthKitProvider } from '@workos-inc/authkit-nextjs/components'
 import { ToastProvider } from './components/ToastContainer'
 import { RegistrationProvider } from './components/RegistrationContext'
 import UserSessionProvider from './components/UserSessionProvider'
+import { AuthProvider } from '@/lib/auth-client'
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <AuthKitProvider>
+    <AuthProvider>
       <UserSessionProvider>
         <ToastProvider>
           <RegistrationProvider>
@@ -15,6 +15,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
           </RegistrationProvider>
         </ToastProvider>
       </UserSessionProvider>
-    </AuthKitProvider>
+    </AuthProvider>
   )
 }
