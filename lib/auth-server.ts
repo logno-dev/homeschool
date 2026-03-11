@@ -202,7 +202,7 @@ async function buildSessionFromUserId(userId: string): Promise<AppAuthSession | 
   }
 
   const [guardian] = await db.select().from(guardians).where(eq(guardians.id, user.id)).limit(1)
-  const role = guardian?.role || user.role || 'user'
+  const role = user.role || 'user'
 
   return {
     user: {

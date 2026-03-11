@@ -23,7 +23,7 @@ export default function ForgotPasswordPage() {
       })
 
       const payload = await response.json()
-      setMessage(payload.message || 'If an account exists, a reset link has been created.')
+      setMessage(payload.message || 'If an account exists, a reset email has been sent.')
       if (payload.resetUrl) {
         setResetUrl(payload.resetUrl)
       }
@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-white rounded-xl border border-gray-200 shadow-sm p-8">
         <h1 className="text-2xl font-semibold text-gray-900">Forgot password</h1>
-        <p className="mt-2 text-sm text-gray-600">Enter your email to generate a reset link.</p>
+        <p className="mt-2 text-sm text-gray-600">Enter your email and we will send you a reset link.</p>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div>
@@ -57,14 +57,14 @@ export default function ForgotPasswordPage() {
             disabled={loading}
             className="w-full rounded-md bg-blue-600 px-4 py-2 text-white font-medium hover:bg-blue-700 disabled:bg-blue-400"
           >
-            {loading ? 'Generating link...' : 'Generate reset link'}
+            {loading ? 'Sending email...' : 'Send reset email'}
           </button>
         </form>
 
         {message && <p className="mt-4 text-sm text-gray-700">{message}</p>}
         {resetUrl && (
           <p className="mt-2 text-sm text-blue-700 break-all">
-            Reset link: <a href={resetUrl} className="underline">{resetUrl}</a>
+            Dev reset link: <a href={resetUrl} className="underline">{resetUrl}</a>
           </p>
         )}
 

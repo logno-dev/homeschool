@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       .map((user) => {
         const guardian = guardianById.get(user.id)
         const account = accountByUserId.get(user.id)
-        const role = guardian?.role || user.role || 'user'
+        const role = user.role || 'user'
 
         return {
           id: user.id,

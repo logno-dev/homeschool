@@ -1,0 +1,4 @@
+- logan@logno.dev -> temp password: rsmPupn7WAxy
+- logan@bunch.codes -> temp password: thyBKA8dwvpe
+- hank@bunch.codes -> temp password: C1s5E4ckoO3k
+- logan@bunch.codes -> temp password: A9jS-wF9vbvZ

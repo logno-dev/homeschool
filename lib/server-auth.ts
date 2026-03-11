@@ -17,41 +17,11 @@ function normalizeRole(role?: string | null): AppRole {
   return ROLE_MAP[role.toLowerCase()] ?? 'user'
 }
 
-export function getAppRoleFromSession(session: { role?: string; roles?: string[] } | null): AppRole | null {
-  if (!session) return null
-  const candidates = [session.role, ...(session.roles ?? [])]
-    .filter((role): role is string => typeof role === 'string' && role.length > 0)
-    .map((role) => role.toLowerCase().trim())
-
-  for (const candidate of candidates) {
-    const mapped = ROLE_MAP[candidate]
-    if (mapped === 'admin') return 'admin'
-  }
-
-  for (const candidate of candidates) {
-    const mapped = ROLE_MAP[candidate]
-    if (mapped === 'moderator') return 'moderator'
-  }
-
-  for (const candidate of candidates) {
-    const mapped = ROLE_MAP[candidate]
-    if (mapped === 'user') return 'user'
-  }
-
-  return null
-}
-
 export async function getAppRole(session: { role?: string; roles?: string[]; user?: { id: string } } | null): Promise<AppRole> {
-  const sessionRole = getAppRoleFromSession(session)
-  if (sessionRole) return sessionRole
-
   if (!session?.user?.id) return 'user'
 
   try {
-    const { getGuardianById, getUserById } = await import('./database')
-    const guardian = await getGuardianById(session.user.id)
-    if (guardian?.role) return normalizeRole(guardian.role)
-
+    const { getUserById } = await import('./database')
     const user = await getUserById(session.user.id)
     if (user?.role) return normalizeRole(user.role)
   } catch (error) {

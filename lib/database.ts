@@ -1465,11 +1465,10 @@ export async function getScheduleComments(sessionId: string, guardianId?: string
 }
 
 export async function getScheduleCommentsForTeacher(sessionId: string, guardianId: string): Promise<(ScheduleComment & { guardian: { firstName: string, lastName: string } })[]> {
-  // Get guardian to check role
-  const guardian = await getGuardianById(guardianId)
-  if (!guardian) return []
-  
-  const isAdminOrMod = guardian.role === 'admin' || guardian.role === 'moderator'
+  const user = await getUserById(guardianId)
+  if (!user) return []
+
+  const isAdminOrMod = user.role === 'admin' || user.role === 'moderator'
   
   const result = await db
     .select({
