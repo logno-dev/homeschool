@@ -72,7 +72,7 @@ export default function TopBar() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <a href="/dashboard" className="shrink-0">
+            <a href="/" className="shrink-0">
               <BrandLogo variant="horizontal" width={150} alt="DVCLC home" />
             </a>
             <div className="hidden sm:flex items-center gap-2">
@@ -82,9 +82,8 @@ export default function TopBar() {
                   <a
                     key={item.href}
                     href={item.href}
-                    className={`px-3 py-2 text-sm font-medium rounded-md ${
-                      active ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                    }`}
+                    className={`px-3 py-2 text-sm font-medium rounded-md ${active ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                      }`}
                   >
                     {item.label}
                   </a>
