@@ -5,7 +5,8 @@ const PUBLIC_PATHS = [
   '/signin',
   '/signup',
   '/forgot-password',
-  '/reset-password'
+  '/reset-password',
+  '/about'
 ]
 
 const PUBLIC_API_PREFIXES = [

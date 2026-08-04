@@ -16,7 +16,7 @@ export default function About() {
               About DVCLC
             </h1>
             <p className="text-xl text-gray-700">
-              Your comprehensive homeschool cooperative management solution
+              Desert Valley Creative Learning Collaborative
             </p>
           </div>
 
@@ -27,103 +27,47 @@ export default function About() {
                 What is DVCLC?
               </h2>
               <p className="text-gray-700 mb-6">
-                DVCLC (Delaware Valley Christian Learning Cooperative) Management System is a comprehensive 
-                platform designed specifically for homeschool cooperatives. Our system streamlines the 
-                complex tasks of managing students, teachers, classes, schedules, and finances in one 
-                integrated solution.
+                <strong>Desert Valley Creative Learning Collaborative</strong> is an education support group for homeschoolers that was founded in 2011.  While our leadership and many of our members, share a love for God and Christian faith, everyone is welcome in our learning environment.
+
               </p>
-
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-                Key Features
+              <p className="text-gray-700 mb-6">
+                It is our desire to  provide a caring, creative learning environment where children can have abundant opportunities to enjoy personal as well as public success.
+              </p>
+              <p className="text-gray-700 mb-6">
+                DVCLC meets on <strong>Mondays</strong> at Grace Chapel in Indio, CA from <strong>9:30 a.m – 2:00 p.m.</strong>
+              </p>
+              <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3319.4271907655093!2d-116.25494572339673!3d33.69789333635636!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x80daf83fbdd65fbb%3A0xcdfe7bb4a72bee6f!2sGrace%20Chapel%20Indio!5e0!3m2!1sen!2sus!4v1785802438531!5m2!1sen!2sus" width="400" height="300" class="mx-auto my-2" loading="lazy" referrerPolicy="strict-origin-when-cross-origin"></iframe>
+              <p className="text-gray-700 mb-6">
+                Co-op is a unique, parent-led program that offers students a full day of classes, with a variety of choices to enrich the lives of your students. We have found that when parents are able to teach things that they love and are interested in, they bless our students with amazingly creative classes! We offer both academic and elective classes, at 50 minutes per class, along with a 1 hour lunch break. Students can take as many as four classes per session, but are not required to attend the full day.  Our Pre-K/Kindergarten group follows a slightly different schedule to meet their needs. At least one parent from each family is required to actively participate throughout the entire co-op day by volunteering each hour in one of our many volunteer positions. This is the only way we have found to make this type of co-op work efficiently and enjoyably for all involved.
+              </p>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                Learning groups are broken down as follows (these are just suggestions – you can work with the leaders of these age groups to figure out a good fit for your child):
               </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <div className="bg-blue-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold text-blue-900 mb-2">👥 Student Management</h3>
-                  <p className="text-blue-800">
-                    Comprehensive student profiles, enrollment tracking, grade management, and progress monitoring.
+
+              <div className="grid grid-cols-1 max-w-lg gap-6 mb-8 mx-auto">
+                <div className="bg-blue-50 p-6 rounded-lg mx-auto">
+                  <p className="text-blue-800 font-bold">
+                    Early Elementary (K-2nd grade)
                   </p>
                 </div>
-                
-                <div className="bg-green-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold text-green-900 mb-2">👨‍🏫 Teacher Portal</h3>
-                  <p className="text-green-800">
-                    Dedicated teacher dashboard for class management, schedule review, and teaching requests.
+
+                <div className="bg-green-50 p-6 rounded-lg mx-auto">
+                  <p className="text-green-800 font-bold">
+                    Late Elementary (3rd-5th grade)
                   </p>
                 </div>
-                
-                <div className="bg-purple-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold text-purple-900 mb-2">📚 Class Scheduling</h3>
-                  <p className="text-purple-800">
-                    Flexible class scheduling system with room assignments, time slots, and conflict resolution.
+
+                <div className="bg-purple-50 p-6 rounded-lg mx-auto">
+                  <p className="text-purple-800 font-bold">
+                    Middle/High School (6th-12th grade)
                   </p>
                 </div>
-                
-                <div className="bg-yellow-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold text-yellow-900 mb-2">💰 Fee Management</h3>
-                  <p className="text-yellow-800">
-                    Automated fee calculation, payment tracking, and financial reporting for families and administrators.
-                  </p>
-                </div>
-                
-                <div className="bg-red-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold text-red-900 mb-2">🤝 Volunteer Coordination</h3>
-                  <p className="text-red-800">
-                    Volunteer job management, hour tracking, and assignment coordination for cooperative activities.
-                  </p>
-                </div>
-                
-                <div className="bg-indigo-50 p-6 rounded-lg">
-                  <h3 className="text-lg font-semibold text-indigo-900 mb-2">📊 Admin Dashboard</h3>
-                  <p className="text-indigo-800">
-                    Comprehensive administrative tools for user management, system configuration, and reporting.
-                  </p>
-                </div>
+
               </div>
 
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-                Who Can Use DVCLC?
-              </h2>
-              
-              <div className="space-y-4 mb-8">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-4">
-                    <span className="text-blue-600 font-semibold">👨‍👩‍👧‍👦</span>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">Families</h4>
-                    <p className="text-gray-700">Register children for classes, manage payments, track volunteer hours, and stay updated on schedules.</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 w-8 h-8 bg-green-100 rounded-full flex items-center justify-center mr-4">
-                    <span className="text-green-600 font-semibold">👨‍🏫</span>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">Teachers</h4>
-                    <p className="text-gray-700">Submit teaching requests, review class schedules, and manage classroom assignments.</p>
-                  </div>
-                </div>
-                
-                <div className="flex items-start">
-                  <div className="flex-shrink-0 w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-4">
-                    <span className="text-purple-600 font-semibold">⚙️</span>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900">Administrators</h4>
-                    <p className="text-gray-700">Oversee all aspects of the cooperative including user management, scheduling, and financial oversight.</p>
-                  </div>
-                </div>
-              </div>
 
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-                Getting Started
-              </h2>
-              <p className="text-gray-700 mb-4">
-                Ready to streamline your homeschool cooperative management? Contact your cooperative 
-                administrator to get your account set up, or if you're an administrator looking to 
-                implement DVCLC for your cooperative, reach out to learn more about setup and training.
+              <p className="text-gray-700 mb-4 italic">
+                We serve the Coachella Valley (Indio, La Quinta, Palm Desert, Palm Springs, Cathedral City, Rancho Mirage, Desert Hot Springs), as well as surrounding areas.
               </p>
             </div>
           </div>
