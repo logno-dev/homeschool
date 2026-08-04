@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { FormEvent, Suspense, useState } from 'react'
+import BrandLogo from '@/app/components/BrandLogo'
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams()
@@ -56,6 +57,9 @@ function ResetPasswordForm() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-white rounded-xl border border-gray-200 shadow-sm p-8">
+        <div className="flex justify-center mb-4">
+          <BrandLogo variant="icon" width={64} alt="DVCLC" />
+        </div>
         <h1 className="text-2xl font-semibold text-gray-900">Reset password</h1>
         <p className="mt-2 text-sm text-gray-600">Choose a new password for your account.</p>
 

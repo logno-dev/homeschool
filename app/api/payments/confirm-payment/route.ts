@@ -1,139 +1,180 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAuthenticatedUser } from '@/lib/server-auth'
-import { db } from '@/lib/db'
-import { familySessionFees, feePayments, scholarshipFundTransactions } from '@/lib/schema'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 
-// Mock Stripe Payment confirmation
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getAuthenticatedUser()
+import { getAuthenticatedUser } from '@/lib/server-auth'
+import { db } from '@/lib/db'
+import { getGuardianById } from '@/lib/database'
+import { familySessionFees, feePayments, scholarshipFundTransactions } from '@/lib/schema'
+import {
+  capturePayPalOrder,
+  getCaptureAmountCents,
+  parseFeeMetadata
+} from '@/lib/paypal'
 
-    const { paymentIntentId, paymentMethodId } = await request.json()
+interface FeeConfirmationPayload {
+  paymentIntentId?: string
+  orderId?: string
+  familySessionFeeId?: string
+  status?: string
+}
 
-    // In a real Stripe integration, we would:
-    // 1. Confirm the payment intent with Stripe
-    // 2. Handle webhooks for payment status updates
-    // For mock purposes, we'll simulate a successful payment
+interface ParsedFeeMetadata {
+  familySessionFeeId: string
+  paymentAmountCents: number
+  donationAmountCents: number
+}
 
-    // Extract metadata from payment intent ID (in real app, this would come from Stripe)
-    if (!paymentIntentId.startsWith('pi_mock_')) {
-      return NextResponse.json({ error: 'Invalid payment intent' }, { status: 400 })
-    }
+async function capturePayPalOrderAndReadMetadata(orderId: string, expectedFamilySessionFeeId: string): Promise<ParsedFeeMetadata> {
+  const paypalOrder = await capturePayPalOrder(orderId)
 
-    // For demo purposes, we'll simulate payment success/failure
-    // In real implementation, this would be handled by Stripe webhooks
-    const shouldSucceed = Math.random() > 0.1 // 90% success rate for demo
+  if (paypalOrder.status !== 'COMPLETED') {
+    throw new Error(`PayPal order not completed: ${paypalOrder.status}`)
+  }
 
-    if (!shouldSucceed) {
-      return NextResponse.json({
-        paymentIntent: {
-          id: paymentIntentId,
-          status: 'requires_payment_method',
-          last_payment_error: {
-            type: 'card_error',
-            code: 'card_declined',
-            message: 'Your card was declined. Please try a different payment method.'
-          }
-        }
-      })
-    }
+  const metadata = parseFeeMetadata(paypalOrder)
 
-    // Mock successful payment - in real app, this would be triggered by Stripe webhook
-    const mockPaymentIntent = {
-      id: paymentIntentId,
-      object: 'payment_intent',
-      status: 'succeeded',
-      amount_received: 5000, // This would come from the actual payment intent
-      currency: 'usd',
-      payment_method: paymentMethodId,
-      created: Math.floor(Date.now() / 1000)
-    }
+  if (!metadata) {
+    throw new Error('Invalid payment metadata')
+  }
 
-    return NextResponse.json({
-      paymentIntent: mockPaymentIntent
+  if (metadata.familySessionFeeId !== expectedFamilySessionFeeId) {
+    throw new Error('Order does not match this fee record')
+  }
+
+  const capturedAmountCents = getCaptureAmountCents(paypalOrder)
+  const expectedAmountCents = metadata.feeAmountCents + metadata.donationAmountCents
+
+  if (!capturedAmountCents) {
+    throw new Error('Unable to read payment amount')
+  }
+
+  if (capturedAmountCents !== expectedAmountCents) {
+    throw new Error(`Capture amount mismatch (${capturedAmountCents} != ${expectedAmountCents})`)
+  }
+
+  return {
+    familySessionFeeId: metadata.familySessionFeeId,
+    paymentAmountCents: metadata.feeAmountCents,
+    donationAmountCents: metadata.donationAmountCents
+  }
+}
+
+async function recordFeePayment(familySessionFeeId: string, metadata: ParsedFeeMetadata, orderId: string) {
+  const feeRecord = await db
+    .select()
+    .from(familySessionFees)
+    .where(eq(familySessionFees.id, familySessionFeeId))
+    .limit(1)
+
+  if (feeRecord.length === 0) {
+    throw new Error('Fee record not found')
+  }
+
+  const fee = feeRecord[0]
+  const paymentAmount = metadata.paymentAmountCents / 100
+  const donationValue = metadata.donationAmountCents / 100
+  const newPaidAmount = fee.paidAmount + paymentAmount
+  const newStatus = newPaidAmount >= fee.totalFee ? 'paid' : 'partial'
+
+  await db
+    .update(familySessionFees)
+    .set({
+      paidAmount: newPaidAmount,
+      status: newStatus,
+      updatedAt: new Date().toISOString()
+    })
+    .where(eq(familySessionFees.id, familySessionFeeId))
+
+  await db
+    .insert(feePayments)
+    .values({
+      id: randomUUID(),
+      familySessionFeeId,
+      familyId: fee.familyId,
+      sessionId: fee.sessionId,
+      amount: paymentAmount,
+      paymentDate: new Date().toISOString(),
+      paymentMethod: 'online',
+      notes: `PayPal order payment - Order ID: ${orderId}`
     })
 
+  if (donationValue > 0) {
+    await db
+      .insert(scholarshipFundTransactions)
+      .values({
+        id: randomUUID(),
+        amount: donationValue,
+        transactionType: 'donation',
+        source: 'online',
+        familyId: fee.familyId,
+        sessionId: fee.sessionId,
+        notes: `Scholarship donation with PayPal order ${orderId}`
+      })
+  }
+}
+
+async function handleConfirmation(request: NextRequest) {
+  const session = await getAuthenticatedUser()
+  const payload = await request.json().catch(() => ({} as FeeConfirmationPayload))
+  const { familySessionFeeId, status, orderId: rawOrderId, paymentIntentId } = payload
+  const orderId = rawOrderId || paymentIntentId
+
+  if (!orderId) {
+    return NextResponse.json({ error: 'Missing payment order ID' }, { status: 400 })
+  }
+
+  if (!familySessionFeeId) {
+    return NextResponse.json({ error: 'Missing family session fee ID' }, { status: 400 })
+  }
+
+  if (status && status !== 'succeeded') {
+    return NextResponse.json({ success: true })
+  }
+
+  const guardian = await getGuardianById(session.user.id)
+  if (!guardian) {
+    return NextResponse.json({ error: 'Guardian not found' }, { status: 404 })
+  }
+
+  const familyFee = await db
+    .select()
+    .from(familySessionFees)
+    .where(and(
+      eq(familySessionFees.id, familySessionFeeId),
+      eq(familySessionFees.familyId, guardian.familyId)
+    ))
+    .limit(1)
+
+  if (familyFee.length === 0) {
+    return NextResponse.json({ error: 'Fee record not found' }, { status: 404 })
+  }
+
+  const metadata = await capturePayPalOrderAndReadMetadata(orderId, familySessionFeeId)
+  await recordFeePayment(familySessionFeeId, metadata, orderId)
+
+  return NextResponse.json({ success: true })
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    return await handleConfirmation(request)
   } catch (error) {
     console.error('Error confirming payment:', error)
     return NextResponse.json(
-      { error: 'Failed to confirm payment' },
+      { error: error instanceof Error ? error.message : 'Failed to confirm payment' },
       { status: 500 }
     )
   }
 }
 
-// Webhook endpoint to handle payment status updates (mock)
 export async function PUT(request: NextRequest) {
   try {
-    const { paymentIntentId, status, amount, donationAmount = 0, familySessionFeeId } = await request.json()
-
-    if (status === 'succeeded') {
-      // Update the family session fee with the payment
-      const familyFee = await db
-        .select()
-        .from(familySessionFees)
-        .where(eq(familySessionFees.id, familySessionFeeId))
-        .limit(1)
-
-      if (familyFee.length === 0) {
-        return NextResponse.json({ error: 'Fee record not found' }, { status: 404 })
-      }
-
-      const fee = familyFee[0]
-      const paymentAmount = amount / 100 // Convert from cents
-      const donationValue = donationAmount / 100
-      const newPaidAmount = fee.paidAmount + paymentAmount
-      const newStatus = newPaidAmount >= fee.totalFee ? 'paid' : 'partial'
-
-      // Update the family session fee
-      await db
-        .update(familySessionFees)
-        .set({
-          paidAmount: newPaidAmount,
-          status: newStatus,
-          updatedAt: new Date().toISOString()
-        })
-        .where(eq(familySessionFees.id, familySessionFeeId))
-
-      // Record the payment
-      await db
-        .insert(feePayments)
-        .values({
-          id: randomUUID(),
-          familySessionFeeId,
-          familyId: fee.familyId,
-          sessionId: fee.sessionId,
-          amount: paymentAmount,
-          paymentDate: new Date().toISOString(),
-          paymentMethod: 'online',
-          notes: `Mock Stripe payment - Intent ID: ${paymentIntentId}`
-        })
-
-      if (donationValue > 0) {
-        await db
-          .insert(scholarshipFundTransactions)
-          .values({
-            id: randomUUID(),
-            amount: donationValue,
-            transactionType: 'donation',
-            source: 'online',
-            familyId: fee.familyId,
-            sessionId: fee.sessionId,
-            notes: `Scholarship donation with payment intent ${paymentIntentId}`
-          })
-      }
-
-      return NextResponse.json({ success: true })
-    }
-
-    return NextResponse.json({ success: true })
-
+    return await handleConfirmation(request)
   } catch (error) {
-    console.error('Error processing payment webhook:', error)
+    console.error('Error confirming payment:', error)
     return NextResponse.json(
-      { error: 'Failed to process payment webhook' },
+      { error: error instanceof Error ? error.message : 'Failed to confirm payment' },
       { status: 500 }
     )
   }

@@ -3,10 +3,14 @@ import { getAuthenticatedUser } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { familySessionFees } from '@/lib/schema'
 import { eq, and } from 'drizzle-orm'
-import { randomUUID } from 'crypto'
 import { getGuardianById } from '@/lib/database'
+import {
+  createPayPalOrder,
+  getPayPalMetadata,
+  makeFeeMetadata,
+  toAmountCents
+} from '@/lib/paypal'
 
-// Mock Stripe Payment Intent creation
 export async function POST(request: NextRequest) {
   try {
     const session = await getAuthenticatedUser()
@@ -38,7 +42,8 @@ export async function POST(request: NextRequest) {
     const remainingAmount = fee.totalFee - fee.paidAmount
 
     // Validate amount
-    if (amount <= 0 || amount > remainingAmount) {
+    const paymentAmount = Number(amount)
+    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0 || paymentAmount > remainingAmount) {
       return NextResponse.json({ 
         error: 'Invalid payment amount',
         details: `Amount must be between $0.01 and $${remainingAmount.toFixed(2)}`
@@ -49,34 +54,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Donation amount must be a positive value' }, { status: 400 })
     }
 
-    const totalCharge = amount + normalizedDonationAmount
+    const resolvedDonationAmount = normalizedDonationAmount
+    const paymentAmountCents = toAmountCents(paymentAmount)
+    const donationAmountCents = toAmountCents(resolvedDonationAmount)
 
-    // Create mock payment intent (mimics Stripe's structure)
-    const paymentIntentId = `pi_mock_${randomUUID().replace(/-/g, '')}`
-    const clientSecret = `${paymentIntentId}_secret_${randomUUID().replace(/-/g, '')}`
+    const metadata = makeFeeMetadata({
+      familySessionFeeId,
+      feeAmountCents: paymentAmountCents,
+      donationAmountCents
+    })
 
-    // In a real implementation, this would be stored in Stripe
-    // For now, we'll store it temporarily in memory or could add to database
-    const mockPaymentIntent = {
-      id: paymentIntentId,
-      object: 'payment_intent',
-      amount: Math.round(totalCharge * 100), // Stripe uses cents
-      currency: 'usd',
-      status: 'requires_payment_method',
-      client_secret: clientSecret,
-      metadata: {
-        familySessionFeeId,
-        familyId: guardian.familyId,
-        sessionId: fee.sessionId,
-        donationAmount: normalizedDonationAmount
-      },
-      created: Math.floor(Date.now() / 1000),
-      description: `DVCLC Session Fee Payment - $${amount.toFixed(2)}`
-    }
+    const orderId = await createPayPalOrder({
+      totalAmountCents: paymentAmountCents + donationAmountCents,
+      ...metadata,
+      description: `DVCLC Session Fee Payment - $${paymentAmount.toFixed(2)}`
+    })
+
+    const { isSandbox, clientId } = getPayPalMetadata()
 
     return NextResponse.json({
-      paymentIntent: mockPaymentIntent,
-      clientSecret
+      orderId,
+      clientId,
+      isSandbox,
+      environment: isSandbox ? 'sandbox' : 'live'
     })
 
   } catch (error) {

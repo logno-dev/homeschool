@@ -5,6 +5,7 @@ import { getReturnToUrl } from '@/lib/client-env'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { isUserAdmin, userSession } from '@/lib/user-session'
+import BrandLogo from './BrandLogo'
 
 export default function TopBar() {
   const { user, signOut } = useAuth()
@@ -71,8 +72,8 @@ export default function TopBar() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <a href="/dashboard" className="text-lg font-semibold text-gray-900 whitespace-nowrap">
-              DVCLC
+            <a href="/dashboard" className="shrink-0">
+              <BrandLogo variant="horizontal" width={150} alt="DVCLC home" />
             </a>
             <div className="hidden sm:flex items-center gap-2">
               {mainNav.map((item) => {

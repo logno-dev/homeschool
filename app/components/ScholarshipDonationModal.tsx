@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Modal from './Modal'
 import Button from './Button'
-import { MockElements, MockCardElement, useStripe } from './MockStripeElements'
+import Modal from './Modal'
+import PayPalCheckout from './PayPalCheckout'
 
 interface ScholarshipDonationModalProps {
   isOpen: boolean
@@ -13,46 +13,57 @@ interface ScholarshipDonationModalProps {
 
 export default function ScholarshipDonationModal({ isOpen, onClose, title }: ScholarshipDonationModalProps) {
   const [isProcessing, setIsProcessing] = useState(false)
-  const [cardComplete, setCardComplete] = useState(false)
-  const [cardError, setCardError] = useState<string | null>(null)
   const [donationError, setDonationError] = useState<string | null>(null)
   const [donationPreset, setDonationPreset] = useState<number | null>(10)
   const [donationAmount, setDonationAmount] = useState('10')
   const [showSuccess, setShowSuccess] = useState(false)
+  const [orderId, setOrderId] = useState<string | null>(null)
+  const [clientId, setClientId] = useState('')
+  const [environment, setEnvironment] = useState<'sandbox' | 'live' | null>(null)
 
-  const stripe = useStripe()
+  useEffect(() => {
+    const loadEnvironment = async () => {
+      try {
+        const response = await fetch('/api/payments/paypal-config')
+
+        if (!response.ok) {
+          return
+        }
+
+        const data = await response.json()
+        const parsedEnvironment = data.environment === 'sandbox' ? 'sandbox' : data.environment === 'live' ? 'live' : data.isSandbox ? 'sandbox' : 'live'
+        setEnvironment(parsedEnvironment)
+      } catch {
+        return
+      }
+    }
+
+    loadEnvironment()
+  }, [])
 
   useEffect(() => {
     if (!isOpen) {
       setShowSuccess(false)
       setDonationError(null)
-      setCardError(null)
       setIsProcessing(false)
+      setOrderId(null)
+      setClientId('')
     }
   }, [isOpen])
 
-  const handleCardChange = (event: { complete: boolean; error?: { message: string } }) => {
-    setCardComplete(event.complete)
-    setCardError(event.error?.message || null)
-  }
+  const resolvedAmount = donationPreset ?? parseFloat(donationAmount)
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault()
+  const createOrder = async () => {
+    setDonationError(null)
 
-    if (!stripe || !cardComplete) {
-      return
-    }
-
-    const resolvedAmount = donationPreset ?? parseFloat(donationAmount)
     if (!resolvedAmount || Number.isNaN(resolvedAmount) || resolvedAmount <= 0) {
       setDonationError('Please enter a valid donation amount.')
       return
     }
 
-    setIsProcessing(true)
-    setDonationError(null)
-
     try {
+      setIsProcessing(true)
+
       const response = await fetch('/api/scholarship-fund/create-payment-intent', {
         method: 'POST',
         headers: {
@@ -63,34 +74,45 @@ export default function ScholarshipDonationModal({ isOpen, onClose, title }: Sch
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to create donation intent')
+        throw new Error(error.error || 'Failed to create donation order')
       }
 
-      const { clientSecret } = await response.json()
-      const result = await stripe.confirmCardPayment(clientSecret)
-
-      if (result.error) {
-        setDonationError(result.error.message)
-      } else if (result.paymentIntent?.status === 'succeeded') {
-        await fetch('/api/scholarship-fund/confirm-payment', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            paymentIntentId: result.paymentIntent.id,
-            status: 'succeeded',
-            amount: Math.round(resolvedAmount * 100)
-          })
-        })
-
-        setShowSuccess(true)
-      }
+      const data = await response.json()
+      setOrderId(data.orderId)
+      setClientId(data.clientId)
+      const parsedEnvironment = data.environment === 'sandbox' ? 'sandbox' : data.environment === 'live' ? 'live' : data.isSandbox ? 'sandbox' : 'live'
+      setEnvironment(parsedEnvironment)
     } catch (error) {
       console.error('Donation error:', error)
       setDonationError(error instanceof Error ? error.message : 'Donation failed')
     } finally {
       setIsProcessing(false)
+    }
+  }
+
+  const handleApprove = async (approvedOrderId: string) => {
+    try {
+      const response = await fetch('/api/scholarship-fund/confirm-payment', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          orderId: approvedOrderId,
+          status: 'succeeded'
+        })
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to record donation')
+      }
+
+      setShowSuccess(true)
+    } catch (error) {
+      console.error('Donation error:', error)
+      setDonationError(error instanceof Error ? error.message : 'Donation failed')
+      setOrderId(null)
     }
   }
 
@@ -101,90 +123,83 @@ export default function ScholarshipDonationModal({ isOpen, onClose, title }: Sch
       title={title || 'Donate to the Scholarship Fund'}
       size="lg"
     >
-      <MockElements>
-        {showSuccess ? (
-          <div className="space-y-4">
-            <div className="rounded-lg bg-green-50 border border-green-200 p-4 text-green-700">
-              Thank you for supporting the scholarship fund. Your donation has been recorded.
-            </div>
-            <div className="flex justify-end">
-              <Button variant="primary" onClick={onClose}>
-                Close
-              </Button>
-            </div>
+      {showSuccess ? (
+        <div className="space-y-4">
+          <div className="rounded-lg bg-green-50 border border-green-200 p-4 text-green-700">
+            Thank you for supporting the scholarship fund. Your donation has been recorded.
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Donation Amount</h3>
-              <div className="flex flex-wrap gap-2">
-                {[5, 10, 20].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => {
-                      setDonationPreset(preset)
-                      setDonationAmount(preset.toString())
-                    }}
-                    className={`px-4 py-2 text-sm font-medium rounded-md border transition-colors ${
-                      donationPreset === preset
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400'
-                    }`}
-                  >
-                    ${preset}
-                  </button>
-                ))}
+          <div className="flex justify-end">
+            <Button variant="primary" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-lg font-semibold mb-4">Donation Amount</h3>
+            <div className="flex flex-wrap gap-2">
+              {[5, 10, 20].map((preset) => (
                 <button
+                  key={preset}
                   type="button"
-                  onClick={() => setDonationPreset(null)}
+                  onClick={() => {
+                    setDonationPreset(preset)
+                    setDonationAmount(preset.toString())
+                  }}
                   className={`px-4 py-2 text-sm font-medium rounded-md border transition-colors ${
-                    donationPreset === null
+                    donationPreset === preset
                       ? 'bg-indigo-600 text-white border-indigo-600'
                       : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400'
                   }`}
                 >
-                  Custom
+                  ${preset}
                 </button>
-              </div>
-              {donationPreset === null && (
-                <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Custom Amount</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={donationAmount}
-                      onChange={(event) => setDonationAmount(event.target.value)}
-                      className="pl-8 w-full px-4 py-3 text-lg border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="0"
-                    />
-                  </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setDonationPreset(null)}
+                className={`px-4 py-2 text-sm font-medium rounded-md border transition-colors ${
+                  donationPreset === null
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-white text-gray-700 border-gray-300 hover:border-indigo-400'
+                }`}
+              >
+                Custom
+              </button>
+            </div>
+            {donationPreset === null && (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Custom Amount</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-lg">$</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={donationAmount}
+                    onChange={(event) => setDonationAmount(event.target.value)}
+                    className="pl-8 w-full px-4 py-3 text-lg border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="0"
+                  />
                 </div>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Card Details</label>
-              <div className="p-1">
-                <MockCardElement onChange={handleCardChange} />
-              </div>
-            </div>
-
-            {cardError && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                <div className="text-red-600 text-sm">{cardError}</div>
               </div>
             )}
+          </div>
 
-            {donationError && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3">
-                <div className="text-red-800 text-sm">{donationError}</div>
-              </div>
-            )}
+          {environment && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+              PayPal mode: <span className="font-semibold">{environment === 'sandbox' ? 'Sandbox (Testing)' : 'Live'}</span>
+            </div>
+          )}
 
+          {donationError && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3">
+              <div className="text-red-800 text-sm">{donationError}</div>
+            </div>
+          )}
+
+          {!orderId && (
             <div className="flex flex-col sm:flex-row sm:justify-end space-y-3 sm:space-y-0 sm:space-x-3 pt-4 border-t border-gray-200">
               <Button
                 type="button"
@@ -196,16 +211,32 @@ export default function ScholarshipDonationModal({ isOpen, onClose, title }: Sch
                 Cancel
               </Button>
               <Button
-                type="submit"
-                disabled={!cardComplete || isProcessing}
+                type="button"
+                onClick={createOrder}
+                disabled={isProcessing}
                 className="w-full sm:w-auto sm:min-w-[120px] py-3 sm:py-2 text-base sm:text-sm font-semibold"
               >
-                {isProcessing ? 'Processing...' : `Donate $${(donationPreset ?? (parseFloat(donationAmount) || 0)).toFixed(2)}`}
+                {isProcessing ? 'Processing...' : `Donate $${(resolvedAmount || 0).toFixed(2)}`}
               </Button>
             </div>
-          </form>
-        )}
-      </MockElements>
+          )}
+
+          {orderId ? (
+            <PayPalCheckout
+              orderId={orderId}
+              clientId={clientId}
+              onApprove={handleApprove}
+              onCancel={() => {
+                setOrderId(null)
+              }}
+              onError={(message) => {
+                setDonationError(message)
+                setOrderId(null)
+              }}
+            />
+          ) : null}
+        </div>
+      )}
     </Modal>
   )
 }

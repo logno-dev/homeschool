@@ -17,6 +17,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "DVCLC - Homeschool Cooperative",
   description: "Registration and management system for homeschool cooperative",
+  manifest: "/site.webmanifest",
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/apple-touch-icon.png",
+    shortcut: "/favicon-96x96.png",
+  },
 };
 
 export default function RootLayout({

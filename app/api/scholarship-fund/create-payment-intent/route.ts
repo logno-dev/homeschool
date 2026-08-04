@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/server-auth'
-import { randomUUID } from 'crypto'
 import { getGuardianById } from '@/lib/database'
+import {
+  createPayPalOrder,
+  getPayPalMetadata,
+  makeScholarshipMetadata,
+  toAmountCents
+} from '@/lib/paypal'
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getAuthenticatedUser()
     const { amount } = await request.json()
+    const donationAmount = Number(amount)
 
-    if (!amount || amount <= 0) {
+    if (!Number.isFinite(donationAmount) || donationAmount <= 0) {
       return NextResponse.json({ error: 'Donation amount must be greater than 0' }, { status: 400 })
     }
 
@@ -17,27 +23,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Guardian not found' }, { status: 404 })
     }
 
-    const paymentIntentId = `pi_donation_${randomUUID().replace(/-/g, '')}`
-    const clientSecret = `${paymentIntentId}_secret_${randomUUID().replace(/-/g, '')}`
+    const amountCents = toAmountCents(donationAmount)
+    const metadata = makeScholarshipMetadata({
+      familySessionFeeId: guardian.familyId,
+      amountCents
+    })
 
-    const mockPaymentIntent = {
-      id: paymentIntentId,
-      object: 'payment_intent',
-      amount: Math.round(amount * 100),
-      currency: 'usd',
-      status: 'requires_payment_method',
-      client_secret: clientSecret,
-      metadata: {
-        donationType: 'scholarship_fund',
-        familyId: guardian.familyId
-      },
-      created: Math.floor(Date.now() / 1000),
-      description: `Scholarship Fund Donation - $${amount.toFixed(2)}`
-    }
+    const orderId = await createPayPalOrder({
+      totalAmountCents: amountCents,
+      ...metadata,
+      description: `Scholarship Fund Donation - $${donationAmount.toFixed(2)}`
+    })
+
+    const { isSandbox, clientId } = getPayPalMetadata()
 
     return NextResponse.json({
-      paymentIntent: mockPaymentIntent,
-      clientSecret
+      orderId,
+      clientId,
+      isSandbox,
+      environment: isSandbox ? 'sandbox' : 'live'
     })
   } catch (error) {
     console.error('Error creating scholarship donation intent:', error)
