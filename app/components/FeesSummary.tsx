@@ -135,13 +135,13 @@ export default function FeesSummary() {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-sm font-medium text-gray-700">Total Outstanding:</span>
         <span className="text-lg font-bold text-gray-900">{formatCurrency(totalOwed)}</span>
       </div>
       
       {nextDueDate && totalOwed > 0 && (
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-sm font-medium text-gray-700">Next Due Date:</span>
           <span className="text-sm text-gray-900">{formatDate(nextDueDate)}</span>
         </div>
@@ -151,8 +151,8 @@ export default function FeesSummary() {
         <div className="mt-4 space-y-2">
           <h4 className="text-sm font-medium text-gray-700">Session Breakdown:</h4>
           {fees.map((fee) => (
-            <div key={fee.sessionId} className="flex justify-between items-center text-sm">
-              <div className="flex items-center space-x-2">
+            <div key={fee.sessionId} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:space-x-4 text-sm">
+              <div className="flex items-start sm:items-center space-x-2">
                 <span className="text-gray-600">{fee.sessionName}</span>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(fee.status)}`}>
                   {fee.status}
@@ -161,7 +161,7 @@ export default function FeesSummary() {
                   <span className="text-red-600 text-xs font-medium">OVERDUE</span>
                 )}
               </div>
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:space-x-2">
                 <span className="font-medium">
                   {formatCurrency(fee.remainingAmount)}
                 </span>
@@ -204,7 +204,7 @@ export default function FeesSummary() {
         >
           <div className="space-y-4">
             <div className="bg-gray-50 p-4 rounded-md">
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">Registration Fee:</span>
                   <span className="ml-2 font-medium">{formatCurrency(selectedFee.registrationFee)}</span>
@@ -221,11 +221,11 @@ export default function FeesSummary() {
                   <span className="text-gray-600">Amount Paid:</span>
                   <span className="ml-2 font-medium">{formatCurrency(selectedFee.paidAmount)}</span>
                 </div>
-                <div className="col-span-2 pt-2 border-t border-gray-200">
+                <div className="sm:col-span-2 pt-2 border-t border-gray-200">
                   <span className="text-gray-600">Amount Due:</span>
                   <span className="ml-2 font-bold text-lg">{formatCurrency(selectedFee.remainingAmount)}</span>
                 </div>
-                <div className="col-span-2">
+                <div className="sm:col-span-2">
                   <span className="text-gray-600">Due Date:</span>
                   <span className="ml-2 font-medium">{formatDate(selectedFee.dueDate)}</span>
                   {selectedFee.isOverdue && (

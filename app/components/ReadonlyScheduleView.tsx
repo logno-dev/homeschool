@@ -116,7 +116,8 @@ export default function ReadonlyScheduleView({
           <p className="text-sm text-gray-600 mt-1">Classes and volunteer assignments for this session</p>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Desktop/tablet */}
+        <div className="hidden lg:block overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
@@ -135,7 +136,6 @@ export default function ReadonlyScheduleView({
               {PERIODS.map((period) => {
                 const classRegs = registrationsByPeriod[period.id] || []
                 const volunteers = volunteersByPeriod[period.id] || []
-                
                 return (
                   <tr key={period.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -195,6 +195,71 @@ export default function ReadonlyScheduleView({
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile cards */}
+        <div className="lg:hidden">
+          <div className="divide-y divide-gray-200">
+            {PERIODS.map((period) => {
+              const classRegs = registrationsByPeriod[period.id] || []
+              const volunteers = volunteersByPeriod[period.id] || []
+              return (
+                <div key={period.id} className="px-4 py-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-base font-semibold text-gray-900">{period.name}</h3>
+                    <span className="text-xs text-gray-500">
+                      {classRegs.length} class{classRegs.length === 1 ? '' : 'es'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700">Class Registrations</h4>
+                      {classRegs.length > 0 ? (
+                        <div className="mt-2 space-y-2">
+                          {classRegs.map((reg) => (
+                            <div key={reg.registration.id} className="bg-blue-50 rounded-md p-3">
+                              <h5 className="font-medium text-blue-900 text-sm">
+                                {reg.classTeachingRequest.className}
+                              </h5>
+                              <p className="text-xs text-blue-700">
+                                {reg.child.firstName} {reg.child.lastName} (Grade {reg.child.grade})
+                              </p>
+                              <p className="text-xs text-blue-700">Room: {reg.classroom.name}</p>
+                              <p className="text-xs text-blue-600">Grade Range: {reg.classTeachingRequest.gradeRange}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-gray-400 italic">No classes registered</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700">Volunteer Assignments</h4>
+                      {volunteers.length > 0 ? (
+                        <div className="mt-2 space-y-2">
+                          {volunteers.map((vol) => (
+                            <div key={vol.assignment.id} className="bg-green-50 rounded-md p-3">
+                              <h5 className="font-medium text-green-900 text-sm">
+                                {vol.assignment.volunteerType === 'volunteer_job'
+                                  ? vol.volunteerJob?.title || 'General Volunteer'
+                                  : vol.classTeachingRequest?.className || 'General Volunteer'}
+                              </h5>
+                              <p className="text-xs text-green-700">Role: {vol.assignment.volunteerType}</p>
+                              {vol.classroom && <p className="text-xs text-green-700">Room: {vol.classroom.name}</p>}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-sm text-gray-400 italic">No volunteer assignments</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
 

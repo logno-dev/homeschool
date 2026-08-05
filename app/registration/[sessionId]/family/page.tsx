@@ -318,31 +318,31 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
               <div className="divide-y divide-gray-200">
                 {periodSchedules.map((item) => (
                   <div key={item.schedule.id} className="p-6">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-medium text-gray-900">
-                          {item.classTeachingRequest.className}
-                        </h3>
-                        <p className="mt-1 text-sm text-gray-600">
-                          Teacher: {item.teacher.firstName} {item.teacher.lastName}
-                          {item.classTeachingRequest.coTeacher && (
-                            <span> & {item.classTeachingRequest.coTeacher}</span>
-                          )}
-                        </p>
-                        <p className="mt-1 text-sm text-gray-600">
-                          Room: {item.classroom.name} | Grade Range: {item.classTeachingRequest.gradeRange}
-                        </p>
-                        <p className="mt-2 text-gray-700">
-                          {item.classTeachingRequest.description}
-                        </p>
-                        {item.classTeachingRequest.requiresFee && (
-                          <p className="mt-2 text-sm text-red-600">
-                            <strong>Fee Required:</strong> ${item.classTeachingRequest.feeAmount}
+                      <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-lg font-medium text-gray-900">
+                            {item.classTeachingRequest.className}
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-600">
+                            Teacher: {item.teacher.firstName} {item.teacher.lastName}
+                            {item.classTeachingRequest.coTeacher && (
+                              <span> & {item.classTeachingRequest.coTeacher}</span>
+                            )}
                           </p>
-                        )}
-                      </div>
-                      
-                      <div className="ml-6 flex-shrink-0">
+                          <p className="mt-1 text-sm text-gray-600">
+                            Room: {item.classroom.name} | Grade Range: {item.classTeachingRequest.gradeRange}
+                          </p>
+                          <p className="mt-2 text-gray-700">
+                            {item.classTeachingRequest.description}
+                          </p>
+                          {item.classTeachingRequest.requiresFee && (
+                            <p className="mt-2 text-sm text-red-600">
+                              <strong>Fee Required:</strong> ${item.classTeachingRequest.feeAmount}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="sm:ml-6 flex-shrink-0 w-full sm:w-auto">
                         <div className="text-right mb-4">
                           <p className="text-sm text-gray-600">
                             {item.currentRegistrations} / {item.classTeachingRequest.maxStudents} students

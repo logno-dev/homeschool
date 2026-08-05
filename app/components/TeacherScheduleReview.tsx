@@ -195,12 +195,12 @@ export default function TeacherScheduleReview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Schedule Review</h2>
         <select
           value={selectedSession}
           onChange={(e) => setSelectedSession(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+          className="w-full sm:w-auto border border-gray-300 rounded-md px-3 py-2 text-sm"
         >
           {sessions.map((session) => (
             <option key={session.id} value={session.id}>
@@ -215,7 +215,8 @@ export default function TeacherScheduleReview() {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Current Schedule</h3>
         </div>
-        <div className="overflow-x-auto">
+
+        <div className="hidden lg:block overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -256,6 +257,46 @@ export default function TeacherScheduleReview() {
             </tbody>
           </table>
         </div>
+
+        <div className="lg:hidden divide-y divide-gray-200">
+          {classrooms.length === 0 ? (
+            <div className="p-6 text-center text-gray-500">
+              No classroom schedule data available for this session.
+            </div>
+          ) : (
+            classrooms.map((classroom) => (
+              <div key={classroom.id} className="p-4">
+                <div className="mb-3">
+                  <h4 className="text-base font-semibold text-gray-900">{classroom.name}</h4>
+                  {classroom.description && (
+                    <p className="text-sm text-gray-500">{classroom.description}</p>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  {periods.map((period) => {
+                    const entry = scheduleData[classroom.id]?.[period]
+                    return (
+                      <div key={period} className="border rounded-lg border-gray-200 p-3">
+                        <div className="text-sm font-medium text-gray-700 mb-2">
+                          {period.charAt(0).toUpperCase() + period.slice(1)}
+                        </div>
+                        {entry ? (
+                          <div className="space-y-1 text-sm text-gray-700">
+                            <div className="font-medium text-gray-900">{entry.className}</div>
+                            <div>Teacher: {entry.teacherName}</div>
+                            <div>Grade Range: {entry.gradeRange}</div>
+                          </div>
+                        ) : (
+                          <div className="text-sm text-gray-400">No class scheduled</div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* Comments Section */}
@@ -274,10 +315,10 @@ export default function TeacherScheduleReview() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               rows={3}
             />
-            <div className="flex items-center justify-between">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
                   checked={isPublic}
                   onChange={(e) => setIsPublic(e.target.checked)}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"

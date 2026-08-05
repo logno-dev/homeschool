@@ -103,9 +103,9 @@ export default function PaymentHistory() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pb-3 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900">Payment History</h3>
-        <div className="text-right">
+        <div className="text-left sm:text-right">
           <div className="text-sm text-gray-600">Total Paid</div>
           <div className="text-lg font-bold text-green-600">{formatCurrency(totalPaid)}</div>
         </div>
@@ -114,7 +114,7 @@ export default function PaymentHistory() {
       <div className="space-y-3">
         {payments.map((payment) => (
           <div key={payment.id} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
-            <div className="flex justify-between items-start">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex-1">
                 <div className="flex items-center space-x-2 mb-1">
                   <span className="font-medium text-gray-900">{payment.sessionName}</span>
@@ -130,7 +130,7 @@ export default function PaymentHistory() {
                   </div>
                 )}
               </div>
-              <div className="text-right">
+              <div className="text-left sm:text-right">
                 <div className="text-lg font-bold text-green-600">
                   {formatCurrency(payment.amount)}
                 </div>
