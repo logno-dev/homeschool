@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DVCLC - Homeschool Cooperative",
-  description: "Registration and management system for homeschool cooperative",
+  title: "DVCLC - Homeschool Colaborative",
+  description: "Registration and management system for homeschool colaborative",
   manifest: "/site.webmanifest",
   icons: {
     icon: "/favicon.svg",

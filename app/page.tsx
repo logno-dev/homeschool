@@ -41,13 +41,13 @@ export default function Home() {
               <BrandLogo variant="horizontal" width={320} priority />
             </div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-blue-700">
-              Desert Valley Creative Learning Cooperative
+              Desert Valley Creative Learning Collaborative
             </p>
             <h1 className="mt-4 text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
               A structured, parent-powered learning pathway
             </h1>
             <p className="mt-6 text-lg text-gray-700 max-w-xl">
-              DVCLC is a homeschool cooperative for families who want academics, creativity,
+              DVCLC is a homeschool collaborative for families who want academics, creativity,
               and social growth balanced into one meaningful day. Students participate in focused classes,
               parents volunteer to support operations, and teams work together so every child receives
               attention and encouragement.
