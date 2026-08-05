@@ -129,7 +129,7 @@ export default function Home() {
         <section className="mt-14 rounded-2xl border border-blue-100 bg-white p-8 shadow-sm">
           <h2 className="text-3xl font-bold text-gray-900">Why families choose DVCLC</h2>
           <p className="mt-3 text-gray-700">
-            Our cooperative supports families who want the structure of a classroom with the care and flexibility of home
+            Our collaborative supports families who want the structure of a classroom with the care and flexibility of home
             education. You can track schedules, registrations, fees, and communications in a centralized platform
             while students benefit from community-based learning and intentional mentoring.
           </p>

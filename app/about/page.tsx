@@ -7,6 +7,11 @@ import BrandLogo from '@/app/components/BrandLogo'
 
 const groupCards = [
   {
+    label: 'Nursery/Preschool (0-Pre K)',
+    image: '/images/bbc-creative-1w20Cysy1cg-unsplash.jpg',
+    imageAlt: 'Toy truck in a daycare with children in the backround',
+  },
+  {
     label: 'Early Elementary (K-2nd grade)',
     image: '/images/gautam-arora-OVDtgUhUPBY-unsplash.jpg',
     imageAlt: 'Early elementary students working together in class',
@@ -87,7 +92,7 @@ export default function About() {
             (these are just suggestions – you can work with the leaders of these
             age groups to figure out a good fit for your child)
           </h3>
-          <div className="grid gap-6 md:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {groupCards.map((card) => (
               <article
                 key={card.label}
