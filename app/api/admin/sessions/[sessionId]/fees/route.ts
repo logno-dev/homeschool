@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { sessionFeeConfigs } from '@/lib/schema'
+import { parseAndValidateSessionFeeRules, serializeSessionFeeRules, type SessionFeeRule } from '@/lib/session-fee-rules'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 
@@ -48,19 +49,45 @@ export async function POST(
 
     const { sessionId } = await params
     const body = await request.json()
-    const { firstChildFee, additionalChildFee, dueDate } = body
+    const {
+      dueDate,
+      pricingRules,
+      firstChildFee,
+      additionalChildFee
+    } = body
 
     // Validate input
-    if (typeof firstChildFee !== 'number' || firstChildFee < 0) {
-      return NextResponse.json({ 
-        error: 'First child fee must be a non-negative number' 
-      }, { status: 400 })
-    }
+    const hasPricingRules = pricingRules !== undefined
+    let normalizedRules: SessionFeeRule[] = []
+    let legacyFirstChildFee: number | null = null
+    let legacyAdditionalChildFee: number | null = null
 
-    if (typeof additionalChildFee !== 'number' || additionalChildFee < 0) {
-      return NextResponse.json({ 
-        error: 'Additional child fee must be a non-negative number' 
-      }, { status: 400 })
+    if (hasPricingRules) {
+      const parsedRules = parseAndValidateSessionFeeRules(pricingRules)
+      if (parsedRules.errors.length > 0) {
+        return NextResponse.json({ 
+          error: parsedRules.errors.join(' ') 
+        }, { status: 400 })
+      }
+
+      normalizedRules = parsedRules.rules
+      legacyFirstChildFee = 0
+      legacyAdditionalChildFee = 0
+    } else {
+      if (typeof firstChildFee !== 'number' || firstChildFee < 0) {
+        return NextResponse.json({ 
+          error: 'First child fee must be a non-negative number' 
+        }, { status: 400 })
+      }
+
+      if (typeof additionalChildFee !== 'number' || additionalChildFee < 0) {
+        return NextResponse.json({ 
+          error: 'Additional child fee must be a non-negative number' 
+        }, { status: 400 })
+      }
+
+      legacyFirstChildFee = firstChildFee
+      legacyAdditionalChildFee = additionalChildFee
     }
 
     if (!dueDate || isNaN(Date.parse(dueDate))) {
@@ -81,8 +108,11 @@ export async function POST(
       await db
         .update(sessionFeeConfigs)
         .set({
-          firstChildFee,
-          additionalChildFee,
+          firstChildFee: legacyFirstChildFee ?? 0,
+          additionalChildFee: legacyAdditionalChildFee ?? 0,
+          pricingRules: hasPricingRules
+            ? serializeSessionFeeRules(normalizedRules)
+            : '[]',
           dueDate,
           updatedAt: new Date().toISOString()
         })
@@ -100,8 +130,11 @@ export async function POST(
         .values({
           id: configId,
           sessionId,
-          firstChildFee,
-          additionalChildFee,
+          firstChildFee: legacyFirstChildFee ?? 0,
+          additionalChildFee: legacyAdditionalChildFee ?? 0,
+          pricingRules: hasPricingRules
+            ? serializeSessionFeeRules(normalizedRules)
+            : '[]',
           dueDate
         })
 

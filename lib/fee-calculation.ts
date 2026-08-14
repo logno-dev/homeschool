@@ -1,11 +1,12 @@
 import { db } from '@/lib/db'
-import { 
+import {
   sessionFeeConfigs, 
   familySessionFees, 
   classRegistrations, 
   schedules, 
   classTeachingRequests
 } from '@/lib/schema'
+import { calculateFeeFromRules, parseStoredSessionFeeRules } from '@/lib/session-fee-rules'
 import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 
@@ -53,10 +54,16 @@ export async function calculateFamilySessionFees(
   const uniqueChildren = new Set(registeredChildren.map(r => r.childId))
   const childrenCount = uniqueChildren.size
 
-  // Calculate registration fee (first child + additional children)
-  let registrationFee = 0
-  if (childrenCount > 0) {
-    registrationFee = config.firstChildFee + (Math.max(0, childrenCount - 1) * config.additionalChildFee)
+  const parsedRules = parseStoredSessionFeeRules(config.pricingRules)
+
+  // Calculate registration fee from rules, with a backward-compatible fallback
+  let registrationFee = calculateFeeFromRules(childrenCount, parsedRules)
+  if (registrationFee === null) {
+    registrationFee = 0
+
+    if (childrenCount > 0) {
+      registrationFee = config.firstChildFee + (Math.max(0, childrenCount - 1) * config.additionalChildFee)
+    }
   }
 
   // Calculate class fees (sum of all class fees for registered children)

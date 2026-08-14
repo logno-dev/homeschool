@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { format, parseISO } from 'date-fns'
+import { parseStoredSessionFeeRules, type SessionFeeRule } from '@/lib/session-fee-rules'
 import type { SessionFeeConfig } from '@/lib/schema'
 import { useToast } from './ToastContainer'
 import Button from './Button'
@@ -11,6 +12,18 @@ interface SessionFeeConfigProps {
   sessionName: string
 }
 
+interface RuleFormRow {
+  minChildren: string
+  maxChildren: string
+  fee: string
+}
+
+const defaultRule: RuleFormRow = {
+  minChildren: '1',
+  maxChildren: '',
+  fee: '0'
+}
+
 export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeConfigProps) {
   const [feeConfig, setFeeConfig] = useState<SessionFeeConfig | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -18,11 +31,45 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
   const [isEditing, setIsEditing] = useState(false)
   const { showSuccess, showError } = useToast()
 
-  const [formData, setFormData] = useState({
-    firstChildFee: 0,
-    additionalChildFee: 0,
-    dueDate: ''
+  const [formData, setFormData] = useState<{
+    dueDate: string
+    pricingRules: RuleFormRow[]
+  }>({
+    dueDate: '',
+    pricingRules: [defaultRule]
   })
+
+  const toFormRows = (rules: SessionFeeRule[]): RuleFormRow[] =>
+    rules.length > 0
+      ? rules.map((rule) => ({
+          minChildren: String(rule.minChildren),
+          maxChildren: rule.maxChildren === null ? '' : String(rule.maxChildren),
+          fee: String(rule.fee)
+        }))
+      : [defaultRule]
+
+  const getActiveRules = () => parseStoredSessionFeeRules(feeConfig?.pricingRules)
+
+  const toCurrency = (value: string | number) => {
+    const amount = Number(value)
+    return Number.isFinite(amount) ? amount.toFixed(2) : '0.00'
+  }
+
+  const getRuleLabel = (rule: { minChildren: string; maxChildren: string }) => {
+    const minValue = Number(rule.minChildren)
+    const maxValue = rule.maxChildren
+    if (!maxValue || maxValue.trim() === '') {
+      return `${minValue}+ students`
+    }
+
+    const max = Number(maxValue)
+
+    if (minValue === max) {
+      return `${minValue} student${minValue === 1 ? '' : 's'}`
+    }
+
+    return `${minValue}-${max} students`
+  }
 
   useEffect(() => {
     fetchFeeConfig()
@@ -32,26 +79,24 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
     try {
       setIsLoading(true)
       const response = await fetch(`/api/admin/sessions/${sessionId}/fees`)
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch fee configuration')
       }
 
       const data = await response.json()
       if (data.success && data.feeConfig) {
-        setFeeConfig(data.feeConfig)
+        const config = data.feeConfig
+        setFeeConfig(config)
         setFormData({
-          firstChildFee: data.feeConfig.firstChildFee,
-          additionalChildFee: data.feeConfig.additionalChildFee,
-          dueDate: data.feeConfig.dueDate.split('T')[0] // Convert to date input format
+          dueDate: config.dueDate ? config.dueDate.split('T')[0] : '',
+          pricingRules: toFormRows(parseStoredSessionFeeRules(config.pricingRules))
         })
       } else {
         setFeeConfig(null)
-        // Set default due date to session start date if available
         setFormData({
-          firstChildFee: 0,
-          additionalChildFee: 0,
-          dueDate: ''
+          dueDate: '',
+          pricingRules: [defaultRule]
         })
       }
     } catch (error) {
@@ -65,6 +110,11 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
   const handleSave = async () => {
     try {
       setIsSaving(true)
+      const pricingRulesPayload = formData.pricingRules.map((rule) => ({
+        minChildren: Number(rule.minChildren),
+        maxChildren: rule.maxChildren.trim() === '' ? null : Number(rule.maxChildren),
+        fee: Number(rule.fee)
+      }))
 
       const response = await fetch(`/api/admin/sessions/${sessionId}/fees`, {
         method: 'POST',
@@ -72,8 +122,7 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          firstChildFee: parseFloat(formData.firstChildFee.toString()),
-          additionalChildFee: parseFloat(formData.additionalChildFee.toString()),
+          pricingRules: pricingRulesPayload,
           dueDate: formData.dueDate
         }),
       })
@@ -86,7 +135,7 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
       const data = await response.json()
       showSuccess(data.message)
       setIsEditing(false)
-      await fetchFeeConfig() // Refresh the data
+      await fetchFeeConfig()
     } catch (error) {
       console.error('Error saving fee config:', error)
       showError(error instanceof Error ? error.message : 'Failed to save fee configuration')
@@ -98,12 +147,74 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
   const handleCancel = () => {
     if (feeConfig) {
       setFormData({
-        firstChildFee: feeConfig.firstChildFee,
-        additionalChildFee: feeConfig.additionalChildFee,
-        dueDate: feeConfig.dueDate.split('T')[0]
+        dueDate: feeConfig.dueDate ? feeConfig.dueDate.split('T')[0] : '',
+        pricingRules: toFormRows(parseStoredSessionFeeRules(feeConfig.pricingRules))
+      })
+    } else {
+      setFormData({
+        dueDate: '',
+        pricingRules: [defaultRule]
       })
     }
     setIsEditing(false)
+  }
+
+  const addRule = () => {
+    setFormData((prev) => {
+      const lastRule = prev.pricingRules[prev.pricingRules.length - 1]
+      if (!lastRule) {
+        return {
+          ...prev,
+          pricingRules: [defaultRule]
+        }
+      }
+
+      if ((lastRule.maxChildren || '').trim() === '') {
+        return prev
+      }
+
+      const nextMinChildren = Number(lastRule.maxChildren) + 1
+
+      return {
+        ...prev,
+        pricingRules: [
+          ...prev.pricingRules,
+          {
+            minChildren: String(nextMinChildren),
+            maxChildren: '',
+            fee: '0'
+          }
+        ]
+      }
+    })
+  }
+
+  const removeRule = (index: number) => {
+    setFormData((prev) => {
+      if (prev.pricingRules.length <= 1) {
+        return prev
+      }
+
+      const pricingRules = prev.pricingRules.filter((_, ruleIndex) => ruleIndex !== index)
+      return {
+        ...prev,
+        pricingRules
+      }
+    })
+  }
+
+  const updateRuleField = (index: number, field: keyof RuleFormRow, value: string) => {
+    setFormData((prev) => {
+      const pricingRules = [...prev.pricingRules]
+      pricingRules[index] = {
+        ...pricingRules[index],
+        [field]: value
+      }
+      return {
+        ...prev,
+        pricingRules
+      }
+    })
   }
 
   if (isLoading) {
@@ -117,6 +228,8 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
       </div>
     )
   }
+
+  const activeRules = getActiveRules()
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
@@ -134,12 +247,25 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
 
       {!isEditing && feeConfig ? (
         <div className="space-y-3">
-          <div>
-            <span className="font-medium">First Child Fee:</span> ${feeConfig.firstChildFee.toFixed(2)}
-          </div>
-          <div>
-            <span className="font-medium">Additional Child Fee:</span> ${feeConfig.additionalChildFee.toFixed(2)}
-          </div>
+          {activeRules.length > 0 ? (
+            <div className="space-y-1">
+              {activeRules.map((rule) => (
+                <div key={`${rule.minChildren}-${rule.maxChildren ?? 'open'}`}>
+                  <span className="font-medium">{rule.maxChildren === null ? `${rule.minChildren}+ students` : rule.minChildren === rule.maxChildren ? `${rule.minChildren} student${rule.minChildren === 1 ? '' : 's'}` : `${rule.minChildren}-${rule.maxChildren} students`}</span>:
+                  {' '}${toCurrency(rule.fee)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div>
+                <span className="font-medium">First Child Fee:</span> ${toCurrency(feeConfig.firstChildFee)}
+              </div>
+              <div>
+                <span className="font-medium">Additional Child Fee:</span> ${toCurrency(feeConfig.additionalChildFee)}
+              </div>
+            </>
+          )}
           <div>
             <span className="font-medium">Due Date:</span> {format(parseISO(feeConfig.dueDate), 'MMM d, yyyy')}
           </div>
@@ -154,33 +280,79 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
       ) : (
         <div className="space-y-4">
           <div>
-            <label htmlFor="firstChildFee" className="block text-sm font-medium text-gray-700 mb-1">
-              First Child Fee ($)
-            </label>
-            <input
-              type="number"
-              id="firstChildFee"
-              min="0"
-              step="0.01"
-              value={formData.firstChildFee}
-              onChange={(e) => setFormData({ ...formData, firstChildFee: parseFloat(e.target.value) || 0 })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="additionalChildFee" className="block text-sm font-medium text-gray-700 mb-1">
-              Additional Child Fee ($)
-            </label>
-            <input
-              type="number"
-              id="additionalChildFee"
-              min="0"
-              step="0.01"
-              value={formData.additionalChildFee}
-              onChange={(e) => setFormData({ ...formData, additionalChildFee: parseFloat(e.target.value) || 0 })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label className="block text-sm font-medium text-gray-700 mb-1">Pricing Rules</label>
+            <p className="text-sm text-gray-600 mb-2">Each row is the total fee for that number of students in the family (not an extra amount added on).</p>
+            <p className="text-sm text-gray-600 mb-3">
+              Example: 1-1 = $45, 2-2 = $65, 3-3 = $85, 4-4 = $100, 5+ = $110
+            </p>
+            <div className="space-y-3">
+              {formData.pricingRules.map((rule, index) => (
+                <div key={`${rule.minChildren}-${index}`} className="grid grid-cols-12 gap-2 items-end">
+                  <div className="col-span-3">
+                    <label htmlFor={`rule-min-${index}`} className="block text-xs font-medium text-gray-700 mb-1">
+                      From
+                    </label>
+                    <input
+                      type="number"
+                      id={`rule-min-${index}`}
+                      min="1"
+                      step="1"
+                      value={rule.minChildren}
+                      onChange={(e) => updateRuleField(index, 'minChildren', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <label htmlFor={`rule-max-${index}`} className="block text-xs font-medium text-gray-700 mb-1">
+                      To
+                    </label>
+                    <input
+                      type="number"
+                      id={`rule-max-${index}`}
+                      min="1"
+                      step="1"
+                      placeholder="Blank = no upper limit"
+                      value={rule.maxChildren}
+                      onChange={(e) => updateRuleField(index, 'maxChildren', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="col-span-4">
+                    <label htmlFor={`rule-fee-${index}`} className="block text-xs font-medium text-gray-700 mb-1">
+                      Fee ($)
+                    </label>
+                    <p className="text-[11px] text-gray-500 mb-1">Total registration fee for this student range</p>
+                    <input
+                      type="number"
+                      id={`rule-fee-${index}`}
+                      min="0"
+                      step="0.01"
+                      value={rule.fee}
+                      onChange={(e) => updateRuleField(index, 'fee', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <button
+                      type="button"
+                      onClick={() => removeRule(index)}
+                      className="px-3 py-2 border border-red-200 text-red-600 rounded hover:bg-red-50"
+                      disabled={formData.pricingRules.length === 1}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={addRule}
+              disabled={formData.pricingRules[formData.pricingRules.length - 1]?.maxChildren?.trim() === ''}
+              className="mt-3 px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Add Rule
+            </button>
           </div>
 
           <div>
@@ -214,12 +386,15 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
             </Button>
           </div>
 
-          <div className="text-sm text-gray-600 mt-4 p-3 bg-blue-50 rounded">
-            <p><strong>Fee Structure:</strong></p>
-            <p>• First child in family: ${formData.firstChildFee.toFixed(2)}</p>
-            <p>• Each additional child: ${formData.additionalChildFee.toFixed(2)}</p>
-            <p>• Plus any individual class fees</p>
-          </div>
+            <div className="text-sm text-gray-600 mt-4 p-3 bg-blue-50 rounded">
+              <p><strong>Fee Rule Preview:</strong></p>
+              {formData.pricingRules.map((rule, index) => (
+                <p key={`${rule.minChildren}-display-${index}`}>
+                  For {getRuleLabel(rule)}: ${toCurrency(rule.fee)}
+                </p>
+              ))}
+              <p>Plus any individual class fees</p>
+            </div>
         </div>
       )}
     </div>

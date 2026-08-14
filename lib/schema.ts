@@ -243,6 +243,7 @@ export const sessionFeeConfigs = sqliteTable('session_fee_configs', {
   sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
   firstChildFee: real('first_child_fee').notNull().default(0), // Fee for first child in family
   additionalChildFee: real('additional_child_fee').notNull().default(0), // Fee for each additional child
+  pricingRules: text('pricing_rules').notNull().default('[]'),
   dueDate: text('due_date').notNull(), // When fees are due (before session starts)
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
