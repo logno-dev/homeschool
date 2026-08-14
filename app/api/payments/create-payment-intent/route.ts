@@ -76,7 +76,9 @@ export async function POST(request: NextRequest) {
       orderId,
       clientId,
       isSandbox,
-      environment: isSandbox ? 'sandbox' : 'live'
+      environment: isSandbox ? 'sandbox' : 'live',
+      expectedFeeAmountCents: paymentAmountCents,
+      expectedDonationAmountCents: donationAmountCents
     })
 
   } catch (error) {

@@ -23,6 +23,8 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, c
   const [orderId, setOrderId] = useState<string | null>(null)
   const [clientId, setClientId] = useState('')
   const [environment, setEnvironment] = useState<'sandbox' | 'live' | null>(null)
+  const [expectedFeeAmountCents, setExpectedFeeAmountCents] = useState<number>(0)
+  const [expectedDonationAmountCents, setExpectedDonationAmountCents] = useState<number>(0)
 
   useEffect(() => {
     const loadEnvironment = async () => {
@@ -92,6 +94,8 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, c
       const data = await response.json()
       setOrderId(data.orderId)
       setClientId(data.clientId)
+      setExpectedFeeAmountCents(Number.isFinite(data.expectedFeeAmountCents) ? Number(data.expectedFeeAmountCents) : 0)
+      setExpectedDonationAmountCents(Number.isFinite(data.expectedDonationAmountCents) ? Number(data.expectedDonationAmountCents) : 0)
       const parsedEnvironment = data.environment === 'sandbox' ? 'sandbox' : data.environment === 'live' ? 'live' : data.isSandbox ? 'sandbox' : 'live'
       setEnvironment(parsedEnvironment)
     } catch (error) {
@@ -112,7 +116,9 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, c
         body: JSON.stringify({
           orderId: approvedOrderId,
           status: 'succeeded',
-          familySessionFeeId
+          familySessionFeeId,
+          expectedFeeAmountCents,
+          expectedDonationAmountCents
         })
       })
 

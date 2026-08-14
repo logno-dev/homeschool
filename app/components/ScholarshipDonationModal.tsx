@@ -20,6 +20,7 @@ export default function ScholarshipDonationModal({ isOpen, onClose, title }: Sch
   const [orderId, setOrderId] = useState<string | null>(null)
   const [clientId, setClientId] = useState('')
   const [environment, setEnvironment] = useState<'sandbox' | 'live' | null>(null)
+  const [expectedDonationAmountCents, setExpectedDonationAmountCents] = useState<number>(0)
 
   useEffect(() => {
     const loadEnvironment = async () => {
@@ -80,6 +81,7 @@ export default function ScholarshipDonationModal({ isOpen, onClose, title }: Sch
       const data = await response.json()
       setOrderId(data.orderId)
       setClientId(data.clientId)
+      setExpectedDonationAmountCents(Number.isFinite(data.expectedDonationAmountCents) ? Number(data.expectedDonationAmountCents) : 0)
       const parsedEnvironment = data.environment === 'sandbox' ? 'sandbox' : data.environment === 'live' ? 'live' : data.isSandbox ? 'sandbox' : 'live'
       setEnvironment(parsedEnvironment)
     } catch (error) {
@@ -99,7 +101,8 @@ export default function ScholarshipDonationModal({ isOpen, onClose, title }: Sch
         },
         body: JSON.stringify({
           orderId: approvedOrderId,
-          status: 'succeeded'
+          status: 'succeeded',
+          expectedDonationAmountCents
         })
       })
 

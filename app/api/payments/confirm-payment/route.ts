@@ -9,7 +9,9 @@ import { familySessionFees, feePayments, scholarshipFundTransactions } from '@/l
 import {
   capturePayPalOrder,
   getCaptureAmountCents,
-  parseFeeMetadata
+  parseFeeMetadata,
+  logPayPalDebug,
+  summarizePayPalOrderForDebug
 } from '@/lib/paypal'
 
 interface FeeConfirmationPayload {
@@ -17,6 +19,8 @@ interface FeeConfirmationPayload {
   orderId?: string
   familySessionFeeId?: string
   status?: string
+  expectedFeeAmountCents?: number
+  expectedDonationAmountCents?: number
 }
 
 interface ParsedFeeMetadata {
@@ -25,7 +29,12 @@ interface ParsedFeeMetadata {
   donationAmountCents: number
 }
 
-async function capturePayPalOrderAndReadMetadata(orderId: string, expectedFamilySessionFeeId: string): Promise<ParsedFeeMetadata> {
+async function capturePayPalOrderAndReadMetadata(
+  orderId: string,
+  expectedFamilySessionFeeId: string,
+  expectedFeeAmountCents?: number,
+  expectedDonationAmountCents?: number
+): Promise<ParsedFeeMetadata> {
   const paypalOrder = await capturePayPalOrder(orderId)
 
   if (paypalOrder.status !== 'COMPLETED') {
@@ -33,23 +42,141 @@ async function capturePayPalOrderAndReadMetadata(orderId: string, expectedFamily
   }
 
   const metadata = parseFeeMetadata(paypalOrder)
-
-  if (!metadata) {
-    throw new Error('Invalid payment metadata')
-  }
-
-  if (metadata.familySessionFeeId !== expectedFamilySessionFeeId) {
-    throw new Error('Order does not match this fee record')
-  }
-
+  const paypalDebugSummary = summarizePayPalOrderForDebug(paypalOrder)
   const capturedAmountCents = getCaptureAmountCents(paypalOrder)
-  const expectedAmountCents = metadata.feeAmountCents + metadata.donationAmountCents
+
+  logPayPalDebug('Processing payment confirmation metadata', {
+    orderId,
+    expectedFamilySessionFeeId,
+    capturedAmountCents,
+    expectedFeeAmountCents,
+    expectedDonationAmountCents,
+    parsedMetadata: metadata,
+    paypalOrder: paypalDebugSummary
+  })
 
   if (!capturedAmountCents) {
     throw new Error('Unable to read payment amount')
   }
 
+  const hasExpectedFeeInput = expectedFeeAmountCents !== undefined && Number.isFinite(expectedFeeAmountCents)
+  const hasExpectedDonationInput =
+    expectedDonationAmountCents !== undefined && Number.isFinite(expectedDonationAmountCents)
+
+  const normalizedExpectedFeeAmountCents = hasExpectedFeeInput
+    ? Math.round(expectedFeeAmountCents)
+    : 0
+  const normalizedExpectedDonationAmountCents = hasExpectedDonationInput
+    ? Math.round(expectedDonationAmountCents)
+    : 0
+
+  const fallbackMetadata = (() => {
+    const hasExpectedFee = hasExpectedFeeInput && normalizedExpectedFeeAmountCents > 0
+    const hasExpectedDonation = hasExpectedDonationInput && normalizedExpectedDonationAmountCents >= 0
+
+    if (!metadata) {
+      if (!hasExpectedFee && !hasExpectedDonation) {
+        return {
+          familySessionFeeId: expectedFamilySessionFeeId,
+          paymentAmountCents: capturedAmountCents,
+          donationAmountCents: 0
+        }
+      }
+
+      const normalizedFeeAmountCents = hasExpectedFee ? normalizedExpectedFeeAmountCents : 0
+      const normalizedDonationAmountCents = hasExpectedDonation ? normalizedExpectedDonationAmountCents : 0
+      if (normalizedFeeAmountCents + normalizedDonationAmountCents !== capturedAmountCents) {
+        return null
+      }
+
+      return {
+        familySessionFeeId: expectedFamilySessionFeeId,
+        paymentAmountCents: normalizedFeeAmountCents,
+        donationAmountCents: normalizedDonationAmountCents
+      }
+    }
+
+    if (metadata.feeAmountCents !== 0 || metadata.donationAmountCents !== 0) {
+      return null
+    }
+
+    if (!hasExpectedFee && !hasExpectedDonation) {
+      return {
+        familySessionFeeId: metadata.familySessionFeeId,
+        paymentAmountCents: capturedAmountCents,
+        donationAmountCents: 0
+      }
+    }
+
+    const normalizedFeeAmountCents = hasExpectedFee ? normalizedExpectedFeeAmountCents : 0
+    const normalizedDonationAmountCents = hasExpectedDonation ? normalizedExpectedDonationAmountCents : 0
+    if (normalizedFeeAmountCents + normalizedDonationAmountCents !== capturedAmountCents) {
+      return null
+    }
+
+    return {
+      familySessionFeeId: metadata.familySessionFeeId,
+      paymentAmountCents: normalizedFeeAmountCents,
+      donationAmountCents: normalizedDonationAmountCents
+    }
+  })()
+
+  if (fallbackMetadata) {
+    logPayPalDebug('Resolved fee metadata via fallback path', {
+      orderId,
+      familySessionFeeId: fallbackMetadata.familySessionFeeId,
+      paymentAmountCents: fallbackMetadata.paymentAmountCents,
+      donationAmountCents: fallbackMetadata.donationAmountCents,
+      expectedFeeAmountCents,
+      expectedDonationAmountCents
+    })
+
+    if (fallbackMetadata.familySessionFeeId !== expectedFamilySessionFeeId) {
+      logPayPalDebug('Fee record mismatch in fallback metadata', {
+        orderId,
+        expectedFamilySessionFeeId,
+        fallbackFamilySessionFeeId: fallbackMetadata.familySessionFeeId
+      })
+      throw new Error('Order does not match this fee record')
+    }
+
+    return {
+      familySessionFeeId: fallbackMetadata.familySessionFeeId,
+      paymentAmountCents: fallbackMetadata.paymentAmountCents,
+      donationAmountCents: fallbackMetadata.donationAmountCents
+    }
+  }
+
+  if (!metadata) {
+    logPayPalDebug('PayPal metadata missing and no fallback match', {
+      orderId,
+      expectedFamilySessionFeeId,
+      expectedFeeAmountCents,
+      expectedDonationAmountCents,
+      paypalOrder: paypalDebugSummary
+    })
+    throw new Error('Invalid payment metadata')
+  }
+
+  if (metadata.familySessionFeeId !== expectedFamilySessionFeeId) {
+    logPayPalDebug('PayPal metadata fee ID mismatch', {
+      orderId,
+      expectedFamilySessionFeeId,
+      metadataFamilySessionFeeId: metadata.familySessionFeeId
+    })
+    throw new Error('Order does not match this fee record')
+  }
+
+  const expectedAmountCents = metadata.feeAmountCents + metadata.donationAmountCents
+
   if (capturedAmountCents !== expectedAmountCents) {
+    logPayPalDebug('PayPal capture amount mismatch', {
+      orderId,
+      expectedAmountCents,
+      capturedAmountCents,
+      metadataFeeCents: metadata.feeAmountCents,
+      metadataDonationCents: metadata.donationAmountCents
+    })
     throw new Error(`Capture amount mismatch (${capturedAmountCents} != ${expectedAmountCents})`)
   }
 
@@ -117,8 +244,23 @@ async function recordFeePayment(familySessionFeeId: string, metadata: ParsedFeeM
 async function handleConfirmation(request: NextRequest) {
   const session = await getAuthenticatedUser()
   const payload = await request.json().catch(() => ({} as FeeConfirmationPayload))
-  const { familySessionFeeId, status, orderId: rawOrderId, paymentIntentId } = payload
+  const {
+    familySessionFeeId,
+    status,
+    orderId: rawOrderId,
+    paymentIntentId,
+    expectedFeeAmountCents,
+    expectedDonationAmountCents
+  } = payload
   const orderId = rawOrderId || paymentIntentId
+
+  logPayPalDebug('Received fee confirmation request', {
+    orderId,
+    familySessionFeeId,
+    status,
+    expectedFeeAmountCents,
+    expectedDonationAmountCents
+  })
 
   if (!orderId) {
     return NextResponse.json({ error: 'Missing payment order ID' }, { status: 400 })
@@ -150,7 +292,18 @@ async function handleConfirmation(request: NextRequest) {
     return NextResponse.json({ error: 'Fee record not found' }, { status: 404 })
   }
 
-  const metadata = await capturePayPalOrderAndReadMetadata(orderId, familySessionFeeId)
+  const metadata = await capturePayPalOrderAndReadMetadata(
+    orderId,
+    familySessionFeeId,
+    expectedFeeAmountCents,
+    expectedDonationAmountCents
+  )
+  logPayPalDebug('Resolved payment metadata for recording', {
+    orderId,
+    familySessionFeeId,
+    paymentAmountCents: metadata.paymentAmountCents,
+    donationAmountCents: metadata.donationAmountCents
+  })
   await recordFeePayment(familySessionFeeId, metadata, orderId)
 
   return NextResponse.json({ success: true })
@@ -160,6 +313,15 @@ export async function POST(request: NextRequest) {
   try {
     return await handleConfirmation(request)
   } catch (error) {
+    const paypalError = (error as Error & { payPalError?: unknown }).payPalError
+    const payPalStatus = (error as Error & { payPalStatus?: number }).payPalStatus
+    const payPalDebugId = (error as Error & { payPalDebugId?: string | null }).payPalDebugId
+    logPayPalDebug('Payment confirmation failed', {
+      error: error instanceof Error ? error.message : 'unknown',
+      payPalStatus,
+      payPalDebugId,
+      paypalError
+    })
     console.error('Error confirming payment:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to confirm payment' },
@@ -172,6 +334,15 @@ export async function PUT(request: NextRequest) {
   try {
     return await handleConfirmation(request)
   } catch (error) {
+    const paypalError = (error as Error & { payPalError?: unknown }).payPalError
+    const payPalStatus = (error as Error & { payPalStatus?: number }).payPalStatus
+    const payPalDebugId = (error as Error & { payPalDebugId?: string | null }).payPalDebugId
+    logPayPalDebug('Payment confirmation failed', {
+      error: error instanceof Error ? error.message : 'unknown',
+      payPalStatus,
+      payPalDebugId,
+      paypalError
+    })
     console.error('Error confirming payment:', error)
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to confirm payment' },

@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
       orderId,
       clientId,
       isSandbox,
-      environment: isSandbox ? 'sandbox' : 'live'
+      environment: isSandbox ? 'sandbox' : 'live',
+      expectedDonationAmountCents: amountCents
     })
   } catch (error) {
     console.error('Error creating scholarship donation intent:', error)
