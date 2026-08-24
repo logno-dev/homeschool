@@ -372,6 +372,7 @@ export const users = sqliteTable('users', {
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
   role: text('role').notNull().default('user'),
+  activationStatus: text('activation_status').notNull().default('active'), // active, pending
   familyId: text('family_id').references(() => families.id),
   dateOfBirth: text('date_of_birth'),
   grade: text('grade'),

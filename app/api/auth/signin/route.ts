@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithPassword, createSessionForUser, setSessionCookie } from '@/lib/auth-server'
+import { getUserById } from '@/lib/database'
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +12,15 @@ export async function POST(request: NextRequest) {
 
     const account = await authenticateWithPassword(email, password)
     if (!account) {
+      return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
+    }
+
+    const user = await getUserById(account.userId)
+    if (user?.activationStatus === 'pending') {
+      return NextResponse.json({ error: 'Your account is awaiting administrator approval.' }, { status: 403 })
+    }
+
+    if (!account.isActive) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }
 

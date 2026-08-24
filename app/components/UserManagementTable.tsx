@@ -29,6 +29,14 @@ interface User {
   paymentTotalOutstanding?: number
 }
 
+interface PendingActivation {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  createdAt: string
+}
+
 interface PaginationInfo {
   page: number
   limit: number
@@ -40,6 +48,7 @@ interface PaginationInfo {
 
 interface UserManagementTableProps {
   initialUsers: User[]
+  pendingActivations: PendingActivation[]
   currentUserId: string
   pagination?: PaginationInfo | null
   currentPage?: number
@@ -56,6 +65,7 @@ const paymentStatusConfig: Record<string, { label: string; classes: string }> = 
 
 export default function UserManagementTable({
   initialUsers,
+  pendingActivations,
   currentUserId,
   pagination,
   currentPage = 1,
@@ -65,10 +75,33 @@ export default function UserManagementTable({
   const [users, setUsers] = useState<User[]>(initialUsers)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('')
+  const [pending, setPending] = useState(pendingActivations)
 
   useEffect(() => {
     setUsers(initialUsers)
   }, [initialUsers])
+
+  useEffect(() => {
+    setPending(pendingActivations)
+  }, [pendingActivations])
+
+  const approveUser = async (userId: string) => {
+    try {
+      const response = await fetch(`/api/admin/users/${userId}/approve`, { method: 'POST' })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to approve user')
+      }
+      setPending((current) => current.filter((user) => user.id !== userId))
+      setMessage('User approved successfully')
+      setMessageType('success')
+      setTimeout(() => setMessage(''), 3000)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to approve user')
+      setMessageType('error')
+      setTimeout(() => setMessage(''), 3000)
+    }
+  }
 
   const updateUserRole = async (userId: string, newRole: string) => {
     try {
@@ -194,6 +227,37 @@ export default function UserManagementTable({
   return (
     <div className="bg-white shadow rounded-lg">
       <div className="px-4 py-5 sm:p-6">
+        {pending.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-lg font-medium text-gray-900 mb-1">Pending activations</h2>
+            <p className="text-sm text-gray-600 mb-4">Review new accounts before allowing them to sign in.</p>
+            <div className="overflow-x-auto rounded-lg border border-amber-200">
+              <table className="min-w-full divide-y divide-amber-200">
+                <thead className="bg-amber-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Applicant</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Registered</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {pending.map((applicant) => (
+                    <tr key={applicant.id}>
+                      <td className="px-4 py-3">
+                        <div className="text-sm font-medium text-gray-900">{applicant.firstName} {applicant.lastName}</div>
+                        <div className="text-sm text-gray-600">{applicant.email}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600">{new Date(applicant.createdAt).toLocaleDateString()}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => approveUser(applicant.id)} className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700">Approve</button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
         <h2 className="text-lg font-medium text-gray-900 mb-1">User Role Management</h2>
         <p className="text-sm text-gray-600 mb-6">Manage local account roles and filter results by family/session/payments.</p>
 

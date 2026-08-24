@@ -3,12 +3,10 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { FormEvent, useState } from 'react'
-import { useAuth } from '@/lib/auth-client'
 import BrandLogo from '@/app/components/BrandLogo'
 
 export default function SignUpPage() {
   const router = useRouter()
-  const { refresh } = useAuth()
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -40,8 +38,7 @@ export default function SignUpPage() {
         return
       }
 
-      await refresh()
-      router.push('/family/profile')
+       router.push('/signin?pending=1')
     } catch (err) {
       console.error('Error signing up:', err)
       setError('Unable to create account')

@@ -25,6 +25,14 @@ interface WorkosUser {
   paymentTotalOutstanding?: number
 }
 
+interface PendingActivation {
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  createdAt: string
+}
+
 interface PaginationInfo {
   page: number
   limit: number
@@ -79,6 +87,7 @@ export default function AdminUsersPage() {
   const { showError } = useToast()
 
   const [users, setUsers] = useState<WorkosUser[]>([])
+  const [pendingActivations, setPendingActivations] = useState<PendingActivation[]>([])
   const [pagination, setPagination] = useState<PaginationInfo | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
@@ -120,6 +129,7 @@ export default function AdminUsersPage() {
       if (response.ok) {
         const data = await response.json()
         setUsers(data.users || [])
+        setPendingActivations(data.pendingActivations || [])
         setPagination(data.pagination)
         setCurrentPage(page)
         setLoadError(null)
@@ -364,6 +374,7 @@ export default function AdminUsersPage() {
 
           <UserManagementTable
             initialUsers={users}
+            pendingActivations={pendingActivations}
             currentUserId={user.id}
             pagination={pagination}
             currentPage={currentPage}

@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { authAccounts, authSessions } from '@/lib/schema'
+import { authAccounts, users } from '@/lib/schema'
 
-export async function DELETE(
-  request: NextRequest,
+export async function POST(
+  request: Request,
   { params }: { params: Promise<{ membershipId: string }> }
 ) {
   try {
@@ -19,15 +19,13 @@ export async function DELETE(
       return NextResponse.json({ error: 'User id is required' }, { status: 400 })
     }
 
-    await db
-      .update(authAccounts)
-      .set({ isActive: false, updatedAt: new Date().toISOString() })
-      .where(eq(authAccounts.userId, membershipId))
+    const now = new Date().toISOString()
+    await db.update(users).set({ activationStatus: 'active', updatedAt: now }).where(eq(users.id, membershipId))
+    await db.update(authAccounts).set({ isActive: true, updatedAt: now }).where(eq(authAccounts.userId, membershipId))
 
-    await db.delete(authSessions).where(eq(authSessions.userId, membershipId))
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error deactivating user:', error)
-    return NextResponse.json({ error: 'Failed to deactivate user' }, { status: 500 })
+    console.error('Error approving user:', error)
+    return NextResponse.json({ error: 'Failed to approve user' }, { status: 500 })
   }
 }

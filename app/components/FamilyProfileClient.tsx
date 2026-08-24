@@ -40,9 +40,10 @@ interface FamilyProfileClientProps {
   family: Family
   guardians: Guardian[]
   children: Child[]
+  gradeIncrementDate: string | null
 }
 
-export default function FamilyProfileClient({ family, guardians, children: initialChildren }: FamilyProfileClientProps) {
+export default function FamilyProfileClient({ family, guardians, children: initialChildren, gradeIncrementDate }: FamilyProfileClientProps) {
   const [children, setChildren] = useState(initialChildren)
   const [selectedChild, setSelectedChild] = useState<Child | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -61,6 +62,10 @@ export default function FamilyProfileClient({ family, guardians, children: initi
   const [loading, setLoading] = useState(false)
   const [expandedChildren, setExpandedChildren] = useState<Set<string>>(new Set())
   const { showSuccess, showError } = useToast()
+
+  const formattedGradeIncrementDate = gradeIncrementDate
+    ? new Date(`${gradeIncrementDate}T00:00:00`).toLocaleDateString()
+    : null
 
   const openEditModal = (child: Child) => {
     setSelectedChild(child)
@@ -368,6 +373,16 @@ export default function FamilyProfileClient({ family, guardians, children: initi
                   <option value="11th Grade">11th Grade</option>
                   <option value="12th Grade">12th Grade</option>
                 </select>
+                {formattedGradeIncrementDate && (
+                  <p className="mt-2 text-xs text-gray-600">
+                    Automatic grade advancement is scheduled for {formattedGradeIncrementDate}. Do not manually advance grades before this date.
+                  </p>
+                )}
+                {editForm.grade === 'Pre-K' && (
+                  <p className="mt-2 rounded-md bg-amber-50 p-2 text-xs text-amber-800">
+                    Pre-K students are not advanced automatically. Update this student to Kindergarten manually when appropriate.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -488,7 +503,7 @@ export default function FamilyProfileClient({ family, guardians, children: initi
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Grade *
               </label>
-              <select
+                <select
                 value={addForm.grade || ''}
                 onChange={(e) => handleAddInputChange('grade', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
@@ -508,9 +523,19 @@ export default function FamilyProfileClient({ family, guardians, children: initi
                 <option value="9th Grade">9th Grade</option>
                 <option value="10th Grade">10th Grade</option>
                 <option value="11th Grade">11th Grade</option>
-                <option value="12th Grade">12th Grade</option>
-              </select>
-            </div>
+                  <option value="12th Grade">12th Grade</option>
+                </select>
+                {formattedGradeIncrementDate && (
+                  <p className="mt-2 text-xs text-gray-600">
+                    Automatic grade advancement is scheduled for {formattedGradeIncrementDate}. Do not manually advance grades before this date.
+                  </p>
+                )}
+                {addForm.grade === 'Pre-K' && (
+                  <p className="mt-2 rounded-md bg-amber-50 p-2 text-xs text-amber-800">
+                    Pre-K students are not advanced automatically. Update this student to Kindergarten manually when appropriate.
+                  </p>
+                )}
+              </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Allergies

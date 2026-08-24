@@ -3,6 +3,13 @@ type PasswordResetEmailInput = {
   resetUrl: string
 }
 
+type RegistrationNotificationEmailInput = {
+  recipients: string[]
+  firstName: string
+  lastName: string
+  email: string
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -13,7 +20,7 @@ function escapeHtml(value: string): string {
 }
 
 async function sendEmail(input: {
-  to: string
+  to: string | string[]
   subject: string
   html: string
   text: string
@@ -62,5 +69,18 @@ export async function sendPasswordResetEmail(input: PasswordResetEmailInput): Pr
       '<p style="margin: 0; color: #6b7280;">If you did not request this, you can ignore this email.</p>',
       '</div>'
     ].join('')
+  })
+}
+
+export async function sendRegistrationNotificationEmail(input: RegistrationNotificationEmailInput): Promise<void> {
+  const name = `${input.firstName} ${input.lastName}`.trim()
+  const escapedName = escapeHtml(name)
+  const escapedEmail = escapeHtml(input.email)
+
+  await sendEmail({
+    to: input.recipients,
+    subject: 'New DVCLC account awaiting approval',
+    text: `A new DVCLC account is awaiting approval.\n\nName: ${name}\nEmail: ${input.email}`,
+    html: `<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;"><h2>New DVCLC account awaiting approval</h2><p><strong>Name:</strong> ${escapedName}</p><p><strong>Email:</strong> ${escapedEmail}</p><p>Sign in to the admin panel to review and approve this account.</p></div>`
   })
 }

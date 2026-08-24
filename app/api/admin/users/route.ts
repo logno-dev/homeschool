@@ -123,6 +123,18 @@ export async function GET(request: NextRequest) {
 
     const accountByUserId = new Map(allAccounts.map((account) => [account.userId, account]))
     const guardianById = new Map(allGuardians.map((guardian) => [guardian.id, guardian]))
+    const pendingActivations = allUsers
+      .filter((user) => user.activationStatus === 'pending')
+      .map((user) => {
+        const account = accountByUserId.get(user.id)
+        return {
+          id: user.id,
+          email: account?.email || user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          createdAt: user.createdAt
+        }
+      })
 
     const combined = allUsers
       .map((user) => {
@@ -194,6 +206,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       users: paged,
+      pendingActivations,
       pagination: {
         page,
         limit: requestedLimit,

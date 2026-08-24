@@ -65,6 +65,7 @@ export async function createAuthAccountForUser(input: {
   email: string
   password: string
   mustResetPassword?: boolean
+  isActive?: boolean
 }) {
   const email = normalizeEmail(input.email)
   const createdAt = nowIso()
@@ -78,7 +79,7 @@ export async function createAuthAccountForUser(input: {
       email,
       passwordHash,
       mustResetPassword: Boolean(input.mustResetPassword),
-      isActive: true,
+       isActive: input.isActive ?? true,
       createdAt,
       updatedAt: createdAt
     })
@@ -92,7 +93,7 @@ export async function authenticateWithPassword(email: string, password: string) 
   const accountRows = await db
     .select()
     .from(authAccounts)
-    .where(and(eq(authAccounts.email, normalized), eq(authAccounts.isActive, true)))
+    .where(eq(authAccounts.email, normalized))
     .limit(1)
 
   const account = accountRows[0]

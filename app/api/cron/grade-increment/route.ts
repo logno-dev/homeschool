@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
-import { getGradeIncrementSettings, incrementAllStudentGrades, setGradeIncrementLastRun } from '@/lib/database'
+import { getGradeIncrementSettings, incrementAllStudentGrades, setGradeIncrementDate, setGradeIncrementLastRun } from '@/lib/database'
+
+function getNextAnnualDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number)
+  const nextDate = new Date(Date.UTC(year + 1, month - 1, day))
+  return nextDate.toISOString().slice(0, 10)
+}
 
 function getCronSecret(request: Request) {
   const headerSecret = request.headers.get('x-cron-secret')
@@ -37,6 +43,11 @@ export async function GET(request: Request) {
 
   const result = await incrementAllStudentGrades()
   await setGradeIncrementLastRun(today)
+  await setGradeIncrementDate(getNextAnnualDate(incrementDate))
 
-  return NextResponse.json({ status: 'completed', updated: result.updated })
+  return NextResponse.json({
+    status: 'completed',
+    updated: result.updated,
+    nextIncrementDate: getNextAnnualDate(incrementDate)
+  })
 }

@@ -15,6 +15,8 @@ function SignInForm() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const pendingNotice = searchParams.get('pending') === '1'
+
   const next = searchParams.get('next') || '/dashboard'
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -57,6 +59,7 @@ function SignInForm() {
         </div>
         <h1 className="text-2xl font-semibold text-gray-900">Sign in</h1>
         <p className="mt-2 text-sm text-gray-600">Use your DVCLC email and password.</p>
+        {pendingNotice && <p className="mt-4 rounded-md bg-blue-50 p-3 text-sm text-blue-800">Your account was created and is waiting for administrator approval.</p>}
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div>

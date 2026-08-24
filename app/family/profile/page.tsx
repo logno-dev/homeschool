@@ -2,6 +2,7 @@ import { getAuthenticatedUser, fetchFamilyData } from '@/lib/server-auth'
 import FamilyActions from '@/app/components/FamilyActions'
 import FamilyRegistrationOptions from '@/app/components/FamilyRegistrationOptions'
 import FamilyProfileClient from '../../components/FamilyProfileClient'
+import { getGlobalSetting } from '@/lib/database'
 
 export default async function FamilyProfilePage() {
   // Server-side authentication and data fetching
@@ -18,6 +19,7 @@ export default async function FamilyProfilePage() {
   }
 
   const { family, guardians, children } = familyData
+  const gradeIncrementDate = await getGlobalSetting('grade_increment_date')
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -54,7 +56,12 @@ export default async function FamilyProfilePage() {
             </div>
 
             {/* Children - handled by client component */}
-            <FamilyProfileClient family={family} guardians={guardians} children={children} />
+            <FamilyProfileClient
+              family={family}
+              guardians={guardians}
+              children={children}
+              gradeIncrementDate={gradeIncrementDate}
+            />
           </div>
         </div>
       </main>

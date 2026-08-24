@@ -4,7 +4,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createUser } from '@/lib/database'
 import { authAccounts, users } from '@/lib/schema'
-import { createAuthAccountForUser, createSessionForUser, normalizeEmail, setSessionCookie } from '@/lib/auth-server'
+import { createAuthAccountForUser, normalizeEmail } from '@/lib/auth-server'
+import { getGlobalSetting } from '@/lib/database'
+import { sendRegistrationNotificationEmail } from '@/lib/email'
 
 export async function POST(request: NextRequest) {
   try {
@@ -49,6 +51,7 @@ export async function POST(request: NextRequest) {
       firstName: String(firstName).trim(),
       lastName: String(lastName).trim(),
       role: 'user',
+      activationStatus: 'pending',
       familyId: null,
       dateOfBirth: null,
       grade: null,
@@ -59,21 +62,33 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       email: normalizedEmail,
       password,
-      mustResetPassword: false
+      mustResetPassword: false,
+      isActive: false
     })
 
-    const { token, expiresAt } = await createSessionForUser(user.id)
-    const response = NextResponse.json({
-      message: 'Account created successfully',
-      user: {
-        id: user.id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName
+    const notificationRecipients = (await getGlobalSetting('registration_notification_emails'))
+      ?.split(',')
+      .map((recipient) => recipient.trim())
+      .filter(Boolean) || []
+
+    if (notificationRecipients.length) {
+      try {
+        await sendRegistrationNotificationEmail({
+          recipients: notificationRecipients,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email
+        })
+      } catch (notificationError) {
+        console.error('Unable to send registration notification:', notificationError)
       }
+    }
+
+    const response = NextResponse.json({
+      message: 'Account created. An administrator must approve your account before you can sign in.',
+      pendingActivation: true
     }, { status: 201 })
 
-    setSessionCookie(response, token, expiresAt)
     return response
   } catch (error) {
     console.error('Error signing up:', error)

@@ -39,6 +39,10 @@ export function incrementGradeValue(value: string | null | undefined): string | 
   const trimmed = value.trim()
   const lower = trimmed.toLowerCase()
 
+  if (lower === 'pre-k' || lower === 'prek' || lower === 'prekindergarten') {
+    return null
+  }
+
   if (lower.includes('graduated')) {
     return GRADUATED_LABEL
   }
