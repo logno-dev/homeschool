@@ -26,6 +26,11 @@ interface RegistrationCartProps {
   }>
 }
 
+interface EmergencyContact {
+  name: string
+  phone: string
+}
+
 export default function RegistrationCart({ sessionId, children }: RegistrationCartProps) {
   const { 
     pendingRegistrations, 
@@ -57,6 +62,7 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
     isOverdue: boolean
   } | null>(null)
   const [overrideReason, setOverrideReason] = useState('')
+  const [emergencyContacts, setEmergencyContacts] = useState<Record<string, EmergencyContact>>({})
   const [overrideContext, setOverrideContext] = useState<'volunteer' | 'grade_range' | 'mixed'>('volunteer')
   const [gradeRangeConflicts, setGradeRangeConflicts] = useState<string[]>([])
   const [canRequestOverride, setCanRequestOverride] = useState(false)
@@ -94,6 +100,16 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
       return
     }
 
+    const registeredChildIds = Array.from(new Set(pendingRegistrations.map((registration) => registration.childId)))
+    const missingContact = registeredChildIds.find((childId) => {
+      const contact = emergencyContacts[childId]
+      return !contact?.name.trim() || !contact?.phone.trim()
+    })
+    if (missingContact) {
+      showError('Emergency contact required', `Please provide an emergency contact and phone number for ${getChildName(missingContact)}.`)
+      return
+    }
+
     setSubmitting(true)
     setConflicts([])
     setVolunteerHoursInfo(null)
@@ -110,6 +126,7 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
           sessionId,
           registrations: pendingRegistrations,
           volunteerAssignments: pendingVolunteerAssignments,
+          emergencyContacts,
           requestAdminOverride
         }),
       })
@@ -237,6 +254,8 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
     return child ? `${child.firstName} ${child.lastName}` : 'Unknown Child'
   }
 
+  const registeredChildren = Array.from(new Set(pendingRegistrations.map((registration) => registration.childId)))
+
   const totalItems = getTotalPendingRegistrations() + pendingVolunteerAssignments.length
 
   return (
@@ -320,6 +339,52 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
               </div>
             )
           })()}
+
+          {/* Session emergency contacts */}
+          {registeredChildren.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <h3 className="font-semibold text-amber-900 mb-1">Emergency Contacts for This Session</h3>
+              <p className="mb-4 text-sm text-amber-800">Please confirm current emergency contact information for each child. This information applies only to this session.</p>
+              <div className="space-y-4">
+                {registeredChildren.map((childId) => {
+                  const contact = emergencyContacts[childId] || { name: '', phone: '' }
+                  return (
+                    <div key={childId} className="rounded-md border border-amber-200 bg-white p-3">
+                      <p className="mb-2 text-sm font-medium text-gray-900">{getChildName(childId)}</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Emergency contact name *</label>
+                          <input
+                            type="text"
+                            value={contact.name}
+                            onChange={(event) => setEmergencyContacts((current) => ({
+                              ...current,
+                              [childId]: { ...contact, name: event.target.value }
+                            }))}
+                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                            placeholder="Name"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 mb-1">Emergency contact phone *</label>
+                          <input
+                            type="tel"
+                            value={contact.phone}
+                            onChange={(event) => setEmergencyContacts((current) => ({
+                              ...current,
+                              [childId]: { ...contact, phone: event.target.value }
+                            }))}
+                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                            placeholder="Phone number"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Conflicts Display */}
           {conflicts.length > 0 && (

@@ -8,5 +8,5 @@ export async function GET() {
     return NextResponse.json({ user: null }, { status: 401 })
   }
 
-  return NextResponse.json({ user: session.user, role: session.role })
+  return NextResponse.json({ user: session.user, role: session.role, requiresAcknowledgement: session.requiresAcknowledgement })
 }

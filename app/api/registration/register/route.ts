@@ -33,7 +33,9 @@ export async function POST(request: Request) {
       childId, 
       helperGuardianId, // Optional: guardian signing up as helper
       volunteerType, // 'helper' if signing up as helper
-      waitlist = false
+      waitlist = false,
+      emergencyContact,
+      emergencyPhone
     } = body
 
     // Get the guardian's family information
@@ -48,6 +50,10 @@ export async function POST(request: Request) {
     }
 
     const familyId = guardian[0].familyId
+
+    if (!String(emergencyContact || '').trim() || !String(emergencyPhone || '').trim()) {
+      return NextResponse.json({ error: 'Emergency contact name and phone are required' }, { status: 400 })
+    }
 
     // Verify the child belongs to this family
     const child = await db
@@ -132,14 +138,16 @@ export async function POST(request: Request) {
     const result = await db.transaction(async (tx) => {
       // Register the child for the class
       const registrationId = randomUUID()
-      await tx.insert(classRegistrations).values({
+        await tx.insert(classRegistrations).values({
         id: registrationId,
         sessionId,
         scheduleId,
         childId,
-        familyId,
-        registeredBy: session.user.id,
-        status: waitlist ? 'waitlisted' : 'registered'
+          familyId,
+          registeredBy: session.user.id,
+          emergencyContact: String(emergencyContact).trim(),
+          emergencyPhone: String(emergencyPhone).trim(),
+          status: waitlist ? 'waitlisted' : 'registered'
       })
 
       // If helper signup is requested, add volunteer assignment

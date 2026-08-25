@@ -11,8 +11,6 @@ interface Child {
   grade: string
   allergies: string
   medicalNotes: string
-  emergencyContact: string
-  emergencyPhone: string
 }
 
 export default function FamilyRegisterPage() {
@@ -38,9 +36,7 @@ export default function FamilyRegisterPage() {
     dateOfBirth: '',
     grade: '',
     allergies: '',
-    medicalNotes: '',
-    emergencyContact: '',
-    emergencyPhone: ''
+    medicalNotes: ''
   }])
 
   useEffect(() => {
@@ -61,9 +57,7 @@ export default function FamilyRegisterPage() {
       dateOfBirth: '',
       grade: '',
       allergies: '',
-      medicalNotes: '',
-      emergencyContact: '',
-      emergencyPhone: ''
+      medicalNotes: ''
     }])
   }
 
@@ -356,30 +350,6 @@ export default function FamilyRegisterPage() {
                         onChange={(e) => updateChild(index, 'medicalNotes', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                         placeholder="Any medical conditions or notes"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Emergency Contact
-                      </label>
-                      <input
-                        type="text"
-                        value={child.emergencyContact}
-                        onChange={(e) => updateChild(index, 'emergencyContact', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                        placeholder="Grandparent, relative, etc."
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Emergency Phone
-                      </label>
-                      <input
-                        type="tel"
-                        value={child.emergencyPhone}
-                        onChange={(e) => updateChild(index, 'emergencyPhone', e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                        placeholder="(555) 123-4567"
                       />
                     </div>
                   </div>

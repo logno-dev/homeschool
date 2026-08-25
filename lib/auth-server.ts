@@ -3,6 +3,7 @@ import { and, eq, gt } from 'drizzle-orm'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { authAccounts, authSessions, guardians, users } from '@/lib/schema'
+import { hasCurrentAcknowledgement } from '@/lib/acknowledgements'
 
 export const SESSION_COOKIE_NAME = 'dvclc_session'
 const SESSION_TTL_DAYS = 14
@@ -19,6 +20,7 @@ export type AppAuthSession = {
   user: SessionUser
   role?: string
   roles?: string[]
+  requiresAcknowledgement?: boolean
 }
 
 function nowIso() {
@@ -204,6 +206,7 @@ async function buildSessionFromUserId(userId: string): Promise<AppAuthSession | 
 
   const [guardian] = await db.select().from(guardians).where(eq(guardians.id, user.id)).limit(1)
   const role = user.role || 'user'
+  const requiresAcknowledgement = await hasCurrentAcknowledgement(user.id).then((acknowledged) => !acknowledged)
 
   return {
     user: {
@@ -213,7 +216,8 @@ async function buildSessionFromUserId(userId: string): Promise<AppAuthSession | 
       lastName: guardian?.lastName || user.lastName
     },
     role,
-    roles: [role]
+    roles: [role],
+    requiresAcknowledgement
   }
 }
 

@@ -41,8 +41,6 @@ export const children = sqliteTable('children', {
   gradeLevel: text('grade_level'), // Grade level they were in that year (K, 1, 2, etc.)
   allergies: text('allergies'),
   medicalNotes: text('medical_notes'),
-  emergencyContact: text('emergency_contact'),
-  emergencyPhone: text('emergency_phone'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
@@ -196,6 +194,8 @@ export const classRegistrations = sqliteTable('class_registrations', {
   childId: text('child_id').notNull().references(() => children.id, { onDelete: 'cascade' }),
   familyId: text('family_id').notNull().references(() => families.id, { onDelete: 'cascade' }),
   registeredBy: text('registered_by').notNull().references(() => guardians.id, { onDelete: 'cascade' }),
+  emergencyContact: text('emergency_contact'),
+  emergencyPhone: text('emergency_phone'),
   status: text('status').notNull().default('registered'), // registered, waitlisted, cancelled, pending, hold
   holdExpiresAt: text('hold_expires_at'),
   registeredAt: text('registered_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -381,6 +381,29 @@ export const users = sqliteTable('users', {
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const userAcknowledgements = sqliteTable('user_acknowledgements', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  releaseLiabilityAgreed: integer('release_liability_agreed', { mode: 'boolean' }).notNull(),
+  contactInfoRelease: text('contact_info_release').notNull(), // agree, do_not_agree
+  photographyRelease: text('photography_release').notNull(), // agree, do_not_agree
+  handbookVersion: text('handbook_version').notNull(),
+  handbookAgreed: integer('handbook_agreed', { mode: 'boolean' }).notNull(),
+  acceptedAt: text('accepted_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const handbooks = sqliteTable('handbooks', {
+  id: text('id').primaryKey(),
+  version: text('version').notNull(),
+  filename: text('filename').notNull(),
+  blobUrl: text('blob_url').notNull(),
+  pathname: text('pathname').notNull(),
+  size: integer('size').notNull(),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(false),
+  uploadedBy: text('uploaded_by').notNull().references(() => users.id),
+  uploadedAt: text('uploaded_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
 export const authAccounts = sqliteTable('auth_accounts', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
@@ -430,6 +453,8 @@ export type ScholarshipApplication = typeof scholarshipApplications.$inferSelect
 export type ScholarshipFundTransaction = typeof scholarshipFundTransactions.$inferSelect
 export type Event = typeof events.$inferSelect
 export type User = typeof users.$inferSelect
+export type UserAcknowledgement = typeof userAcknowledgements.$inferSelect
+export type Handbook = typeof handbooks.$inferSelect
 export type AuthAccount = typeof authAccounts.$inferSelect
 export type AuthSession = typeof authSessions.$inferSelect
 
@@ -459,5 +484,7 @@ export type NewScholarshipApplication = typeof scholarshipApplications.$inferIns
 export type NewScholarshipFundTransaction = typeof scholarshipFundTransactions.$inferInsert
 export type NewEvent = typeof events.$inferInsert
 export type NewUser = typeof users.$inferInsert
+export type NewUserAcknowledgement = typeof userAcknowledgements.$inferInsert
+export type NewHandbook = typeof handbooks.$inferInsert
 export type NewAuthAccount = typeof authAccounts.$inferInsert
 export type NewAuthSession = typeof authSessions.$inferInsert

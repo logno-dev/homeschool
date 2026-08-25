@@ -44,8 +44,6 @@ export async function POST(request: NextRequest) {
         grade: body.grade,
         allergies: body.allergies || null,
         medicalNotes: body.medicalNotes || null,
-        emergencyContact: body.emergencyContact || null,
-        emergencyPhone: body.emergencyPhone || null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       })

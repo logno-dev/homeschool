@@ -63,9 +63,7 @@ export async function POST(request: NextRequest) {
             dateOfBirth: child.dateOfBirth,
             grade: child.grade,
             allergies: child.allergies || '',
-            medicalNotes: child.medicalNotes || '',
-            emergencyContact: child.emergencyContact || '',
-            emergencyPhone: child.emergencyPhone || ''
+            medicalNotes: child.medicalNotes || ''
           })
           newChildren.push(newChild)
         }

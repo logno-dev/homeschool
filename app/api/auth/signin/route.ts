@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateWithPassword, createSessionForUser, setSessionCookie } from '@/lib/auth-server'
 import { getUserById } from '@/lib/database'
+import { hasCurrentAcknowledgement } from '@/lib/acknowledgements'
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,9 +26,11 @@ export async function POST(request: NextRequest) {
     }
 
     const { token, expiresAt } = await createSessionForUser(account.userId)
+    const requiresAcknowledgement = !(await hasCurrentAcknowledgement(account.userId))
     const response = NextResponse.json({
       message: 'Signed in successfully',
-      mustResetPassword: account.mustResetPassword
+      mustResetPassword: account.mustResetPassword,
+      requiresAcknowledgement
     })
 
     setSessionCookie(response, token, expiresAt)

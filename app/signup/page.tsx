@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { FormEvent, useState } from 'react'
+import { FormEvent, useEffect, useState } from 'react'
 import BrandLogo from '@/app/components/BrandLogo'
+import AcknowledgementFields from '@/app/components/AcknowledgementFields'
 
 export default function SignUpPage() {
   const router = useRouter()
@@ -14,6 +15,18 @@ export default function SignUpPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [handbook, setHandbook] = useState({ url: '', version: '' })
+  const [releaseLiabilityAgreed, setReleaseLiabilityAgreed] = useState(false)
+  const [contactInfoRelease, setContactInfoRelease] = useState<'agree' | 'do_not_agree' | ''>('')
+  const [photographyRelease, setPhotographyRelease] = useState<'agree' | 'do_not_agree' | ''>('')
+  const [handbookAgreed, setHandbookAgreed] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/auth/acknowledgements')
+      .then((response) => response.json())
+      .then((payload) => setHandbook({ url: payload.handbookUrl || '', version: payload.handbookVersion || '' }))
+      .catch(() => setHandbook({ url: '', version: '' }))
+  }, [])
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -29,7 +42,16 @@ export default function SignUpPage() {
       const response = await fetch('/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ firstName, lastName, email, password })
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          email,
+          password,
+          releaseLiabilityAgreed,
+          contactInfoRelease,
+          photographyRelease,
+          handbookAgreed
+        })
       })
 
       const payload = await response.json()
@@ -49,7 +71,7 @@ export default function SignUpPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-xl border border-gray-200 shadow-sm p-8">
+      <div className="w-full max-w-3xl bg-white rounded-xl border border-gray-200 shadow-sm p-8">
         <div className="flex justify-center mb-4">
           <BrandLogo variant="icon" width={64} alt="DVCLC" />
         </div>
@@ -90,6 +112,19 @@ export default function SignUpPage() {
               required
             />
           </div>
+
+          <AcknowledgementFields
+            releaseLiabilityAgreed={releaseLiabilityAgreed}
+            contactInfoRelease={contactInfoRelease}
+            photographyRelease={photographyRelease}
+            handbookAgreed={handbookAgreed}
+            handbookUrl={handbook.url}
+            handbookVersion={handbook.version}
+            onReleaseLiabilityChange={setReleaseLiabilityAgreed}
+            onContactInfoReleaseChange={setContactInfoRelease}
+            onPhotographyReleaseChange={setPhotographyRelease}
+            onHandbookChange={setHandbookAgreed}
+          />
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>

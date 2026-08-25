@@ -44,8 +44,6 @@ export async function PUT(
         grade: body.grade,
         allergies: body.allergies || null,
         medicalNotes: body.medicalNotes || null,
-        emergencyContact: body.emergencyContact || null,
-        emergencyPhone: body.emergencyPhone || null,
         updatedAt: new Date().toISOString()
       })
       .where(eq(children.id, childId))

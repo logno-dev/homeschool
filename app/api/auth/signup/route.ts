@@ -7,10 +7,20 @@ import { authAccounts, users } from '@/lib/schema'
 import { createAuthAccountForUser, normalizeEmail } from '@/lib/auth-server'
 import { getGlobalSetting } from '@/lib/database'
 import { sendRegistrationNotificationEmail } from '@/lib/email'
+import { getHandbookSettings, recordAcknowledgement, type ReleaseChoice } from '@/lib/acknowledgements'
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, firstName, lastName } = await request.json()
+    const {
+      email,
+      password,
+      firstName,
+      lastName,
+      releaseLiabilityAgreed,
+      contactInfoRelease,
+      photographyRelease,
+      handbookAgreed
+    } = await request.json()
 
     if (!email || !password || !firstName || !lastName) {
       return NextResponse.json({ error: 'First name, last name, email, and password are required' }, { status: 400 })
@@ -18,6 +28,19 @@ export async function POST(request: NextRequest) {
 
     if (typeof password !== 'string' || password.length < 8) {
       return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+    }
+
+    if (releaseLiabilityAgreed !== true || handbookAgreed !== true) {
+      return NextResponse.json({ error: 'You must agree to the release of liability and handbook acknowledgement' }, { status: 400 })
+    }
+
+    if (!['agree', 'do_not_agree'].includes(contactInfoRelease) || !['agree', 'do_not_agree'].includes(photographyRelease)) {
+      return NextResponse.json({ error: 'Please select an option for each contact and photography release' }, { status: 400 })
+    }
+
+    const handbook = await getHandbookSettings()
+    if (!handbook.url || !handbook.version) {
+      return NextResponse.json({ error: 'The current handbook has not been configured. Please contact an administrator.' }, { status: 503 })
     }
 
     const normalizedEmail = normalizeEmail(email)
@@ -64,6 +87,14 @@ export async function POST(request: NextRequest) {
       password,
       mustResetPassword: false,
       isActive: false
+    })
+
+    await recordAcknowledgement({
+      userId: user.id,
+      releaseLiabilityAgreed,
+      contactInfoRelease: contactInfoRelease as ReleaseChoice,
+      photographyRelease: photographyRelease as ReleaseChoice,
+      handbookVersion: handbook.version
     })
 
     const notificationRecipients = (await getGlobalSetting('registration_notification_emails'))

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { usePathname } from 'next/navigation'
 
 type AuthUser = {
   id: string
@@ -12,6 +13,7 @@ type AuthUser = {
 type AuthContextValue = {
   user: AuthUser | null
   loading: boolean
+  requiresAcknowledgement: boolean
   refresh: () => Promise<void>
   signOut: (options?: { returnTo?: string }) => Promise<void>
 }
@@ -21,21 +23,27 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 async function fetchSession() {
   const response = await fetch('/api/auth/session', { cache: 'no-store' })
   if (!response.ok) {
-    return null
+    return { user: null, requiresAcknowledgement: false }
   }
 
   const payload = await response.json()
-  return payload.user as AuthUser | null
+  return {
+    user: payload.user as AuthUser | null,
+    requiresAcknowledgement: Boolean(payload.requiresAcknowledgement)
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [requiresAcknowledgement, setRequiresAcknowledgement] = useState(false)
+  const pathname = usePathname()
 
   const refresh = useCallback(async () => {
     try {
-      const nextUser = await fetchSession()
-      setUser(nextUser)
+      const nextSession = await fetchSession()
+      setUser(nextSession.user)
+      setRequiresAcknowledgement(nextSession.requiresAcknowledgement)
     } finally {
       setLoading(false)
     }
@@ -45,9 +53,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refresh()
   }, [refresh])
 
+  useEffect(() => {
+    if (!loading && user && requiresAcknowledgement && pathname !== '/account/acknowledgements') {
+      window.location.assign('/account/acknowledgements')
+    }
+  }, [loading, pathname, requiresAcknowledgement, user])
+
   const signOut = useCallback(async (options?: { returnTo?: string }) => {
     await fetch('/api/auth/signout', { method: 'POST' })
     setUser(null)
+    setRequiresAcknowledgement(false)
     if (options?.returnTo) {
       window.location.assign(options.returnTo)
     }
@@ -57,10 +72,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       loading,
+      requiresAcknowledgement,
       refresh,
       signOut
     }),
-    [loading, refresh, signOut, user]
+    [loading, refresh, requiresAcknowledgement, signOut, user]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

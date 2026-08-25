@@ -12,8 +12,6 @@ interface Child {
   grade: string
   allergies: string | null
   medicalNotes: string | null
-  emergencyContact: string | null
-  emergencyPhone: string | null
 }
 
 interface Guardian {
@@ -55,9 +53,7 @@ export default function FamilyProfileClient({ family, guardians, children: initi
     dateOfBirth: '',
     grade: '',
     allergies: '',
-    medicalNotes: '',
-    emergencyContact: '',
-    emergencyPhone: ''
+    medicalNotes: ''
   })
   const [loading, setLoading] = useState(false)
   const [expandedChildren, setExpandedChildren] = useState<Set<string>>(new Set())
@@ -86,9 +82,7 @@ export default function FamilyProfileClient({ family, guardians, children: initi
       dateOfBirth: '',
       grade: '',
       allergies: '',
-      medicalNotes: '',
-      emergencyContact: '',
-      emergencyPhone: ''
+      medicalNotes: ''
     })
     setIsAddModalOpen(true)
   }
@@ -99,11 +93,9 @@ export default function FamilyProfileClient({ family, guardians, children: initi
       firstName: '',
       lastName: '',
       dateOfBirth: '',
-      grade: '',
-      allergies: '',
-      medicalNotes: '',
-      emergencyContact: '',
-      emergencyPhone: ''
+    grade: '',
+    allergies: '',
+    medicalNotes: ''
     })
   }
 
@@ -217,7 +209,7 @@ export default function FamilyProfileClient({ family, guardians, children: initi
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {children.map((child) => {
               const isExpanded = expandedChildren.has(child.id)
-              const hasAdditionalInfo = child.allergies || child.medicalNotes || child.emergencyContact
+              const hasAdditionalInfo = child.allergies || child.medicalNotes
               
               return (
                 <div 
@@ -272,9 +264,6 @@ export default function FamilyProfileClient({ family, guardians, children: initi
                         )}
                         {child.medicalNotes && (
                           <p><span className="font-medium text-gray-900">Medical:</span> {child.medicalNotes}</p>
-                        )}
-                        {child.emergencyContact && (
-                          <p><span className="font-medium text-gray-900">Emergency:</span> {child.emergencyContact} {child.emergencyPhone && `(${child.emergencyPhone})`}</p>
                         )}
                       </div>
                     </div>
@@ -408,30 +397,6 @@ export default function FamilyProfileClient({ family, guardians, children: initi
                   placeholder="Any medical conditions or notes"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Emergency Contact
-                </label>
-                <input
-                  type="text"
-                  value={editForm.emergencyContact || ''}
-                  onChange={(e) => handleInputChange('emergencyContact', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  placeholder="Grandparent, relative, etc."
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Emergency Phone
-                </label>
-                <input
-                  type="tel"
-                  value={editForm.emergencyPhone || ''}
-                  onChange={(e) => handleInputChange('emergencyPhone', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                  placeholder="(555) 123-4567"
-                />
-              </div>
             </div>
 
             <div className="flex justify-end space-x-3 pt-4">
@@ -558,30 +523,6 @@ export default function FamilyProfileClient({ family, guardians, children: initi
                 onChange={(e) => handleAddInputChange('medicalNotes', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                 placeholder="Any medical conditions or notes"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Emergency Contact
-              </label>
-              <input
-                type="text"
-                value={addForm.emergencyContact || ''}
-                onChange={(e) => handleAddInputChange('emergencyContact', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                placeholder="Grandparent, relative, etc."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Emergency Phone
-              </label>
-              <input
-                type="tel"
-                value={addForm.emergencyPhone || ''}
-                onChange={(e) => handleAddInputChange('emergencyPhone', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                placeholder="(555) 123-4567"
               />
             </div>
           </div>

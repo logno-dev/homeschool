@@ -19,6 +19,11 @@ interface VolunteerAssignment {
   }
 }
 
+interface EmergencyContact {
+  name: string
+  phone: string
+}
+
 export async function GET() {
   try {
     const auth = await getAuthenticatedUserSession()
@@ -120,6 +125,7 @@ export async function POST(request: Request) {
       sessionId: string
       registrations: FamilyRegistration
       volunteerAssignments: VolunteerAssignment
+      emergencyContacts: Record<string, EmergencyContact>
     } = body
 
     // Get the guardian's family information
@@ -134,6 +140,11 @@ export async function POST(request: Request) {
     }
 
     const familyId = guardian[0].familyId
+    const emergencyContacts = (body.emergencyContacts || {}) as Record<string, EmergencyContact>
+    const registeredChildIds = Array.from(new Set(Object.values(registrations).flatMap((periodRegistrations) => Object.keys(periodRegistrations))))
+    if (registeredChildIds.some((childId) => !emergencyContacts[childId]?.name?.trim() || !emergencyContacts[childId]?.phone?.trim())) {
+      return NextResponse.json({ error: 'Emergency contact name and phone are required for every registered child' }, { status: 400 })
+    }
 
     // Validate all children belong to this family
     const allChildIds = Object.values(registrations).flatMap(periodRegs => Object.keys(periodRegs))
@@ -236,6 +247,8 @@ export async function POST(request: Request) {
             childId,
             familyId,
             registeredBy: session.user.id,
+            emergencyContact: emergencyContacts[childId].name.trim(),
+            emergencyPhone: emergencyContacts[childId].phone.trim(),
             status: 'registered'
           })
 

@@ -11,11 +11,18 @@ export async function GET() {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const [settings, registrationNotificationEmails] = await Promise.all([
+    const [settings, registrationNotificationEmails, handbookUrl, handbookVersion] = await Promise.all([
       getGradeIncrementSettings(),
-      getGlobalSetting('registration_notification_emails')
+      getGlobalSetting('registration_notification_emails'),
+      getGlobalSetting('handbook_url'),
+      getGlobalSetting('handbook_version')
     ])
-    return NextResponse.json({ ...settings, registrationNotificationEmails: registrationNotificationEmails || '' })
+    return NextResponse.json({
+      ...settings,
+      registrationNotificationEmails: registrationNotificationEmails || '',
+      handbookUrl: handbookUrl || '',
+      handbookVersion: handbookVersion || ''
+    })
   } catch (error) {
     console.error('Error loading admin settings:', error)
     return NextResponse.json({ error: 'Failed to load settings' }, { status: 500 })
@@ -30,7 +37,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { gradeIncrementDate, registrationNotificationEmails, runIncrementNow } = body
+    const { gradeIncrementDate, registrationNotificationEmails, handbookUrl, handbookVersion, runIncrementNow } = body
 
     if (runIncrementNow) {
       const result = await incrementAllStudentGrades()
@@ -45,6 +52,29 @@ export async function POST(request: Request) {
 
     if (registrationNotificationEmails !== undefined && typeof registrationNotificationEmails !== 'string') {
       return NextResponse.json({ error: 'registrationNotificationEmails must be a comma-separated string' }, { status: 400 })
+    }
+
+    if (handbookUrl !== undefined && typeof handbookUrl !== 'string') {
+      return NextResponse.json({ error: 'handbookUrl must be a PDF URL' }, { status: 400 })
+    }
+
+    if (handbookVersion !== undefined && typeof handbookVersion !== 'string') {
+      return NextResponse.json({ error: 'handbookVersion must be a string' }, { status: 400 })
+    }
+
+    if (handbookUrl !== undefined || handbookVersion !== undefined) {
+      const normalizedHandbookUrl = String(handbookUrl || '').trim()
+      const normalizedHandbookVersion = String(handbookVersion || '').trim()
+      if ((normalizedHandbookUrl && !normalizedHandbookVersion) || (!normalizedHandbookUrl && normalizedHandbookVersion)) {
+        return NextResponse.json({ error: 'Handbook URL and version must be configured together' }, { status: 400 })
+      }
+      if (normalizedHandbookUrl && !(/^(https?:\/\/|\/)/.test(normalizedHandbookUrl))) {
+        return NextResponse.json({ error: 'Handbook URL must be an HTTP(S) or site-relative URL' }, { status: 400 })
+      }
+      await Promise.all([
+        setGlobalSetting('handbook_url', normalizedHandbookUrl || null),
+        setGlobalSetting('handbook_version', normalizedHandbookVersion || null)
+      ])
     }
 
     if (registrationNotificationEmails !== undefined) {

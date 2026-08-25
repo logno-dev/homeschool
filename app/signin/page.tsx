@@ -42,6 +42,10 @@ function SignInForm() {
         router.push('/account')
         return
       }
+      if (payload.requiresAcknowledgement) {
+        router.push('/account/acknowledgements')
+        return
+      }
       router.push(next)
     } catch (err) {
       console.error('Error signing in:', err)
