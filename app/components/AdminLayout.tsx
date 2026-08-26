@@ -172,23 +172,23 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
   ]
 
   return (
-    <div className="h-[calc(100vh-4rem)] bg-gray-50 flex">
+    <div className="h-[calc(100dvh-4rem)] min-h-0 overflow-hidden bg-gray-50 flex">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div className="fixed inset-0 z-40 md:hidden">
           <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
         </div>
       )}
 
       {/* Sidebar */}
-      <div className={`fixed top-16 bottom-0 left-0 z-50 w-64 bg-white shadow-lg transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:h-full lg:top-0`}>
+      <div className={`fixed top-16 left-0 z-50 h-[calc(100dvh-4rem)] w-64 bg-white shadow-lg transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:h-full`}>
         <div className="flex flex-col h-full">
           {/* Logo/Header */}
           <div className="flex items-center justify-between h-16 px-6 bg-blue-600 text-white">
             <h1 className="text-lg font-semibold">Admin Panel</h1>
             <button
               onClick={() => setSidebarOpen(false)}
-              className="lg:hidden text-white hover:text-gray-200"
+              className="md:hidden text-white hover:text-gray-200"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -197,7 +197,7 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
+          <nav className="min-h-0 flex-1 overflow-y-auto px-4 py-6 space-y-2">
             {navigationItems.map((item) => (
               <Link
                 key={item.key}
@@ -259,25 +259,25 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
       </div>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col lg:ml-0">
+      <div className="min-w-0 min-h-0 flex-1 flex flex-col md:ml-0">
         {/* Mobile header */}
-        <div className="lg:hidden bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center justify-between h-16 px-4">
+        <div className="md:hidden bg-white shadow-sm border-b border-gray-200">
+          <div className="relative flex items-center justify-center h-16 px-4">
             <button
               onClick={() => setSidebarOpen(true)}
-              className="text-gray-500 hover:text-gray-700"
+              className="absolute left-4 text-gray-500 hover:text-gray-700 md:hidden"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <h1 className="text-lg font-semibold text-gray-900">Admin Panel</h1>
-            <div className="w-6" /> {/* Spacer for centering */}
+            <div className="hidden w-6" />
           </div>
         </div>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto">
+        <main className="min-h-0 flex-1 overflow-y-auto">
           {children}
         </main>
       </div>
