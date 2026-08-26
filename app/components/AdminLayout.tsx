@@ -77,8 +77,8 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
       )
     },
     {
-      name: 'Class Requests',
-      href: '/admin/class-requests',
+      name: 'Classes',
+      href: '/admin/classes',
       key: 'class-requests',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

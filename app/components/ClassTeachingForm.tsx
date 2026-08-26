@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
-import { GRADE_ORDER, getGradeRangeFromLabel } from '@/lib/grades'
+import { GRADE_ORDER, PRE_K_LABEL, getGradeRangeFromLabel } from '@/lib/grades'
 
 interface ClassTeachingFormProps {
   onSuccess: () => void
@@ -11,7 +11,7 @@ interface ClassTeachingFormProps {
   mode?: 'create' | 'edit'
 }
 
-const GRADE_OPTIONS = ['K-2', '3-5', '6-8', '9-12', 'All Ages']
+const GRADE_OPTIONS = ['Pre-K', 'Pre-K-2', 'K-2', '3-5', '6-8', '9-12', 'All Ages']
 
 export default function ClassTeachingForm({
   onSuccess,
@@ -43,7 +43,7 @@ export default function ClassTeachingForm({
       const fallbackRange = getGradeRangeFromLabel(initialRequest.gradeRange)
       const fromIndex = initialRequest.gradeRangeFrom ?? fallbackRange.from
       const toIndex = initialRequest.gradeRangeTo ?? fallbackRange.to
-      const fromLabel = typeof fromIndex === 'number' ? GRADE_ORDER[fromIndex] ?? '' : ''
+       const fromLabel = fromIndex === -1 ? PRE_K_LABEL : typeof fromIndex === 'number' ? GRADE_ORDER[fromIndex] ?? '' : ''
       const toLabel = typeof toIndex === 'number' ? GRADE_ORDER[toIndex] ?? '' : ''
       const isCustomRange = !GRADE_OPTIONS.includes(initialRequest.gradeRange)
 
@@ -249,7 +249,7 @@ export default function ClassTeachingForm({
                         className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">Select grade</option>
-                        {GRADE_ORDER.map((grade) => (
+                         {[PRE_K_LABEL, ...GRADE_ORDER].map((grade) => (
                           <option key={grade} value={grade}>{grade}</option>
                         ))}
                       </select>
@@ -266,7 +266,7 @@ export default function ClassTeachingForm({
                         className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">Select grade</option>
-                        {GRADE_ORDER.map((grade) => (
+                         {[PRE_K_LABEL, ...GRADE_ORDER].map((grade) => (
                           <option key={grade} value={grade}>{grade}</option>
                         ))}
                       </select>

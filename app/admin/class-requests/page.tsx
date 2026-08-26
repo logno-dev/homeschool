@@ -5,13 +5,16 @@ import { useAuth } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '@/app/components/AdminLayout'
 import ClassTeachingRequestReview from '@/app/components/ClassTeachingRequestReview'
+import AdminClassCreateForm from '@/app/components/AdminClassCreateForm'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 
 export default function AdminClassRequestsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const [classRequests, setClassRequests] = useState<(ClassTeachingRequest & { session: Session })[]>([])
+  const [classRequests, setClassRequests] = useState<(ClassTeachingRequest & { session: Session; teacherDisplayName?: string })[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [sessions, setSessions] = useState<Session[]>([])
+  const [teachers, setTeachers] = useState<Array<{ id: string; firstName: string; lastName: string; email: string }>>([])
 
   useEffect(() => {
     if (loading) return
@@ -27,7 +30,9 @@ export default function AdminClassRequestsPage() {
         const response = await fetch('/api/admin/class-teaching-requests')
         if (response.ok) {
           const data = await response.json()
-          setClassRequests(data.requests || [])
+           setClassRequests(data.requests || [])
+           setSessions(data.sessions || [])
+           setTeachers(data.teachers || [])
         }
       } catch (error) {
         console.error('Error fetching class requests:', error)
@@ -63,7 +68,10 @@ export default function AdminClassRequestsPage() {
     >
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <ClassTeachingRequestReview initialRequests={classRequests} />
+          <div className="space-y-6">
+            <AdminClassCreateForm sessions={sessions} teachers={teachers} onCreated={() => window.location.reload()} />
+            <ClassTeachingRequestReview initialRequests={classRequests} teachers={teachers} />
+          </div>
         </div>
       </main>
     </AdminLayout>

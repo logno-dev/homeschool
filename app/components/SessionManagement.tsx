@@ -26,6 +26,8 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
     name: '',
     startDate: '',
     endDate: '',
+    classTeachingRegistrationStartDate: '',
+    classTeachingRegistrationEndDate: '',
     description: '',
     isActive: false
   })
@@ -35,6 +37,8 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
       name: '',
       startDate: '',
       endDate: '',
+      classTeachingRegistrationStartDate: '',
+      classTeachingRegistrationEndDate: '',
       description: '',
       isActive: false
     })
@@ -54,6 +58,8 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
       name: session.name,
       startDate: formatDateForInput(session.startDate),
       endDate: formatDateForInput(session.endDate),
+      classTeachingRegistrationStartDate: session.classTeachingRegistrationStartDate ? formatDateForInput(session.classTeachingRegistrationStartDate) : '',
+      classTeachingRegistrationEndDate: session.classTeachingRegistrationEndDate ? formatDateForInput(session.classTeachingRegistrationEndDate) : '',
       description: session.description || '',
       isActive: session.isActive
     })
@@ -89,6 +95,8 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
         ...formData,
         startDate: formatDateForSubmission(formData.startDate),
         endDate: formatDateForSubmission(formData.endDate),
+        classTeachingRegistrationStartDate: formatDateForSubmission(formData.classTeachingRegistrationStartDate),
+        classTeachingRegistrationEndDate: formatDateForSubmission(formData.classTeachingRegistrationEndDate),
       }
 
       const url = editingSession 
@@ -236,6 +244,15 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
                   onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
+              </div>
+            </div>
+
+            <div className="rounded-md border border-amber-100 bg-amber-50 p-4">
+              <h3 className="text-sm font-semibold text-amber-900">Parent Class-Teaching Request Window</h3>
+              <p className="mt-1 text-sm text-amber-800">Controls when parents may submit requests for classes they want to teach. This is separate from student registration windows.</p>
+              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="block text-sm font-medium text-gray-700">Opens<input type="date" required value={formData.classTeachingRegistrationStartDate} onChange={(e) => setFormData({ ...formData, classTeachingRegistrationStartDate: e.target.value })} className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" /></label>
+                <label className="block text-sm font-medium text-gray-700">Closes<input type="date" required value={formData.classTeachingRegistrationEndDate} onChange={(e) => setFormData({ ...formData, classTeachingRegistrationEndDate: e.target.value })} className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" /></label>
               </div>
             </div>
 

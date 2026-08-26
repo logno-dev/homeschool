@@ -8,6 +8,9 @@ import {
   getGuardianById
 } from '@/lib/database'
 import { getGradeRangeFromLabel } from '@/lib/grades'
+import { db } from '@/lib/db'
+import { guardians } from '@/lib/schema'
+import { eq } from 'drizzle-orm'
 
 export async function GET(
   request: Request,
@@ -103,6 +106,12 @@ export async function PATCH(
       if (editData.requiresFee !== undefined) updateData.requiresFee = editData.requiresFee
       if (editData.feeAmount !== undefined) updateData.feeAmount = editData.requiresFee ? parseFloat(editData.feeAmount) : null
       if (editData.schedulingRequirements !== undefined) updateData.schedulingRequirements = editData.schedulingRequirements?.trim() || null
+      if (editData.teacherId !== undefined && editData.teacherId) {
+        const [teacher] = await db.select({ id: guardians.id }).from(guardians).where(eq(guardians.id, String(editData.teacherId))).limit(1)
+        if (!teacher) return NextResponse.json({ error: 'Teacher not found' }, { status: 404 })
+        updateData.guardianId = teacher.id
+      }
+      if (editData.teacherName !== undefined) updateData.teacherName = editData.teacherName?.trim() || null
 
       if (updateData.gradeRange && (updateData.gradeRangeFrom === undefined || updateData.gradeRangeTo === undefined)) {
         const fallbackRange = getGradeRangeFromLabel(updateData.gradeRange)

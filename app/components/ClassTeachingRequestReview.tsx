@@ -4,15 +4,18 @@ import { useState } from 'react'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 
 interface ClassTeachingRequestReviewProps {
-  initialRequests: (ClassTeachingRequest & { session: Session })[]
+  initialRequests: (ClassTeachingRequest & { session: Session; teacherDisplayName?: string })[]
+  teachers?: Array<{ id: string; firstName: string; lastName: string; email: string }>
 }
 
-export default function ClassTeachingRequestReview({ initialRequests }: ClassTeachingRequestReviewProps) {
-  const [requests, setRequests] = useState<(ClassTeachingRequest & { session: Session })[]>(initialRequests)
+export default function ClassTeachingRequestReview({ initialRequests, teachers = [] }: ClassTeachingRequestReviewProps) {
+  const [requests, setRequests] = useState<(ClassTeachingRequest & { session: Session; teacherDisplayName?: string })[]>(initialRequests)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<ClassTeachingRequest | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
   const [editFormData, setEditFormData] = useState<Partial<ClassTeachingRequest>>({})
+  const [editTeacherId, setEditTeacherId] = useState('')
+  const [editTeacherName, setEditTeacherName] = useState('')
   const [reviewNotes, setReviewNotes] = useState('')
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'changes_requested'>('pending')
   const [sessionFilter, setSessionFilter] = useState<string>('all')
@@ -47,7 +50,7 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
       }
 
       const data = await response.json()
-      setRequests(requests.map(r => r.id === requestId ? data.request : r))
+       setRequests(requests.map(r => r.id === requestId ? { ...r, ...data.request, session: r.session } : r))
       setSelectedRequest(null)
       setReviewNotes('')
     } catch (error) {
@@ -68,7 +71,7 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(editFormData),
+        body: JSON.stringify({ ...editFormData, teacherId: editTeacherId, teacherName: editTeacherName }),
       })
 
       if (!response.ok) {
@@ -76,8 +79,8 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
       }
 
       const data = await response.json()
-      setRequests(requests.map(r => r.id === selectedRequest.id ? data.request : r))
-      setSelectedRequest(data.request) // Update the selected request with new data
+       setRequests(requests.map(r => r.id === selectedRequest.id ? { ...r, ...data.request, session: r.session } : r))
+       setSelectedRequest({ ...selectedRequest, ...data.request }) // Update the selected request with new data
       setIsEditMode(false)
     } catch (error) {
       console.error('Error updating request:', error)
@@ -88,6 +91,8 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
   }
 
   const gradeOptions = [
+    'Pre-K',
+    'Pre-K-2',
     'K-2',
     '3-5',
     '6-8',
@@ -143,7 +148,7 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Class Teaching Request Review</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Classes</h2>
         <div className="flex items-center space-x-4">
           <select
             value={sessionFilter}
@@ -207,12 +212,11 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
                       </h3>
                       <div className="flex items-center space-x-2">
                         {getStatusBadge(request.status)}
-                        {(request.status === 'pending' || request.status === 'changes_requested') && (
-                          <button
+                        <button
                             onClick={() => {
                               setSelectedRequest(request)
                               setIsEditMode(false)
-                              setEditFormData({
+                               setEditFormData({
                                 className: request.className,
                                 description: request.description,
                                 gradeRange: request.gradeRange,
@@ -222,20 +226,24 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
                                 classroomNeeds: request.classroomNeeds,
                                 requiresFee: request.requiresFee,
                                 feeAmount: request.feeAmount,
-                                schedulingRequirements: request.schedulingRequirements
-                              })
+                                 schedulingRequirements: request.schedulingRequirements
+                               })
+                               setEditTeacherId(request.teacherName ? '' : request.guardianId || '')
+                               setEditTeacherName(request.teacherName || '')
                             }}
                             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-medium"
                           >
-                            Review
+                            {request.status === 'pending' || request.status === 'changes_requested' ? 'Review' : 'Edit Details'}
                           </button>
-                        )}
                       </div>
                     </div>
                     
                     <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm text-gray-600">
                       <div>
                         <span className="font-medium">Session:</span> {request.session?.name || 'Unknown'}
+                      </div>
+                      <div>
+                        <span className="font-medium">Teacher:</span> {request.teacherDisplayName || request.teacherName || 'Unassigned'}
                       </div>
                       <div>
                         <span className="font-medium">Grade Range:</span> {request.gradeRange}
@@ -299,7 +307,7 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
             <div className="mt-3">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium text-gray-900">
-                  {isEditMode ? '✏️ Editing: ' : 'Review: '}{isEditMode ? editFormData.className : selectedRequest.className}
+                  {isEditMode ? 'Editing: ' : 'Review: '}{isEditMode ? editFormData.className : selectedRequest.className}
                 </h3>
                 <button
                   onClick={() => {
@@ -317,6 +325,8 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
                         feeAmount: selectedRequest.feeAmount,
                         schedulingRequirements: selectedRequest.schedulingRequirements
                       })
+                      setEditTeacherId(selectedRequest.teacherName ? '' : selectedRequest.guardianId || '')
+                      setEditTeacherName(selectedRequest.teacherName || '')
                     }
                     setIsEditMode(!isEditMode)
                   }}
@@ -404,6 +414,20 @@ export default function ClassTeachingRequestReview({ initialRequests }: ClassTea
                         onChange={(e) => setEditFormData({ ...editFormData, helpersNeeded: parseInt(e.target.value) })}
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Teacher</label>
+                      <select value={editTeacherId} onChange={(event) => { setEditTeacherId(event.target.value); if (event.target.value) setEditTeacherName('') }} className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white">
+                        <option value="">Use placeholder instead</option>
+                        {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Teacher Placeholder</label>
+                      <input value={editTeacherName} disabled={Boolean(editTeacherId)} onChange={(event) => setEditTeacherName(event.target.value)} placeholder="e.g. Staff Instructor" className="w-full border border-gray-300 rounded-md px-3 py-2 disabled:bg-gray-100" />
                     </div>
                   </div>
 

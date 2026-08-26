@@ -61,6 +61,8 @@ export const sessions = sqliteTable('sessions', {
   registrationStartDate: text('registration_start_date').notNull(),
   registrationEndDate: text('registration_end_date').notNull(),
   teacherRegistrationStartDate: text('teacher_registration_start_date'), // Early registration for teachers
+  classTeachingRegistrationStartDate: text('class_teaching_registration_start_date'),
+  classTeachingRegistrationEndDate: text('class_teaching_registration_end_date'),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(false), // Only one active session at a time
   description: text('description'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -195,6 +197,7 @@ export const classTeachingRequests = sqliteTable('class_teaching_requests', {
   id: text('id').primaryKey(),
   sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
   guardianId: text('guardian_id').notNull().references(() => guardians.id, { onDelete: 'cascade' }),
+  teacherName: text('teacher_name'),
   className: text('class_name').notNull(),
   description: text('description').notNull(),
   gradeRange: text('grade_range').notNull(), // e.g., "K-2", "3-5", "6-8", or custom input

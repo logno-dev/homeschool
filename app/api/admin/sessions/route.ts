@@ -40,6 +40,8 @@ export async function POST(request: Request) {
       name, 
       startDate, 
       endDate, 
+      classTeachingRegistrationStartDate,
+      classTeachingRegistrationEndDate,
       description,
       isActive 
     } = body
@@ -66,6 +68,8 @@ export async function POST(request: Request) {
       registrationStartDate: startDate,
       registrationEndDate: endDate,
       teacherRegistrationStartDate: null,
+      classTeachingRegistrationStartDate: classTeachingRegistrationStartDate || startDate,
+      classTeachingRegistrationEndDate: classTeachingRegistrationEndDate || startDate,
       description: description || null,
       isActive: isActive || false,
     }

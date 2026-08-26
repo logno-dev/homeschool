@@ -606,16 +606,20 @@ export async function isClassTeachingRegistrationOpen(): Promise<{ isOpen: boole
   }
 
   const now = new Date()
-  const sessionEnd = new Date(activeSession.endDate)
-  const regStart = new Date(activeSession.registrationStartDate)
+  const parseWindowDate = (value: string, endOfDay = false) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`)
+    }
+    return new Date(value)
+  }
+  const sessionStart = parseWindowDate(activeSession.classTeachingRegistrationStartDate || activeSession.createdAt)
+  const sessionEnd = parseWindowDate(activeSession.classTeachingRegistrationEndDate || activeSession.registrationStartDate, true)
 
-  // Check if we're past the session end
-  if (now > sessionEnd) {
-    return { isOpen: false, session: activeSession, reason: 'Session has ended' }
+  if (now < sessionStart) {
+    return { isOpen: false, session: activeSession, reason: `Class teaching registration opens on ${sessionStart.toLocaleDateString()}` }
   }
 
-  // Class teaching registration is open from session creation until regular registration starts
-  if (now < regStart) {
+  if (now <= sessionEnd) {
     return { isOpen: true, session: activeSession }
   }
 
@@ -623,7 +627,7 @@ export async function isClassTeachingRegistrationOpen(): Promise<{ isOpen: boole
   return { 
     isOpen: false, 
     session: activeSession, 
-    reason: `Class teaching registration closed when regular registration opened on ${regStart.toLocaleDateString()}` 
+    reason: `Class teaching registration closed on ${sessionEnd.toLocaleDateString()}`
   }
 }
 
@@ -650,11 +654,14 @@ export async function getClassTeachingRequestsWithSession(): Promise<(ClassTeach
       id: classTeachingRequests.id,
       sessionId: classTeachingRequests.sessionId,
       guardianId: classTeachingRequests.guardianId,
+      teacherName: classTeachingRequests.teacherName,
       className: classTeachingRequests.className,
       description: classTeachingRequests.description,
       gradeRange: classTeachingRequests.gradeRange,
       gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
       gradeRangeTo: classTeachingRequests.gradeRangeTo,
+      maxStudents: classTeachingRequests.maxStudents,
+      helpersNeeded: classTeachingRequests.helpersNeeded,
       coTeacher: classTeachingRequests.coTeacher,
       classroomNeeds: classTeachingRequests.classroomNeeds,
       requiresFee: classTeachingRequests.requiresFee,

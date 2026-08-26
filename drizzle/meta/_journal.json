@@ -120,6 +120,20 @@
       "when": 1788220800000,
       "tag": "0039_newsletter_kinds",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788307200000,
+      "tag": "0040_class_teacher_name",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788393600000,
+      "tag": "0041_class_teaching_registration_window",
+      "breakpoints": true
     }
   ]
 }
