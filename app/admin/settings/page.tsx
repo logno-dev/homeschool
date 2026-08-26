@@ -12,6 +12,7 @@ interface SettingsState {
   lastRun: string | null
   registrationNotificationEmails: string
   classRequestNotificationEmails: string
+  registrationOverrideNotificationEmails: string
   appTimezone: string
 }
 
@@ -30,7 +31,7 @@ export default function AdminSettingsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const { showSuccess, showError } = useToast()
-  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE })
+  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE })
   const [handbooks, setHandbooks] = useState<Handbook[]>([])
   const [handbookVersion, setHandbookVersion] = useState('')
   const [handbookFile, setHandbookFile] = useState<File | null>(null)
@@ -59,6 +60,7 @@ export default function AdminSettingsPage() {
           lastRun: result.lastRun || null,
           registrationNotificationEmails: result.registrationNotificationEmails || '',
           classRequestNotificationEmails: result.classRequestNotificationEmails || '',
+          registrationOverrideNotificationEmails: result.registrationOverrideNotificationEmails || '',
           appTimezone: result.appTimezone || DEFAULT_APP_TIMEZONE
         })
         const handbooksResponse = await fetch('/api/admin/handbooks')
@@ -86,6 +88,7 @@ export default function AdminSettingsPage() {
           gradeIncrementDate: settings.incrementDate || null,
           registrationNotificationEmails: settings.registrationNotificationEmails,
           classRequestNotificationEmails: settings.classRequestNotificationEmails,
+          registrationOverrideNotificationEmails: settings.registrationOverrideNotificationEmails,
           appTimezone: settings.appTimezone
         })
       })
@@ -275,6 +278,11 @@ export default function AdminSettingsPage() {
                     className="w-full max-w-xl border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   />
                   <p className="mt-2 text-xs text-gray-500">Comma-separated addresses that receive an email when a parent submits a request to teach a class.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Registration override notification emails</label>
+                  <input type="text" value={settings.registrationOverrideNotificationEmails} onChange={(e) => setSettings((prev) => ({ ...prev, registrationOverrideNotificationEmails: e.target.value }))} placeholder="admin@example.com, staff@example.com" className="w-full max-w-xl border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
+                  <p className="mt-2 text-xs text-gray-500">Comma-separated addresses notified when a family requests an admin registration override.</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">

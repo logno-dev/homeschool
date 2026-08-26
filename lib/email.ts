@@ -26,6 +26,16 @@ type ClassRequestNotificationEmailInput = {
   sessionName: string
 }
 
+type RegistrationOverrideNotificationEmailInput = {
+  recipients: string[]
+  firstName: string
+  lastName: string
+  email: string
+  sessionName: string
+  reason: string
+  classNames: string
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -174,5 +184,15 @@ export async function sendClassRequestNotificationEmail(input: ClassRequestNotif
     subject: `New class teaching request: ${input.className}`,
     text: `A new class teaching request was submitted.\n\nParent: ${applicantName} (${input.email})\nClass: ${input.className}\nSession: ${input.sessionName}\nGrade range: ${input.gradeRange}\n\nDescription:\n${input.description}`,
     html: `<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;"><h2>New class teaching request</h2><p><strong>Parent:</strong> ${escapedApplicantName} (${escapedEmail})</p><p><strong>Class:</strong> ${escapedClassName}</p><p><strong>Session:</strong> ${escapedSessionName}</p><p><strong>Grade range:</strong> ${escapedGradeRange}</p><p><strong>Description:</strong><br/>${escapedDescription}</p></div>`
+  })
+}
+
+export async function sendRegistrationOverrideNotificationEmail(input: RegistrationOverrideNotificationEmailInput): Promise<void> {
+  const requester = `${input.firstName} ${input.lastName}`.trim()
+  await sendEmail({
+    to: input.recipients,
+    subject: `Registration override requested: ${requester}`,
+    html: `<p><strong>${escapeHtml(requester)}</strong> (${escapeHtml(input.email)}) requested a registration override for <strong>${escapeHtml(input.sessionName)}</strong>.</p><p>Classes: ${escapeHtml(input.classNames || 'Selected classes')}</p><p>Reason: ${escapeHtml(input.reason)}</p>`,
+    text: `${requester} (${input.email}) requested a registration override for ${input.sessionName}.\nClasses: ${input.classNames || 'Selected classes'}\nReason: ${input.reason}`
   })
 }

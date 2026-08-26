@@ -19,6 +19,8 @@ import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
 import { isGradeWithinRange } from '@/lib/grades'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
 import { getRegistrationAccess } from '@/lib/user-groups'
+import { getGlobalSetting } from '@/lib/database'
+import { sendRegistrationOverrideNotificationEmail } from '@/lib/email'
 
 interface PendingRegistration {
   scheduleId: string
@@ -485,6 +487,10 @@ export async function POST(request: Request) {
       validation.gradeRangeConflicts &&
       validation.conflicts &&
       validation.conflicts.length === validation.gradeRangeConflicts.length
+    const overrideReason = [
+      !validation.volunteerRequirementsMet ? `Volunteer hours not met: ${validation.fulfilledHours}/${validation.requiredHours} hours fulfilled` : '',
+      hasOnlyGradeRangeConflicts ? `Grade range override requested for: ${validation.gradeRangeConflicts?.map((conflict) => conflict.className).filter(Boolean).join(', ') || 'selected classes'}` : ''
+    ].filter(Boolean).join(' | ')
 
     if (validation.conflicts && validation.conflicts.length > 0 && !hasOnlyGradeRangeConflicts) {
       return NextResponse.json({
@@ -578,7 +584,7 @@ export async function POST(request: Request) {
           overrideReasonParts.push(`Grade range override requested for: ${classNames || 'selected classes'}`)
         }
 
-        await tx.insert(familyRegistrationStatus).values({
+      await tx.insert(familyRegistrationStatus).values({
           id: randomUUID(),
           sessionId,
           familyId,
@@ -588,6 +594,23 @@ export async function POST(request: Request) {
           adminOverrideReason: overrideReasonParts.join(' | ')
         })
       })
+
+      const notificationRecipients = (await getGlobalSetting('registration_override_notification_emails'))?.split(',').map((recipient) => recipient.trim()).filter(Boolean) || []
+      if (notificationRecipients.length) {
+        try {
+          await sendRegistrationOverrideNotificationEmail({
+            recipients: notificationRecipients,
+            firstName: session.user.firstName,
+            lastName: session.user.lastName,
+            email: session.user.email,
+            sessionName: sessionInfo.name,
+            reason: overrideReason,
+            classNames: registrations.map((registration) => registration.className).filter(Boolean).join(', ')
+          })
+        } catch (notificationError) {
+          console.error('Unable to send registration override notification:', notificationError)
+        }
+      }
 
       return NextResponse.json({
         success: true,

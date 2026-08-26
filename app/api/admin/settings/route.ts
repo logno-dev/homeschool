@@ -12,10 +12,11 @@ export async function GET() {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const [settings, registrationNotificationEmails, classRequestNotificationEmails, handbookUrl, handbookVersion, appTimezone] = await Promise.all([
+    const [settings, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone] = await Promise.all([
       getGradeIncrementSettings(),
       getGlobalSetting('registration_notification_emails'),
       getGlobalSetting('class_request_notification_emails'),
+      getGlobalSetting('registration_override_notification_emails'),
       getGlobalSetting('handbook_url'),
       getGlobalSetting('handbook_version'),
       getGlobalSetting('app_timezone')
@@ -24,6 +25,7 @@ export async function GET() {
       ...settings,
       registrationNotificationEmails: registrationNotificationEmails || '',
       classRequestNotificationEmails: classRequestNotificationEmails || '',
+      registrationOverrideNotificationEmails: registrationOverrideNotificationEmails || '',
       handbookUrl: handbookUrl || '',
       handbookVersion: handbookVersion || '',
       appTimezone: isAppTimezone(appTimezone) ? appTimezone : DEFAULT_APP_TIMEZONE
@@ -42,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { gradeIncrementDate, registrationNotificationEmails, classRequestNotificationEmails, handbookUrl, handbookVersion, appTimezone, runIncrementNow } = body
+    const { gradeIncrementDate, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone, runIncrementNow } = body
 
     if (runIncrementNow) {
       const result = await incrementAllStudentGrades()
@@ -61,6 +63,10 @@ export async function POST(request: Request) {
 
     if (classRequestNotificationEmails !== undefined && typeof classRequestNotificationEmails !== 'string') {
       return NextResponse.json({ error: 'classRequestNotificationEmails must be a comma-separated string' }, { status: 400 })
+    }
+
+    if (registrationOverrideNotificationEmails !== undefined && typeof registrationOverrideNotificationEmails !== 'string') {
+      return NextResponse.json({ error: 'registrationOverrideNotificationEmails must be a comma-separated string' }, { status: 400 })
     }
 
     if (appTimezone !== undefined && !isAppTimezone(appTimezone)) {
@@ -104,6 +110,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'All class request notification email addresses must be valid' }, { status: 400 })
       }
       await setGlobalSetting('class_request_notification_emails', recipients.join(', '))
+    }
+
+    if (registrationOverrideNotificationEmails !== undefined) {
+      const recipients = registrationOverrideNotificationEmails.split(',').map((email: string) => email.trim()).filter(Boolean)
+      if (recipients.some((email: string) => !/^\S+@\S+\.\S+$/.test(email))) {
+        return NextResponse.json({ error: 'All registration override notification addresses must be valid' }, { status: 400 })
+      }
+      await setGlobalSetting('registration_override_notification_emails', recipients.join(', '))
     }
 
     if (gradeIncrementDate !== undefined) {

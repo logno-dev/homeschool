@@ -246,12 +246,13 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
                 onClick={() => {
                   void signOut({ returnTo: getReturnToUrl() })
                 }}
+                aria-label="Sign out"
+                title="Sign out"
                 className="w-full flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors"
               >
                 <svg className="w-4 h-4 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4m7 14l5-5-5-5m5 5H9" />
                 </svg>
-                Sign Out
               </button>
             </div>
           </div>
