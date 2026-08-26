@@ -9,13 +9,13 @@ interface UserSessionProviderProps {
 }
 
 export default function UserSessionProvider({ children }: UserSessionProviderProps) {
-  const { user, loading } = useAuth()
+  const { user, loading, isEmulating } = useAuth()
 
   useEffect(() => {
     const initializeUserSession = async () => {
       if (!loading && user) {
         // Check if we already have fresh cached data
-        const cachedData = userSession.getUserData()
+        const cachedData = isEmulating ? null : userSession.getUserData()
         if (cachedData) {
           return // Data is already cached and fresh
         }
@@ -33,7 +33,7 @@ export default function UserSessionProvider({ children }: UserSessionProviderPro
     }
 
     initializeUserSession()
-  }, [user, loading])
+  }, [user, loading, isEmulating])
 
   return <>{children}</>
 }

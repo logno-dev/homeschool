@@ -14,6 +14,7 @@ const PUBLIC_API_PREFIXES = [
 ]
 
 const SESSION_COOKIE_NAME = 'dvclc_session'
+const EMULATION_COOKIE_NAME = 'dvclc_emulation_token'
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))
@@ -25,9 +26,19 @@ function isPublicApiPath(pathname: string) {
 
 export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
-  const hasSession = Boolean(request.cookies.get(SESSION_COOKIE_NAME)?.value)
+  const isEmulationPath = pathname.startsWith('/emulate/')
+  const hasSession = Boolean(
+    request.cookies.get(SESSION_COOKIE_NAME)?.value
+      || request.cookies.get(EMULATION_COOKIE_NAME)?.value
+  )
 
-  if (isPublicPath(pathname) || isPublicApiPath(pathname)) {
+  if (isEmulationPath && hasSession) {
+    const rewritten = request.nextUrl.clone()
+    rewritten.pathname = pathname.slice('/emulate'.length) || '/'
+    return NextResponse.rewrite(rewritten)
+  }
+
+  if (pathname === '/emulate' || isPublicPath(pathname) || isPublicApiPath(pathname)) {
     return NextResponse.next()
   }
 

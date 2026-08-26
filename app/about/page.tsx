@@ -1,9 +1,9 @@
-'use client'
-
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import BrandLogo from '@/app/components/BrandLogo'
+import { getFaqsByVisibility } from '@/lib/database'
+
+export const dynamic = 'force-dynamic'
 
 const groupCards = [
   {
@@ -28,8 +28,8 @@ const groupCards = [
   },
 ]
 
-export default function About() {
-  const router = useRouter()
+export default async function About() {
+  const publicFaqs = await getFaqsByVisibility('public')
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -136,13 +136,27 @@ export default function About() {
           </div>
         </section>
 
+        {publicFaqs.length > 0 && (
+          <section className="mt-10 rounded-2xl border border-blue-100 bg-white p-8 shadow-sm">
+            <h2 className="text-2xl md:text-3xl font-semibold text-gray-900">Frequently Asked Questions</h2>
+            <div className="mt-5 space-y-3">
+              {publicFaqs.map((faq) => (
+                <details key={faq.id} className="group rounded-lg border border-gray-200 p-4">
+                  <summary className="cursor-pointer list-none pr-6 font-semibold text-gray-900 marker:hidden">{faq.question}</summary>
+                  <p className="mt-3 whitespace-pre-wrap text-gray-700">{faq.answer}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+        )}
+
         <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center items-center pb-4">
-          <button
-            onClick={() => router.push('/')}
+          <Link
+            href="/"
             className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors duration-200"
           >
             Back to Home
-          </button>
+          </Link>
           <Link
             href="/signin"
             className="inline-flex items-center justify-center border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold py-3 px-8 rounded-lg transition-colors duration-200"

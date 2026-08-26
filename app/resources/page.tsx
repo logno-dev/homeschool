@@ -1,9 +1,11 @@
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import ScholarshipApplicationForm from '@/app/components/ScholarshipApplicationForm'
 import ScholarshipDonationCard from '@/app/components/ScholarshipDonationCard'
+import { getFaqsByVisibility } from '@/lib/database'
 
 export default async function ResourcesPage() {
   await getAuthenticatedUser()
+  const privateFaqs = await getFaqsByVisibility('private')
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -27,6 +29,20 @@ export default async function ResourcesPage() {
               <ScholarshipDonationCard />
             </div>
           </section>
+
+          {privateFaqs.length > 0 && (
+            <section className="space-y-4">
+              <h2 className="text-xl font-semibold text-gray-900">Family FAQs</h2>
+              <div className="space-y-3">
+                {privateFaqs.map((faq) => (
+                  <details key={faq.id} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+                    <summary className="cursor-pointer list-none font-semibold text-gray-900">{faq.question}</summary>
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">{faq.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section className="space-y-4">
             <h2 className="text-xl font-semibold text-gray-900">External Resources</h2>

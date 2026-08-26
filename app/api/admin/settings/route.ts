@@ -11,15 +11,17 @@ export async function GET() {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const [settings, registrationNotificationEmails, handbookUrl, handbookVersion] = await Promise.all([
+    const [settings, registrationNotificationEmails, classRequestNotificationEmails, handbookUrl, handbookVersion] = await Promise.all([
       getGradeIncrementSettings(),
       getGlobalSetting('registration_notification_emails'),
+      getGlobalSetting('class_request_notification_emails'),
       getGlobalSetting('handbook_url'),
       getGlobalSetting('handbook_version')
     ])
     return NextResponse.json({
       ...settings,
       registrationNotificationEmails: registrationNotificationEmails || '',
+      classRequestNotificationEmails: classRequestNotificationEmails || '',
       handbookUrl: handbookUrl || '',
       handbookVersion: handbookVersion || ''
     })
@@ -37,7 +39,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { gradeIncrementDate, registrationNotificationEmails, handbookUrl, handbookVersion, runIncrementNow } = body
+    const { gradeIncrementDate, registrationNotificationEmails, classRequestNotificationEmails, handbookUrl, handbookVersion, runIncrementNow } = body
 
     if (runIncrementNow) {
       const result = await incrementAllStudentGrades()
@@ -52,6 +54,10 @@ export async function POST(request: Request) {
 
     if (registrationNotificationEmails !== undefined && typeof registrationNotificationEmails !== 'string') {
       return NextResponse.json({ error: 'registrationNotificationEmails must be a comma-separated string' }, { status: 400 })
+    }
+
+    if (classRequestNotificationEmails !== undefined && typeof classRequestNotificationEmails !== 'string') {
+      return NextResponse.json({ error: 'classRequestNotificationEmails must be a comma-separated string' }, { status: 400 })
     }
 
     if (handbookUrl !== undefined && typeof handbookUrl !== 'string') {
@@ -83,6 +89,14 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'All notification email addresses must be valid' }, { status: 400 })
       }
       await setGlobalSetting('registration_notification_emails', recipients.join(', '))
+    }
+
+    if (classRequestNotificationEmails !== undefined) {
+      const recipients = classRequestNotificationEmails.split(',').map((email: string) => email.trim()).filter(Boolean)
+      if (recipients.some((email: string) => !/^\S+@\S+\.\S+$/.test(email))) {
+        return NextResponse.json({ error: 'All class request notification email addresses must be valid' }, { status: 400 })
+      }
+      await setGlobalSetting('class_request_notification_emails', recipients.join(', '))
     }
 
     if (gradeIncrementDate !== undefined) {

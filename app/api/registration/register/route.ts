@@ -13,6 +13,7 @@ import {
 import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { isGradeWithinRange } from '@/lib/grades'
+import { getRegistrationAccess } from '@/lib/user-groups'
 
 export async function POST(request: Request) {
   try {
@@ -50,6 +51,11 @@ export async function POST(request: Request) {
     }
 
     const familyId = guardian[0].familyId
+
+    const registrationAccess = await getRegistrationAccess(sessionId, session.user.id)
+    if (!registrationAccess.isOpen) {
+      return NextResponse.json({ error: registrationAccess.reason || 'Registration is not currently available' }, { status: 403 })
+    }
 
     if (!String(emergencyContact || '').trim() || !String(emergencyPhone || '').trim()) {
       return NextResponse.json({ error: 'Emergency contact name and phone are required' }, { status: 400 })

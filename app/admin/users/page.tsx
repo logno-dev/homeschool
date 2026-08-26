@@ -31,6 +31,11 @@ interface PendingActivation {
   firstName: string
   lastName: string
   createdAt: string
+  status: string
+  contactInfoRelease?: string | null
+  photographyRelease?: string | null
+  handbookVersion?: string | null
+  acknowledgedAt?: string | null
 }
 
 interface PaginationInfo {

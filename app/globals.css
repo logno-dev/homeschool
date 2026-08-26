@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "react-quill-new/dist/quill.snow.css";
 
 /* Force light mode - ignore system dark mode preference */
 :root {

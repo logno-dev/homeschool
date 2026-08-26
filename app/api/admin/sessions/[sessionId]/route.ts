@@ -51,9 +51,6 @@ export async function PATCH(
       name, 
       startDate, 
       endDate, 
-      registrationStartDate, 
-      registrationEndDate, 
-      teacherRegistrationStartDate,
       description,
       isActive 
     } = body
@@ -67,9 +64,6 @@ export async function PATCH(
       ...(name && { name }),
       ...(startDate && { startDate }),
       ...(endDate && { endDate }),
-      ...(registrationStartDate && { registrationStartDate }),
-      ...(registrationEndDate && { registrationEndDate }),
-      ...(teacherRegistrationStartDate !== undefined && { teacherRegistrationStartDate }),
       ...(description !== undefined && { description }),
       ...(isActive !== undefined && { isActive }),
       updatedAt: new Date().toISOString(),

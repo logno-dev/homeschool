@@ -15,10 +15,10 @@ import {
 } from '@/lib/schema'
 import { eq, and, inArray, or, gt } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
-import { isAfter, isBefore, parseISO } from 'date-fns'
 import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
 import { isGradeWithinRange } from '@/lib/grades'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
+import { getRegistrationAccess } from '@/lib/user-groups'
 
 interface PendingRegistration {
   scheduleId: string
@@ -467,59 +467,9 @@ export async function POST(request: Request) {
     }
 
     const sessionInfo = sessionData[0]
-    const now = new Date()
-    const registrationStart = parseISO(sessionInfo.registrationStartDate)
-    const registrationEnd = parseISO(sessionInfo.registrationEndDate)
-    const teacherEarlyStart = sessionInfo.teacherRegistrationStartDate ? parseISO(sessionInfo.teacherRegistrationStartDate) : null
-
-    // Check if any guardian in the family is teaching any classes (for early access)
-    const familyGuardians = await db
-      .select({ id: guardians.id })
-      .from(guardians)
-      .where(eq(guardians.familyId, familyId))
-
-    const familyGuardianIds = familyGuardians.map(g => g.id)
-
-    let teachingAssignments: any[] = []
-    if (familyGuardianIds.length > 0) {
-      teachingAssignments = await db
-        .select({
-          period: schedules.period,
-          guardianId: classTeachingRequests.guardianId
-        })
-        .from(schedules)
-        .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-        .where(and(
-          eq(schedules.sessionId, sessionId),
-          inArray(classTeachingRequests.guardianId, familyGuardianIds)
-        ))
-    }
-
-    const isTeacher = teachingAssignments.length > 0
-
-    // Check if registration is allowed
-    let canRegister = false
-    if (isAfter(now, registrationStart) && isBefore(now, registrationEnd)) {
-      canRegister = true
-    } else if (isTeacher && teacherEarlyStart && isAfter(now, teacherEarlyStart) && isBefore(now, registrationStart)) {
-      canRegister = true
-    }
-
-    if (!canRegister) {
-      let message = 'Registration is not currently available.'
-      if (isBefore(now, teacherEarlyStart || registrationStart)) {
-        if (isTeacher && teacherEarlyStart) {
-          message = `Teacher early registration opens on ${teacherEarlyStart.toLocaleDateString()}`
-        } else {
-          message = `Registration opens on ${registrationStart.toLocaleDateString()}`
-        }
-      } else if (isAfter(now, registrationEnd)) {
-        message = `Registration closed on ${registrationEnd.toLocaleDateString()}`
-      }
-      
-      return NextResponse.json({ 
-        error: message 
-      }, { status: 403 })
+    const registrationAccess = await getRegistrationAccess(sessionId, session.user.id)
+    if (!registrationAccess.isOpen) {
+      return NextResponse.json({ error: registrationAccess.reason || 'Registration is not currently available.' }, { status: 403 })
     }
 
     // Validate registration and detect conflicts

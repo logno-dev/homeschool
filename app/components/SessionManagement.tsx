@@ -2,23 +2,23 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { format, parseISO } from 'date-fns'
 import type { Session } from '@/lib/schema'
 import { useToast } from './ToastContainer'
 import Modal from './Modal'
-import ConfirmModal from './ConfirmModal'
 
 interface SessionManagementProps {
   initialSessions: Session[]
+  groups: Array<{ id: string; name: string; slug: string }>
 }
 
-export default function SessionManagement({ initialSessions }: SessionManagementProps) {
+export default function SessionManagement({ initialSessions, groups }: SessionManagementProps) {
   const [sessions, setSessions] = useState<Session[]>(initialSessions)
   const [isLoading, setIsLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [editingSession, setEditingSession] = useState<Session | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null)
+  const [registrationWindows, setRegistrationWindows] = useState<Array<{ groupId: string; startDate: string; endDate: string }>>([])
   
   const router = useRouter()
   const { showError } = useToast()
@@ -26,9 +26,6 @@ export default function SessionManagement({ initialSessions }: SessionManagement
     name: '',
     startDate: '',
     endDate: '',
-    registrationStartDate: '',
-    registrationEndDate: '',
-    teacherRegistrationStartDate: '',
     description: '',
     isActive: false
   })
@@ -38,17 +35,15 @@ export default function SessionManagement({ initialSessions }: SessionManagement
       name: '',
       startDate: '',
       endDate: '',
-      registrationStartDate: '',
-      registrationEndDate: '',
-      teacherRegistrationStartDate: '',
       description: '',
       isActive: false
     })
     setEditingSession(null)
+    setRegistrationWindows([])
     setShowForm(false)
   }
 
-  const handleEdit = (session: Session) => {
+  const handleEdit = async (session: Session) => {
     // Convert dates to local timezone for form inputs
     const formatDateForInput = (dateString: string) => {
       const date = parseISO(dateString)
@@ -59,14 +54,22 @@ export default function SessionManagement({ initialSessions }: SessionManagement
       name: session.name,
       startDate: formatDateForInput(session.startDate),
       endDate: formatDateForInput(session.endDate),
-      registrationStartDate: formatDateForInput(session.registrationStartDate),
-      registrationEndDate: formatDateForInput(session.registrationEndDate),
-      teacherRegistrationStartDate: session.teacherRegistrationStartDate ? formatDateForInput(session.teacherRegistrationStartDate) : '',
       description: session.description || '',
       isActive: session.isActive
     })
     setEditingSession(session)
     setShowForm(true)
+    try {
+      const response = await fetch(`/api/admin/sessions/${session.id}/registration-windows`)
+      const payload = await response.json()
+      setRegistrationWindows((payload.windows || []).map((window: { groupId: string; startDate: string; endDate: string }) => ({
+        groupId: window.groupId,
+        startDate: window.startDate,
+        endDate: window.endDate
+      })))
+    } catch {
+      setRegistrationWindows([])
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -86,11 +89,6 @@ export default function SessionManagement({ initialSessions }: SessionManagement
         ...formData,
         startDate: formatDateForSubmission(formData.startDate),
         endDate: formatDateForSubmission(formData.endDate),
-        registrationStartDate: formatDateForSubmission(formData.registrationStartDate),
-        registrationEndDate: formatDateForSubmission(formData.registrationEndDate),
-        teacherRegistrationStartDate: formData.teacherRegistrationStartDate 
-          ? formatDateForSubmission(formData.teacherRegistrationStartDate) 
-          : ''
       }
 
       const url = editingSession 
@@ -112,11 +110,20 @@ export default function SessionManagement({ initialSessions }: SessionManagement
       }
 
       const data = await response.json()
+      const savedSession = data.session
+      const windowsResponse = await fetch(`/api/admin/sessions/${savedSession.id}/registration-windows`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ windows: registrationWindows.filter((window) => window.startDate && window.endDate) })
+      })
+      if (!windowsResponse.ok) {
+        throw new Error('Failed to save registration windows')
+      }
       
       if (editingSession) {
-        setSessions(sessions.map(s => s.id === editingSession.id ? data.session : s))
+        setSessions(sessions.map(s => s.id === editingSession.id ? savedSession : s))
       } else {
-        setSessions([...sessions, data.session])
+        setSessions([...sessions, savedSession])
       }
 
       resetForm()
@@ -126,40 +133,6 @@ export default function SessionManagement({ initialSessions }: SessionManagement
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const handleDeleteClick = (session: Session) => {
-    setSessionToDelete(session)
-    setShowDeleteConfirm(true)
-  }
-
-  const handleDeleteConfirm = async () => {
-    if (!sessionToDelete) return
-
-    setIsLoading(true)
-    try {
-      const response = await fetch(`/api/admin/sessions/${sessionToDelete.id}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to delete session')
-      }
-
-      setSessions(sessions.filter(s => s.id !== sessionToDelete.id))
-      setShowDeleteConfirm(false)
-      setSessionToDelete(null)
-    } catch (error) {
-      console.error('Error deleting session:', error)
-      showError('Failed to delete session')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirm(false)
-    setSessionToDelete(null)
   }
 
   const handleSetActive = async (sessionId: string) => {
@@ -198,7 +171,7 @@ export default function SessionManagement({ initialSessions }: SessionManagement
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h2 className="text-2xl font-bold text-gray-900">Session Management</h2>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => { resetForm(); setShowForm(true) }}
           className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 py-3 sm:py-2 rounded-md text-sm font-medium transition-colors min-h-[44px] flex items-center justify-center"
         >
           Add New Session
@@ -266,46 +239,24 @@ export default function SessionManagement({ initialSessions }: SessionManagement
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Registration Start Date *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.registrationStartDate}
-                  onChange={(e) => setFormData({ ...formData, registrationStartDate: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
+            <div className="rounded-md border border-blue-100 bg-blue-50 p-4">
+              <h3 className="text-sm font-semibold text-blue-900">Registration Windows by User Group</h3>
+              <p className="mt-1 text-sm text-blue-800">Users with multiple groups can register when any of their group windows is open.</p>
+              <div className="mt-4 space-y-3">
+                {groups.map((group) => {
+                  const window = registrationWindows.find((entry) => entry.groupId === group.id) || { groupId: group.id, startDate: '', endDate: '' }
+                  const updateWindow = (field: 'startDate' | 'endDate', value: string) => {
+                    setRegistrationWindows((current) => [...current.filter((entry) => entry.groupId !== group.id), { ...window, [field]: value }])
+                  }
+                  return (
+                    <div key={group.id} className="grid gap-3 sm:grid-cols-3 sm:items-end">
+                      <p className="text-sm font-medium text-gray-900">{group.name}</p>
+                      <label className="text-xs font-medium text-gray-700">Starts<input type="date" value={window.startDate} onChange={(event) => updateWindow('startDate', event.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-2 text-sm" /></label>
+                      <label className="text-xs font-medium text-gray-700">Ends<input type="date" value={window.endDate} onChange={(event) => updateWindow('endDate', event.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-2 text-sm" /></label>
+                    </div>
+                  )
+                })}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700">
-                  Registration End Date *
-                </label>
-                <input
-                  type="date"
-                  required
-                  value={formData.registrationEndDate}
-                  onChange={(e) => setFormData({ ...formData, registrationEndDate: e.target.value })}
-                  className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Teacher Early Registration Start Date
-              </label>
-              <input
-                type="date"
-                value={formData.teacherRegistrationStartDate}
-                onChange={(e) => setFormData({ ...formData, teacherRegistrationStartDate: e.target.value })}
-                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
-              <p className="mt-1 text-sm text-gray-500">
-                Optional: Allows teachers to register before regular registration opens
-              </p>
             </div>
 
             <div className="flex items-center">
@@ -380,20 +331,6 @@ export default function SessionManagement({ initialSessions }: SessionManagement
                       </span>
                     </div>
                     <div className="flex flex-col sm:block">
-                      <span className="font-medium text-gray-900">Registration Period</span>
-                      <span className="mt-1">
-                        {formatDate(session.registrationStartDate)} - {formatDate(session.registrationEndDate)}
-                      </span>
-                    </div>
-                    {session.teacherRegistrationStartDate && (
-                      <div className="flex flex-col sm:block">
-                        <span className="font-medium text-gray-900">Teacher Early Access</span>
-                        <span className="mt-1">
-                          {formatDate(session.teacherRegistrationStartDate)}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex flex-col sm:block">
                       <span className="font-medium text-gray-900">Created</span>
                       <span className="mt-1">
                         {formatDate(session.createdAt)}
@@ -411,13 +348,6 @@ export default function SessionManagement({ initialSessions }: SessionManagement
                       >
                         Schedule
                       </button>
-                      <button
-                        onClick={() => router.push(`/admin/sessions/${session.id}/fees`)}
-                        disabled={isLoading}
-                        className="bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
-                      >
-                        Fee Config
-                      </button>
                       {!session.isActive && (
                         <button
                           onClick={() => handleSetActive(session.id)}
@@ -427,20 +357,7 @@ export default function SessionManagement({ initialSessions }: SessionManagement
                           Set Active
                         </button>
                       )}
-                      <button
-                        onClick={() => handleEdit(session)}
-                        disabled={isLoading}
-                        className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(session)}
-                        disabled={isLoading}
-                        className="bg-red-600 hover:bg-red-700 active:bg-red-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center col-span-2 sm:col-span-1"
-                      >
-                        Delete
-                      </button>
+                      <Link href={`/admin/sessions/${session.id}`} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium min-h-[44px] flex items-center justify-center">Manage</Link>
                     </div>
                   </div>
                 </div>
@@ -450,21 +367,6 @@ export default function SessionManagement({ initialSessions }: SessionManagement
         </ul>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        isOpen={showDeleteConfirm}
-        onClose={handleDeleteCancel}
-        onConfirm={handleDeleteConfirm}
-        title="Delete Session"
-        message={
-          sessionToDelete 
-            ? `Are you sure you want to delete "${sessionToDelete.name}"? This action cannot be undone and will remove all associated data including schedules, registrations, and volunteer assignments.`
-            : ''
-        }
-        confirmText="Delete Session"
-        confirmVariant="danger"
-        isLoading={isLoading}
-      />
     </div>
   )
 }

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { authAccounts, guardians, sessions, familySessionFees, users } from '@/lib/schema'
-import { eq } from 'drizzle-orm'
+import { authAccounts, guardians, sessions, familySessionFees, users, userAcknowledgements } from '@/lib/schema'
+import { desc, eq } from 'drizzle-orm'
 
 export async function GET(request: NextRequest) {
   try {
@@ -120,19 +120,35 @@ export async function GET(request: NextRequest) {
     const allUsers = await db.select().from(users)
     const allAccounts = await db.select().from(authAccounts)
     const allGuardians = await db.select().from(guardians)
+    const allAcknowledgements = await db
+      .select()
+      .from(userAcknowledgements)
+      .orderBy(desc(userAcknowledgements.acceptedAt))
 
     const accountByUserId = new Map(allAccounts.map((account) => [account.userId, account]))
     const guardianById = new Map(allGuardians.map((guardian) => [guardian.id, guardian]))
+    const acknowledgementByUserId = new Map<string, typeof allAcknowledgements[number]>()
+    for (const acknowledgement of allAcknowledgements) {
+      if (!acknowledgementByUserId.has(acknowledgement.userId)) {
+        acknowledgementByUserId.set(acknowledgement.userId, acknowledgement)
+      }
+    }
     const pendingActivations = allUsers
-      .filter((user) => user.activationStatus === 'pending')
+      .filter((user) => user.activationStatus === 'pending' || user.activationStatus === 'under_review')
       .map((user) => {
         const account = accountByUserId.get(user.id)
+        const acknowledgement = acknowledgementByUserId.get(user.id)
         return {
           id: user.id,
           email: account?.email || user.email,
           firstName: user.firstName,
           lastName: user.lastName,
-          createdAt: user.createdAt
+          createdAt: user.createdAt,
+          status: user.activationStatus,
+          contactInfoRelease: acknowledgement?.contactInfoRelease || null,
+          photographyRelease: acknowledgement?.photographyRelease || null,
+          handbookVersion: acknowledgement?.handbookVersion || null,
+          acknowledgedAt: acknowledgement?.acceptedAt || null
         }
       })
 

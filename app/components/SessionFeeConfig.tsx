@@ -10,6 +10,8 @@ import Button from './Button'
 interface SessionFeeConfigProps {
   sessionId: string
   sessionName: string
+  startInEditMode?: boolean
+  inline?: boolean
 }
 
 interface RuleFormRow {
@@ -24,11 +26,11 @@ const defaultRule: RuleFormRow = {
   fee: '0'
 }
 
-export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeConfigProps) {
+export default function SessionFeeConfig({ sessionId, sessionName, startInEditMode = false, inline = false }: SessionFeeConfigProps) {
   const [feeConfig, setFeeConfig] = useState<SessionFeeConfig | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(startInEditMode)
   const { showSuccess, showError } = useToast()
 
   const [formData, setFormData] = useState<{
@@ -230,12 +232,13 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
   }
 
   const activeRules = getActiveRules()
+  const editing = inline || isEditing
 
   return (
     <div className="bg-white rounded-lg shadow p-6">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Fee Configuration - {sessionName}</h3>
-        {!isEditing && (
+        {!editing && (
           <Button
             onClick={() => setIsEditing(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -245,7 +248,7 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
         )}
       </div>
 
-      {!isEditing && feeConfig ? (
+      {!editing && feeConfig ? (
         <div className="space-y-3">
           {activeRules.length > 0 ? (
             <div className="space-y-1">
@@ -273,7 +276,7 @@ export default function SessionFeeConfig({ sessionId, sessionName }: SessionFeeC
             <p>Last updated: {format(parseISO(feeConfig.updatedAt), 'MMM d, yyyy h:mm a')}</p>
           </div>
         </div>
-      ) : !isEditing && !feeConfig ? (
+      ) : !editing && !feeConfig ? (
         <div className="text-gray-500">
           No fee configuration set for this session. Click "Configure Fees" to set up fees.
         </div>

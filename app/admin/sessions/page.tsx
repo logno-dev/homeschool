@@ -11,6 +11,7 @@ export default function AdminSessionsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [sessions, setSessions] = useState<Session[]>([])
+  const [groups, setGroups] = useState<Array<{ id: string; name: string; slug: string }>>([])
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
@@ -28,6 +29,11 @@ export default function AdminSessionsPage() {
         if (response.ok) {
           const data = await response.json()
           setSessions(data.sessions || [])
+          const groupsResponse = await fetch('/api/admin/groups')
+          if (groupsResponse.ok) {
+            const groupsData = await groupsResponse.json()
+            setGroups(groupsData.groups || [])
+          }
         }
       } catch (error) {
         console.error('Error fetching sessions:', error)
@@ -63,7 +69,7 @@ export default function AdminSessionsPage() {
     >
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-          <SessionManagement initialSessions={sessions} />
+           <SessionManagement initialSessions={sessions} groups={groups} />
         </div>
       </main>
     </AdminLayout>

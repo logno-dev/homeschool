@@ -40,15 +40,12 @@ export async function POST(request: Request) {
       name, 
       startDate, 
       endDate, 
-      registrationStartDate, 
-      registrationEndDate, 
-      teacherRegistrationStartDate,
       description,
       isActive 
     } = body
 
     // Validate required fields
-    if (!name || !startDate || !endDate || !registrationStartDate || !registrationEndDate) {
+    if (!name || !startDate || !endDate) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -65,9 +62,10 @@ export async function POST(request: Request) {
       name,
       startDate,
       endDate,
-      registrationStartDate,
-      registrationEndDate,
-      teacherRegistrationStartDate: teacherRegistrationStartDate || null,
+      // Legacy columns remain populated for existing readers; group windows are authoritative.
+      registrationStartDate: startDate,
+      registrationEndDate: endDate,
+      teacherRegistrationStartDate: null,
       description: description || null,
       isActive: isActive || false,
     }

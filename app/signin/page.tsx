@@ -16,6 +16,7 @@ function SignInForm() {
   const [error, setError] = useState('')
 
   const pendingNotice = searchParams.get('pending') === '1'
+  const reactivationNotice = searchParams.get('reactivation') === '1'
 
   const next = searchParams.get('next') || '/dashboard'
 
@@ -33,6 +34,11 @@ function SignInForm() {
 
       const payload = await response.json()
       if (!response.ok) {
+        if (payload.accountParked) {
+          await refresh()
+          router.push('/account/acknowledgements?reactivate=1')
+          return
+        }
         setError(payload.error || 'Unable to sign in')
         return
       }
@@ -64,6 +70,7 @@ function SignInForm() {
         <h1 className="text-2xl font-semibold text-gray-900">Sign in</h1>
         <p className="mt-2 text-sm text-gray-600">Use your DVCLC email and password.</p>
         {pendingNotice && <p className="mt-4 rounded-md bg-blue-50 p-3 text-sm text-blue-800">Your account was created and is waiting for administrator approval.</p>}
+        {reactivationNotice && <p className="mt-4 rounded-md bg-blue-50 p-3 text-sm text-blue-800">Your account is pending reactivation approval. Sign in again after an administrator approves it.</p>}
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
           <div>

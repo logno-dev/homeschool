@@ -6,7 +6,7 @@ import { createUser } from '@/lib/database'
 import { authAccounts, users } from '@/lib/schema'
 import { createAuthAccountForUser, normalizeEmail } from '@/lib/auth-server'
 import { getGlobalSetting } from '@/lib/database'
-import { sendRegistrationNotificationEmail } from '@/lib/email'
+import { sendPendingActivationEmail, sendRegistrationNotificationEmail } from '@/lib/email'
 import { getHandbookSettings, recordAcknowledgement, type ReleaseChoice } from '@/lib/acknowledgements'
 
 export async function POST(request: NextRequest) {
@@ -96,6 +96,12 @@ export async function POST(request: NextRequest) {
       photographyRelease: photographyRelease as ReleaseChoice,
       handbookVersion: handbook.version
     })
+
+    try {
+      await sendPendingActivationEmail({ to: user.email, firstName: user.firstName })
+    } catch (emailError) {
+      console.error('Unable to send pending activation email:', emailError)
+    }
 
     const notificationRecipients = (await getGlobalSetting('registration_notification_emails'))
       ?.split(',')

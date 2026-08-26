@@ -21,6 +21,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Your account is awaiting administrator approval.' }, { status: 403 })
     }
 
+    if (user?.activationStatus === 'parked') {
+      const { token, expiresAt } = await createSessionForUser(account.userId)
+      const response = NextResponse.json({
+        error: 'Your account is parked. Refresh your acknowledgements to request reactivation.',
+        accountParked: true,
+        requiresAcknowledgement: true
+      }, { status: 403 })
+      setSessionCookie(response, token, expiresAt)
+      return response
+    }
+
     if (!account.isActive) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 })
     }

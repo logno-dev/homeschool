@@ -15,8 +15,10 @@ export default function AcknowledgementsPage() {
   const [handbookAgreed, setHandbookAgreed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [isReactivation, setIsReactivation] = useState(false)
 
   useEffect(() => {
+    setIsReactivation(new URLSearchParams(window.location.search).get('reactivate') === '1')
     if (!loading && !user) {
       router.push('/signin')
       return
@@ -46,7 +48,7 @@ export default function AcknowledgementsPage() {
       }
 
       await refresh()
-      router.push('/dashboard')
+      router.push(payload.reactivationPending ? '/signin?reactivation=1' : '/dashboard')
     } catch (submitError) {
       console.error('Error saving acknowledgement:', submitError)
       setError('Unable to save acknowledgement')
@@ -62,8 +64,8 @@ export default function AcknowledgementsPage() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-10">
       <div className="mx-auto max-w-3xl rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-        <h1 className="text-2xl font-semibold text-gray-900">Updated acknowledgements required</h1>
-        <p className="mt-2 text-sm text-gray-600">Please review these acknowledgements before continuing. A new handbook version requires this confirmation again.</p>
+        <h1 className="text-2xl font-semibold text-gray-900">{isReactivation ? 'Reactivate your account' : 'Updated acknowledgements required'}</h1>
+        <p className="mt-2 text-sm text-gray-600">{isReactivation ? 'Refresh these acknowledgements to send your account back to the administrator approval queue.' : 'Please review these acknowledgements before continuing. A new handbook version requires this confirmation again.'}</p>
         <form className="mt-6" onSubmit={handleSubmit}>
           <AcknowledgementFields
             releaseLiabilityAgreed={releaseLiabilityAgreed}
@@ -79,7 +81,7 @@ export default function AcknowledgementsPage() {
           />
           {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
           <button type="submit" disabled={submitting} className="mt-6 w-full rounded-md bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-700 disabled:bg-blue-400">
-            {submitting ? 'Saving...' : 'Save acknowledgements'}
+            {submitting ? 'Saving...' : isReactivation ? 'Request reactivation' : 'Save acknowledgements'}
           </button>
         </form>
       </div>

@@ -67,6 +67,71 @@ export const sessions = sqliteTable('sessions', {
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const userGroups = sqliteTable('user_groups', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull().unique(),
+  isSystem: integer('is_system', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const userGroupMemberships = sqliteTable('user_group_memberships', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  groupId: text('group_id').notNull().references(() => userGroups.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const sessionRegistrationWindows = sqliteTable('session_registration_windows', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
+  groupId: text('group_id').notNull().references(() => userGroups.id, { onDelete: 'cascade' }),
+  startDate: text('start_date').notNull(),
+  endDate: text('end_date').notNull(),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const newsletters = sqliteTable('newsletters', {
+  id: text('id').primaryKey(),
+  kind: text('kind').notNull().default('newsletter'),
+  subject: text('subject').notNull(),
+  html: text('html').notNull(),
+  text: text('text').notNull(),
+  status: text('status').notNull().default('draft'),
+  includeInactive: integer('include_inactive', { mode: 'boolean' }).notNull().default(false),
+  scheduledAt: text('scheduled_at'),
+  sentAt: text('sent_at'),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  totalRecipients: integer('total_recipients').notNull().default(0),
+  totalSent: integer('total_sent').notNull().default(0),
+  totalFailed: integer('total_failed').notNull().default(0),
+  lastError: text('last_error'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const newsletterGroups = sqliteTable('newsletter_groups', {
+  id: text('id').primaryKey(),
+  newsletterId: text('newsletter_id').notNull().references(() => newsletters.id, { onDelete: 'cascade' }),
+  groupId: text('group_id').notNull().references(() => userGroups.id, { onDelete: 'cascade' }),
+})
+
+export const newsletterRecipients = sqliteTable('newsletter_recipients', {
+  id: text('id').primaryKey(),
+  newsletterId: text('newsletter_id').notNull().references(() => newsletters.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  email: text('email').notNull(),
+  firstName: text('first_name').notNull(),
+  lastName: text('last_name').notNull(),
+  status: text('status').notNull().default('pending'),
+  resendId: text('resend_id'),
+  error: text('error'),
+  sentAt: text('sent_at'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
 // Classrooms table
 export const classrooms = sqliteTable('classrooms', {
   id: text('id').primaryKey(),
@@ -365,6 +430,16 @@ export const events = sqliteTable('events', {
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const faqs = sqliteTable('faqs', {
+  id: text('id').primaryKey(),
+  question: text('question').notNull(),
+  answer: text('answer').notNull(),
+  visibility: text('visibility').notNull().default('public'), // public, private
+  orderIndex: integer('order_index').notNull().default(0),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
 // Users table (keeping for backward compatibility with existing auth system)
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
@@ -372,7 +447,7 @@ export const users = sqliteTable('users', {
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
   role: text('role').notNull().default('user'),
-  activationStatus: text('activation_status').notNull().default('active'), // active, pending
+  activationStatus: text('activation_status').notNull().default('active'), // active, pending, under_review, rejected, parked
   familyId: text('family_id').references(() => families.id),
   dateOfBirth: text('date_of_birth'),
   grade: text('grade'),
@@ -431,6 +506,9 @@ export type Family = typeof families.$inferSelect
 export type Guardian = typeof guardians.$inferSelect
 export type Child = typeof children.$inferSelect
 export type Session = typeof sessions.$inferSelect
+export type UserGroup = typeof userGroups.$inferSelect
+export type UserGroupMembership = typeof userGroupMemberships.$inferSelect
+export type SessionRegistrationWindow = typeof sessionRegistrationWindows.$inferSelect
 export type Classroom = typeof classrooms.$inferSelect
 export type SessionClassroom = typeof sessionClassrooms.$inferSelect
 export type Schedule = typeof schedules.$inferSelect
@@ -452,6 +530,7 @@ export type TeacherReimbursement = typeof teacherReimbursements.$inferSelect
 export type ScholarshipApplication = typeof scholarshipApplications.$inferSelect
 export type ScholarshipFundTransaction = typeof scholarshipFundTransactions.$inferSelect
 export type Event = typeof events.$inferSelect
+export type Faq = typeof faqs.$inferSelect
 export type User = typeof users.$inferSelect
 export type UserAcknowledgement = typeof userAcknowledgements.$inferSelect
 export type Handbook = typeof handbooks.$inferSelect
@@ -483,6 +562,7 @@ export type NewTeacherReimbursement = typeof teacherReimbursements.$inferInsert
 export type NewScholarshipApplication = typeof scholarshipApplications.$inferInsert
 export type NewScholarshipFundTransaction = typeof scholarshipFundTransactions.$inferInsert
 export type NewEvent = typeof events.$inferInsert
+export type NewFaq = typeof faqs.$inferInsert
 export type NewUser = typeof users.$inferInsert
 export type NewUserAcknowledgement = typeof userAcknowledgements.$inferInsert
 export type NewHandbook = typeof handbooks.$inferInsert

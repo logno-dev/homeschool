@@ -1,8 +1,9 @@
 import { eq, and, or, desc, asc, isNull, isNotNull, sql } from 'drizzle-orm'
 import { db, client, hasDatabaseConnection } from './db'
-import { families, guardians, children, feePayments, users, sessions, classrooms, sessionClassrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments, globalSettings, volunteerJobs, sessionVolunteerJobs } from './schema'
+import { families, guardians, children, feePayments, users, sessions, classrooms, sessionClassrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments, globalSettings, volunteerJobs, sessionVolunteerJobs, faqs } from './schema'
 import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, SessionClassroom, Schedule, ScheduleDraft, ScheduleDraftEntry, ClassTeachingRequest, ScheduleComment, NewFamily, NewGuardian, NewChild, NewFeePayment, NewUser, NewSession, NewClassroom, NewSessionClassroom, NewSchedule, NewScheduleDraft, NewScheduleDraftEntry, NewClassTeachingRequest, NewScheduleComment, NewSessionVolunteerJob } from './schema'
 import { incrementGradeValue } from './grades'
+import { getRegistrationAccess } from './user-groups'
 
 // Helper function to generate sharing codes
 function generateSharingCode(): string {
@@ -176,6 +177,22 @@ export async function setGradeIncrementDate(value: string | null) {
 
 export async function setGradeIncrementLastRun(value: string | null) {
   await setGlobalSetting('grade_increment_last_run', value)
+}
+
+export async function getFaqsByVisibility(visibility: 'public' | 'private') {
+  try {
+    return await db
+      .select()
+      .from(faqs)
+      .where(eq(faqs.visibility, visibility))
+      .orderBy(asc(faqs.orderIndex), asc(faqs.createdAt))
+  } catch (error) {
+    const message = String(error)
+    if (!message.includes('no such table') && !message.includes('SQLITE_UNKNOWN')) {
+      console.error('Error fetching FAQs:', error)
+    }
+    return []
+  }
 }
 
 // Family management functions
@@ -573,57 +590,11 @@ export async function isRegistrationOpen(guardianId?: string): Promise<{ isOpen:
     return { isOpen: false, session: null, reason: 'No active session' }
   }
 
-  const now = new Date()
-  const sessionEnd = new Date(activeSession.endDate)
-  const regStart = new Date(activeSession.registrationStartDate)
-  const regEnd = new Date(activeSession.registrationEndDate)
-  const teacherRegStart = activeSession.teacherRegistrationStartDate 
-    ? new Date(activeSession.teacherRegistrationStartDate) 
-    : null
-
-  // Check if we're within the session period
-  if (now > sessionEnd) {
-    return { isOpen: false, session: activeSession, reason: 'Session has ended' }
+  if (!guardianId) {
+    return { isOpen: false, session: activeSession, reason: 'A user group is required' }
   }
-
-  // Check teacher early registration (for families with approved teaching assignments)
-  if (guardianId && teacherRegStart && now >= teacherRegStart && now <= regEnd) {
-    const hasTeachingAssignments = await hasFamilyTeachingAssignments(guardianId)
-    if (hasTeachingAssignments) {
-      return { isOpen: true, session: activeSession }
-    }
-  }
-
-  // Check regular registration
-  if (now >= regStart && now <= regEnd) {
-    return { isOpen: true, session: activeSession }
-  }
-
-  // Registration hasn't started yet
-  if (now < regStart) {
-    let startDate = regStart
-    
-    // Check if this family has teaching assignments and can access early registration
-    if (guardianId && teacherRegStart && teacherRegStart < regStart) {
-      const hasTeachingAssignments = await hasFamilyTeachingAssignments(guardianId)
-      if (hasTeachingAssignments) {
-        startDate = teacherRegStart
-      }
-    }
-    
-    return { 
-      isOpen: false, 
-      session: activeSession, 
-      reason: `Registration opens on ${startDate.toLocaleDateString()}` 
-    }
-  }
-
-  // Registration has ended
-  return { 
-    isOpen: false, 
-    session: activeSession, 
-    reason: `Registration closed on ${regEnd.toLocaleDateString()}` 
-  }
+  const access = await getRegistrationAccess(activeSession.id, guardianId)
+  return { isOpen: access.isOpen, session: activeSession, reason: access.reason }
 }
 
 // Class teaching registration timing (different from regular registration)
@@ -786,21 +757,31 @@ export async function updateClassTeachingRequest(id: string, updates: Partial<Om
 }
 
 export async function approveClassTeachingRequest(id: string, reviewerId: string, reviewNotes?: string): Promise<ClassTeachingRequest | null> {
-  return await updateClassTeachingRequest(id, {
+  const updated = await updateClassTeachingRequest(id, {
     status: 'approved',
     reviewedBy: reviewerId,
     reviewedAt: new Date().toISOString(),
     reviewNotes: reviewNotes || null
   })
+  if (updated) {
+    const { syncTeacherGroupMembership } = await import('./user-groups')
+    await syncTeacherGroupMembership(updated.guardianId)
+  }
+  return updated
 }
 
 export async function rejectClassTeachingRequest(id: string, reviewerId: string, reviewNotes?: string): Promise<ClassTeachingRequest | null> {
-  return await updateClassTeachingRequest(id, {
+  const updated = await updateClassTeachingRequest(id, {
     status: 'rejected',
     reviewedBy: reviewerId,
     reviewedAt: new Date().toISOString(),
     reviewNotes: reviewNotes || null
   })
+  if (updated) {
+    const { syncTeacherGroupMembership } = await import('./user-groups')
+    await syncTeacherGroupMembership(updated.guardianId)
+  }
+  return updated
 }
 
 export async function deleteClassTeachingRequest(id: string): Promise<boolean> {

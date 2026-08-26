@@ -1,40 +1,14 @@
 import 'server-only'
-import { db } from './db'
-import { classTeachingRequests } from './schema'
-import { eq, and, inArray } from 'drizzle-orm'
 import { getGuardianById, getGuardiansByFamily } from './database'
+import { userBelongsToGroup } from './user-groups'
 
 /**
  * Check if any parent in the family is registered to teach for the specified session
  * This qualifies the family for early registration access
  */
 export async function checkFamilyTeacherStatus(familyId: string, sessionId: string): Promise<boolean> {
-  try {
-    const familyGuardians = await getGuardiansByFamily(familyId)
-
-    if (!familyGuardians.length) {
-      return false
-    }
-
-    // Check if any guardian has teaching requests for this session
-    const guardianIds = familyGuardians.map(g => g.id)
-    
-    const teachingRequests = await db
-      .select({ id: classTeachingRequests.id })
-      .from(classTeachingRequests)
-      .where(
-        and(
-          eq(classTeachingRequests.sessionId, sessionId),
-          inArray(classTeachingRequests.guardianId, guardianIds)
-        )
-      )
-      .limit(1) // We only need to know if at least one exists
-
-    return teachingRequests.length > 0
-  } catch (error) {
-    console.error('Error checking family teacher status:', error)
-    return false
-  }
+  const familyGuardians = await getGuardiansByFamily(familyId)
+  return (await Promise.all(familyGuardians.map((guardian) => userBelongsToGroup(guardian.id, 'teacher')))).some(Boolean)
 }
 
 /**
@@ -42,16 +16,6 @@ export async function checkFamilyTeacherStatus(familyId: string, sessionId: stri
  * This is a convenience function that gets the family ID first
  */
 export async function checkUserFamilyTeacherStatus(userId: string, sessionId: string): Promise<boolean> {
-  try {
-    const guardian = await getGuardianById(userId)
-
-    if (!guardian?.familyId) {
-      return false
-    }
-
-    return checkFamilyTeacherStatus(guardian.familyId, sessionId)
-  } catch (error) {
-    console.error('Error checking user family teacher status:', error)
-    return false
-  }
+  const guardian = await getGuardianById(userId)
+  return guardian?.familyId ? checkFamilyTeacherStatus(guardian.familyId, sessionId) : false
 }

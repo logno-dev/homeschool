@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID, scryptSync, timingSafeEqual, createHash } from 'crypto'
 import { and, eq, gt } from 'drizzle-orm'
 import { cookies } from 'next/headers'
+import { headers } from 'next/headers'
 import { db } from '@/lib/db'
 import { authAccounts, authSessions, guardians, users } from '@/lib/schema'
 import { hasCurrentAcknowledgement } from '@/lib/acknowledgements'
@@ -149,9 +150,9 @@ export async function changePasswordForUser(input: {
   return { ok: true as const }
 }
 
-export async function createSessionForUser(userId: string) {
+export async function createSessionForUser(userId: string, ttlDays = SESSION_TTL_DAYS) {
   const token = randomBytes(32).toString('hex')
-  const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000)
+  const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000)
 
   await db.insert(authSessions).values({
     id: getId(),
@@ -206,7 +207,8 @@ async function buildSessionFromUserId(userId: string): Promise<AppAuthSession | 
 
   const [guardian] = await db.select().from(guardians).where(eq(guardians.id, user.id)).limit(1)
   const role = user.role || 'user'
-  const requiresAcknowledgement = await hasCurrentAcknowledgement(user.id).then((acknowledged) => !acknowledged)
+  const requiresAcknowledgement = user.activationStatus === 'parked'
+    || !(await hasCurrentAcknowledgement(user.id))
 
   return {
     user: {
@@ -241,7 +243,13 @@ export async function getSessionFromToken(token: string): Promise<AppAuthSession
 }
 
 export async function getCurrentAuthSession(): Promise<AppAuthSession | null> {
+  const requestHeaders = await headers()
   const store = await cookies()
+  const emulationToken = requestHeaders.get('x-dvclc-emulation-token') || store.get('dvclc_emulation_token')?.value
+  if (emulationToken) {
+    return getSessionFromToken(emulationToken)
+  }
+
   const token = store.get(SESSION_COOKIE_NAME)?.value
   if (!token) {
     return null

@@ -8,6 +8,8 @@ import {
   getActiveSession,
   isClassTeachingRegistrationOpen
 } from '@/lib/database'
+import { getGlobalSetting } from '@/lib/database'
+import { sendClassRequestNotificationEmail } from '@/lib/email'
 import type { NewClassTeachingRequest } from '@/lib/schema'
 import { getGradeRangeFromLabel } from '@/lib/grades'
 
@@ -171,6 +173,28 @@ export async function POST(request: Request) {
     }
 
     const createdRequest = await createClassTeachingRequest(newRequest)
+
+    const notificationRecipients = (await getGlobalSetting('class_request_notification_emails'))
+      ?.split(',')
+      .map((recipient) => recipient.trim())
+      .filter(Boolean) || []
+    if (notificationRecipients.length) {
+      try {
+        await sendClassRequestNotificationEmail({
+          recipients: notificationRecipients,
+          firstName: session.user.firstName,
+          lastName: session.user.lastName,
+          email: session.user.email,
+          className: createdRequest.className,
+          description: createdRequest.description,
+          gradeRange: createdRequest.gradeRange,
+          sessionName: activeSession.name
+        })
+      } catch (notificationError) {
+        console.error('Unable to send class request notification:', notificationError)
+      }
+    }
+
     return NextResponse.json({ request: createdRequest }, { status: 201 })
   } catch (error) {
     console.error('Error creating class teaching request:', error)

@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
 import { getCurrentAuthSession } from '@/lib/auth-server'
+import { clearSessionCookie, deleteAllUserSessions } from '@/lib/auth-server'
+import { db } from '@/lib/db'
+import { authAccounts, users } from '@/lib/schema'
+import { eq } from 'drizzle-orm'
 import { getHandbookSettings, hasCurrentAcknowledgement, recordAcknowledgement, type ReleaseChoice } from '@/lib/acknowledgements'
 
 export async function GET() {
@@ -43,6 +47,17 @@ export async function POST(request: Request) {
       photographyRelease: body.photographyRelease as ReleaseChoice,
       handbookVersion: handbook.version
     })
+
+    const [user] = await db.select({ activationStatus: users.activationStatus }).from(users).where(eq(users.id, auth.session.user.id)).limit(1)
+    if (user?.activationStatus === 'parked') {
+      const now = new Date().toISOString()
+      await db.update(users).set({ activationStatus: 'pending', updatedAt: now }).where(eq(users.id, auth.session.user.id))
+      await db.update(authAccounts).set({ isActive: false, updatedAt: now }).where(eq(authAccounts.userId, auth.session.user.id))
+      await deleteAllUserSessions(auth.session.user.id)
+      const response = NextResponse.json({ success: true, reactivationPending: true })
+      clearSessionCookie(response)
+      return response
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

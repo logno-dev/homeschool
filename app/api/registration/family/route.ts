@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { guardians, families, children, classRegistrations, schedules, classTeachingRequests, volunteerAssignments } from '@/lib/schema'
 import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { getRegistrationAccess } from '@/lib/user-groups'
 
 interface FamilyRegistration {
   [period: string]: {
@@ -48,7 +49,6 @@ export async function GET() {
     }
 
     const familyId = guardian[0].familyId
-
     // Get family details
     const family = await db
       .select()
@@ -140,6 +140,10 @@ export async function POST(request: Request) {
     }
 
     const familyId = guardian[0].familyId
+    const registrationAccess = await getRegistrationAccess(sessionId, session.user.id)
+    if (!registrationAccess.isOpen) {
+      return NextResponse.json({ error: registrationAccess.reason || 'Registration is not currently available' }, { status: 403 })
+    }
     const emergencyContacts = (body.emergencyContacts || {}) as Record<string, EmergencyContact>
     const registeredChildIds = Array.from(new Set(Object.values(registrations).flatMap((periodRegistrations) => Object.keys(periodRegistrations))))
     if (registeredChildIds.some((childId) => !emergencyContacts[childId]?.name?.trim() || !emergencyContacts[childId]?.phone?.trim())) {

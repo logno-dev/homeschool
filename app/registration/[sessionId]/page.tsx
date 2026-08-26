@@ -4,7 +4,7 @@ import { isAfter, isBefore, parseISO, format } from 'date-fns'
 import { redirect } from 'next/navigation'
 import { checkAdminRole, getAuthenticatedUser } from '@/lib/server-auth'
 import { getSessionById } from '@/lib/database'
-import { checkUserFamilyTeacherStatus } from '@/lib/early-registration'
+import { userBelongsToGroup, getRegistrationAccess } from '@/lib/user-groups'
 import { getRegistrationStatus } from '@/lib/registration-status'
 import { RegistrationProvider } from '@/app/components/RegistrationContext'
 import RegistrationGrid from '@/app/components/RegistrationGrid'
@@ -15,10 +15,11 @@ import { getRegistrationScheduleBundle } from '@/lib/registration'
 export default async function RegistrationPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const session = await getAuthenticatedUser()
   const { sessionId } = await params
-  const [sessionData, registrationStatus, hasEarlyAccess, scheduleBundle, isStaffAdmin] = await Promise.all([
+  const [sessionData, registrationStatus, hasEarlyAccess, groupRegistrationAccess, scheduleBundle, isStaffAdmin] = await Promise.all([
     getSessionById(sessionId),
     getRegistrationStatus(sessionId, session.user.id),
-    checkUserFamilyTeacherStatus(session.user.id, sessionId),
+    userBelongsToGroup(session.user.id, 'teacher'),
+    getRegistrationAccess(sessionId, session.user.id),
     getRegistrationScheduleBundle(sessionId, session.user.id),
     checkAdminRole(session)
   ])
@@ -56,6 +57,10 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
       reason = `Registration closed on ${format(registrationEnd, 'MMM d, yyyy \'at\' h:mm a')}`
     }
   }
+
+  canRegister = groupRegistrationAccess.isOpen
+  reason = groupRegistrationAccess.reason || ''
+  teacherEarlyAccess = groupRegistrationAccess.group?.slug === 'teacher'
 
   if (isStaffAdmin) {
     canRegister = Boolean(classSessionInfo?.isActive && scheduleBundle.schedules.length > 0)

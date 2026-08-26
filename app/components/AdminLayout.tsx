@@ -8,7 +8,7 @@ import Link from 'next/link'
 
 interface AdminLayoutProps {
   userName: string
-  activeTab: 'users' | 'sessions' | 'class-requests' | 'classrooms' | 'volunteer-jobs' | 'registration-overrides' | 'events' | 'payments' | 'registrations' | 'settings' | 'reports' | 'scholarships'
+  activeTab: 'users' | 'sessions' | 'class-requests' | 'classrooms' | 'volunteer-jobs' | 'registration-overrides' | 'events' | 'payments' | 'registrations' | 'settings' | 'reports' | 'scholarships' | 'faqs' | 'groups' | 'newsletters'
   children: React.ReactNode
 }
 
@@ -26,6 +26,24 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
         </svg>
+      )
+    },
+    {
+      name: 'User Groups',
+      href: '/admin/groups',
+      key: 'groups',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      )
+    },
+    {
+      name: 'Newsletters',
+      href: '/admin/newsletters',
+      key: 'newsletters',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
       )
     },
     {
@@ -137,6 +155,17 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.983 12.001a1.5 1.5 0 10.003 3 1.5 1.5 0 00-.003-3zm6.939 1.5a7.472 7.472 0 01-.121.999l2.122 1.65-2 3.464-2.527-.954a7.47 7.47 0 01-.847.494l-.39 2.61h-4l-.39-2.61a7.473 7.473 0 01-.847-.494l-2.527.954-2-3.464 2.122-1.65a7.472 7.472 0 01-.121-.999 7.472 7.472 0 01.121-.999l-2.122-1.65 2-3.464 2.527.954c.266-.175.548-.34.847-.494l.39-2.61h4l.39 2.61c.299.154.581.319.847.494l2.527-.954 2 3.464-2.122 1.65c.083.33.123.663.121.999z" />
+        </svg>
+      )
+    }
+    ,
+    {
+      name: 'FAQs',
+      href: '/admin/faqs',
+      key: 'faqs',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9.247a4.5 4.5 0 017.544 0c.94 1.324.94 3.182 0 4.506-.494.696-1.173 1.2-1.958 1.457-.785.257-1.314.98-1.314 1.806v.234m0 3.25h.008M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       )
     }
