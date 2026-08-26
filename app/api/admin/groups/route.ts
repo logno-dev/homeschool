@@ -4,6 +4,7 @@ import { asc, eq } from 'drizzle-orm'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { userGroupMemberships, userGroups, users } from '@/lib/schema'
+import { ADMIN_MODULES, type AdminModule } from '@/lib/admin-access'
 
 const predefinedGroups = [
   { id: 'group-family', name: 'Family', slug: 'family', isSystem: true },
@@ -12,7 +13,7 @@ const predefinedGroups = [
 
 export async function GET() {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('groups')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     // Keep the admin view usable if the table was migrated without its seed rows.
@@ -31,9 +32,24 @@ export async function GET() {
   }
 }
 
+export async function PUT(request: Request) {
+  try {
+    const auth = await getAuthenticatedAdmin('groups')
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+    const body = await request.json() as { groupId?: string; accessControls?: Record<string, unknown> }
+    if (!body.groupId || !body.accessControls || typeof body.accessControls !== 'object') return NextResponse.json({ error: 'Group and access controls are required' }, { status: 400 })
+    const accessControls = Object.fromEntries(ADMIN_MODULES.filter((module) => !module.supremeOnly && body.accessControls?.[module.key] === true).map((module) => [module.key, true])) as Record<AdminModule, true>
+    const [group] = await db.update(userGroups).set({ accessControls: JSON.stringify(accessControls), updatedAt: new Date().toISOString() }).where(eq(userGroups.id, body.groupId)).returning()
+    return group ? NextResponse.json({ group }) : NextResponse.json({ error: 'Group not found' }, { status: 404 })
+  } catch (error) {
+    console.error('Error updating group access controls:', error)
+    return NextResponse.json({ error: 'Failed to update group access controls' }, { status: 500 })
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('groups')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const body = await request.json()
     const name = String(body.name || '').trim()

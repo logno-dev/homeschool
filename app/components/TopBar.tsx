@@ -22,14 +22,14 @@ export default function TopBar() {
     if (!user) return
     const cached = userSession.getUserData()
     if (cached) {
-      setShowAdminLinks(isUserAdmin())
+       setShowAdminLinks(isUserAdmin() || Boolean(cached.adminModules?.length))
       return
     }
 
     let isActive = true
-    userSession.refreshUserData().then(() => {
+    userSession.refreshUserData().then((userData) => {
       if (isActive) {
-        setShowAdminLinks(isUserAdmin())
+         setShowAdminLinks(isUserAdmin() || Boolean(userData?.adminModules?.length))
       }
     })
     return () => {

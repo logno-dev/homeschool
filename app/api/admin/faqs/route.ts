@@ -9,7 +9,7 @@ const VISIBILITIES = new Set(['public', 'private'])
 
 export async function GET() {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('faqs')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const records = await db.select().from(faqs).orderBy(asc(faqs.visibility), asc(faqs.orderIndex), asc(faqs.createdAt))
@@ -22,7 +22,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('faqs')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const body = await request.json()

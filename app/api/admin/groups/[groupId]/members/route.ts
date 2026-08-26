@@ -10,7 +10,7 @@ export async function POST(
   { params }: { params: Promise<{ groupId: string }> }
 ) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('groups')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { groupId } = await params
     const { userId } = await request.json()
@@ -30,7 +30,7 @@ export async function DELETE(
   { params }: { params: Promise<{ groupId: string }> }
 ) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('groups')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { groupId } = await params
     const userId = new URL(request.url).searchParams.get('userId')

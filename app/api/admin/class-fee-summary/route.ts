@@ -6,7 +6,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 
 export async function GET() {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('payments')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }

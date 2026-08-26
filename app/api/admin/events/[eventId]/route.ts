@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const { eventId } = await params
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('events')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
@@ -38,7 +38,7 @@ export async function PUT(
 ) {
   try {
     const { eventId } = await params
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('events')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
@@ -106,7 +106,7 @@ export async function DELETE(
 ) {
   try {
     const { eventId } = await params
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('events')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }

@@ -3,6 +3,8 @@
 import { useEffect } from 'react'
 import { useAuth } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
+import { ADMIN_MODULES } from '@/lib/admin-access'
+import { isUserAdmin, userSession } from '@/lib/user-session'
 
 export default function AdminPage() {
   const { user, loading } = useAuth()
@@ -16,8 +18,13 @@ export default function AdminPage() {
       return
     }
 
-    // Redirect to users page by default
-    router.push('/admin/users')
+    const redirectToModule = async () => {
+      if (isUserAdmin()) { router.push('/admin/users'); return }
+      const data = userSession.getUserData() || await userSession.refreshUserData()
+      const module = ADMIN_MODULES.find((item) => data?.adminModules?.includes(item.key))
+      router.push(module ? `/admin/${module.key === 'class-requests' ? 'classes' : module.key}` : '/dashboard')
+    }
+    redirectToModule()
   }, [user, loading, router])
 
   if (loading) {

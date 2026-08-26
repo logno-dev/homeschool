@@ -12,6 +12,7 @@ export interface UserSessionData {
   hasTeacherRole: boolean
   familyName: string | null
   annualFeePaid: boolean
+  adminModules?: string[]
   lastUpdated: number
 }
 
@@ -203,4 +204,3 @@ export function useUserSession() {
     hasAnnualFeePaid: userData?.annualFeePaid || false
   }
 }
-

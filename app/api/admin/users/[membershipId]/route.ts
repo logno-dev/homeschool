@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ membershipId: string }> }
 ) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('users')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { membershipId } = await params
     const [user] = await db.select().from(users).where(eq(users.id, membershipId)).limit(1)
@@ -40,7 +40,7 @@ export async function POST(
   { params }: { params: Promise<{ membershipId: string }> }
 ) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('users')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { membershipId } = await params
     const [target] = await db.select({ id: users.id }).from(users).where(eq(users.id, membershipId)).limit(1)
@@ -58,7 +58,7 @@ export async function DELETE(
   { params }: { params: Promise<{ membershipId: string }> }
 ) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('users')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }

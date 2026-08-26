@@ -9,7 +9,7 @@ import { getGradeRangeFromLabel } from '@/lib/grades'
 
 export async function GET() {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('class-requests')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
@@ -30,7 +30,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('class-requests')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const body = await request.json()
     const className = String(body.className || '').trim()

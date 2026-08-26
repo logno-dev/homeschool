@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser, fetchFamilyData, getAppRole } from '@/lib/server-auth'
 import { getClassTeachingRequestsByGuardian, getActiveSession } from '@/lib/database'
+import { ADMIN_MODULES } from '@/lib/admin-access'
+import { getAdminModuleAccess } from '@/lib/user-groups'
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +14,7 @@ export async function GET(request: NextRequest) {
       fetchFamilyData(userId),
       getAppRole(session)
     ])
+    const adminModules = appRole === 'admin' ? ADMIN_MODULES.map((module) => module.key) : Array.from(await getAdminModuleAccess(userId))
 
     // Check if any guardian in the family has teacher role for the current active session
     let hasTeacherRole = false
@@ -43,6 +46,7 @@ export async function GET(request: NextRequest) {
       email: session.user.email,
       name: userName,
       role: appRole,
+      adminModules,
       familyId: familyData?.family?.id || null,
       isMainContact: currentGuardian?.isMainContact || false,
       hasTeacherRole,

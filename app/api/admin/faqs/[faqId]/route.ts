@@ -11,7 +11,7 @@ export async function PATCH(
   { params }: { params: Promise<{ faqId: string }> }
 ) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('faqs')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const { faqId } = await params
@@ -46,7 +46,7 @@ export async function DELETE(
   { params }: { params: Promise<{ faqId: string }> }
 ) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('faqs')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const { faqId } = await params

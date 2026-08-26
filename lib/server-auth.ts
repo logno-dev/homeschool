@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation'
 import { getUsers } from './database'
 import { getCurrentAuthSession, type AppAuthSession } from '@/lib/auth-server'
+import { getAdminModuleAccess } from '@/lib/user-groups'
+import type { AdminModule } from '@/lib/admin-access'
 
 type AppRole = 'admin' | 'moderator' | 'user'
 
@@ -65,19 +67,18 @@ export async function requireAdminAccess() {
   return session
 }
 
-export async function getAuthenticatedAdmin() {
+export async function getAuthenticatedAdmin(module?: AdminModule) {
   const session = await getCurrentAuthSession()
   if (!session?.user?.id) {
     return { error: 'Unauthorized', status: 401 as const }
   }
 
-  const isAdmin = await checkAdminRole(session)
-  if (!isAdmin) {
+  const role = await getAppRole(session)
+  const hasDelegatedAccess = module ? await getAdminModuleAccess(session.user.id, module) : false
+  if (role !== 'admin' && !hasDelegatedAccess) {
     return { error: 'Forbidden', status: 403 as const }
   }
-
-  const role = await getAppRole(session)
-  return { session, isAdmin: true, role }
+  return { session, isAdmin: role === 'admin' || role === 'moderator', role }
 }
 
 export async function getAuthenticatedUserSession() {

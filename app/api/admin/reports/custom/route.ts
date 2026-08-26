@@ -7,14 +7,14 @@ import { customReports } from '@/lib/schema'
 import { normalizeDefinition } from '@/lib/custom-reports'
 
 export async function GET() {
-  const auth = await getAuthenticatedAdmin()
+  const auth = await getAuthenticatedAdmin('reports')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const reports = await db.select({ id: customReports.id, name: customReports.name, definition: customReports.definition, updatedAt: customReports.updatedAt }).from(customReports).orderBy(asc(customReports.name))
   return NextResponse.json({ reports: reports.map((report) => ({ ...report, definition: { ...normalizeDefinition(JSON.parse(report.definition)), sessionId: '' } })) })
 }
 
 export async function POST(request: Request) {
-  const auth = await getAuthenticatedAdmin()
+  const auth = await getAuthenticatedAdmin('reports')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const body = await request.json() as { name?: string; definition?: unknown }
   const name = String(body.name || '').trim().slice(0, 100)
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const auth = await getAuthenticatedAdmin()
+  const auth = await getAuthenticatedAdmin('reports')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const body = await request.json() as { id?: string; name?: string; definition?: unknown }
   if (!body.id) return NextResponse.json({ error: 'Report id is required' }, { status: 400 })

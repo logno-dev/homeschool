@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import { classTeachingRequests, sessions, sessionRegistrationWindows, userGroupMemberships, userGroups } from '@/lib/schema'
 import { getAppTimezone, parseAppDate } from '@/lib/app-time'
+import { ADMIN_MODULES, type AdminModule } from '@/lib/admin-access'
 
 export const FAMILY_GROUP_SLUG = 'family'
 export const TEACHER_GROUP_SLUG = 'teacher'
@@ -88,4 +89,20 @@ export async function getRegistrationAccess(sessionId: string, userId: string) {
 export async function userBelongsToGroup(userId: string, slug: string) {
   const groups = await getUserGroups(userId)
   return groups.some(({ group }) => group.slug === slug)
+}
+
+export async function getAdminModuleAccess(userId: string, module: AdminModule): Promise<boolean>
+export async function getAdminModuleAccess(userId: string): Promise<Set<AdminModule>>
+export async function getAdminModuleAccess(userId: string, module?: AdminModule): Promise<boolean | Set<AdminModule>> {
+  const memberships = await getUserGroups(userId)
+  const access = new Set<AdminModule>()
+  for (const { group } of memberships) {
+    try {
+      const controls = JSON.parse(group.accessControls) as Record<string, unknown>
+      for (const item of ADMIN_MODULES) if (controls[item.key] === true) access.add(item.key)
+    } catch {
+      // Treat malformed controls as no delegated access.
+    }
+  }
+  return module ? access.has(module) : access
 }

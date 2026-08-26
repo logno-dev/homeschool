@@ -74,6 +74,7 @@ export const userGroups = sqliteTable('user_groups', {
   name: text('name').notNull(),
   slug: text('slug').notNull().unique(),
   isSystem: integer('is_system', { mode: 'boolean' }).notNull().default(false),
+  accessControls: text('access_controls').notNull().default('{}'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })

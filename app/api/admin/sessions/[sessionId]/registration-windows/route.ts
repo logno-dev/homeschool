@@ -10,7 +10,7 @@ export async function GET(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('sessions')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { sessionId } = await params
     const windows = await db.select({ window: sessionRegistrationWindows, group: userGroups }).from(sessionRegistrationWindows).innerJoin(userGroups, eq(sessionRegistrationWindows.groupId, userGroups.id)).where(eq(sessionRegistrationWindows.sessionId, sessionId))
@@ -26,7 +26,7 @@ export async function PUT(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('sessions')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { sessionId } = await params
     const body = await request.json()

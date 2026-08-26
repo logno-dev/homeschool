@@ -6,7 +6,7 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 
 export async function POST(request: Request) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('classrooms')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }

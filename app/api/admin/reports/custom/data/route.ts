@@ -4,7 +4,7 @@ import { executeReport, csvValue, normalizeDefinition } from '@/lib/custom-repor
 import { REPORT_FIELDS } from '@/lib/report-fields'
 
 export async function POST(request: Request) {
-  const auth = await getAuthenticatedAdmin()
+  const auth = await getAuthenticatedAdmin('reports')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const body = await request.json() as { definition?: unknown; format?: string }
   const definition = normalizeDefinition(body.definition)

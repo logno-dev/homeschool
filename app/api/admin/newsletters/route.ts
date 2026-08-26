@@ -6,7 +6,7 @@ import { db } from '@/lib/db'
 import { newsletterGroups, newsletters } from '@/lib/schema'
 
 export async function GET() {
-  const auth = await getAuthenticatedAdmin()
+  const auth = await getAuthenticatedAdmin('newsletters')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const rows = await db.select().from(newsletters).orderBy(desc(newsletters.updatedAt))
   return NextResponse.json({ newsletters: rows })
@@ -14,7 +14,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('newsletters')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const body = await request.json()
     const now = new Date().toISOString()
