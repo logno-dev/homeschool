@@ -1,6 +1,7 @@
 import { desc, eq } from 'drizzle-orm'
 import { db, client } from '@/lib/db'
 import { events, sessions } from '@/lib/schema'
+import { getAppTimezone, parseAppDate } from '@/lib/app-time'
 
 export interface CalendarEvent {
   id: string
@@ -142,11 +143,13 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
   }
 }
 
-export function getNextUpcomingEvent(eventsList: CalendarEvent[]): CalendarEvent | null {
+export async function getNextUpcomingEvent(eventsList: CalendarEvent[]): Promise<CalendarEvent | null> {
   const now = new Date()
+  const timezone = await getAppTimezone()
+  const eventDate = (value: string) => parseAppDate(value, timezone)
   const upcomingEvents = eventsList
-    .filter((event) => new Date(event.startDate) >= now)
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+    .filter((event) => eventDate(event.startDate) >= now)
+    .sort((a, b) => eventDate(a.startDate).getTime() - eventDate(b.startDate).getTime())
 
   return upcomingEvents[0] ?? null
 }

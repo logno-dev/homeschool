@@ -1,10 +1,14 @@
 import Link from 'next/link'
 import { getActiveSessions } from '@/lib/database'
+import { getAuthenticatedUser } from '@/lib/server-auth'
+import { getRegistrationAccess } from '@/lib/user-groups'
 
 export const dynamic = 'force-dynamic'
 
 export default async function RegistrationPage() {
+  const auth = await getAuthenticatedUser()
   const activeSessions = await getActiveSessions()
+  const sessions = await Promise.all(activeSessions.map(async (session) => ({ session, access: await getRegistrationAccess(session.id, auth.user.id) })))
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -16,9 +20,9 @@ export default async function RegistrationPage() {
               Select a session below to register your children for classes.
             </p>
 
-            {activeSessions.length > 0 ? (
+            {sessions.length > 0 ? (
               <div className="space-y-4">
-                {activeSessions.map((session) => (
+                {sessions.map(({ session, access }) => (
                   <div
                     key={session.id}
                     className="border border-gray-200 rounded-lg p-6 hover:border-orange-300 transition-colors"
@@ -28,15 +32,13 @@ export default async function RegistrationPage() {
                         <h3 className="text-xl font-semibold text-gray-900 mb-2">
                           {session.name}
                         </h3>
-                        <p className="text-gray-600">
-                          Registration is currently open for this session.
-                        </p>
+                          <p className="text-gray-600">{access.isOpen ? 'Registration is currently open for this session.' : access.reason || 'Registration is not currently available for your user groups.'}</p>
                       </div>
-                      <Link
-                        href={`/registration/${session.id}`}
+                       <Link
+                         href={access.isOpen ? `/registration/${session.id}` : `/schedule?sessionId=${session.id}`}
                         className="inline-flex w-full sm:w-auto items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-orange-600 text-white hover:bg-orange-700 active:bg-orange-800 focus:ring-orange-500 px-4 py-2 text-sm min-h-[36px]"
-                      >
-                        Register Now
+                       >
+                         {access.isOpen ? 'Register Now' : 'View Schedule'}
                       </Link>
                     </div>
                   </div>

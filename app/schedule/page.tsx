@@ -1,12 +1,13 @@
 import { getAuthenticatedUser } from '@/lib/server-auth'
-import { getActiveSession } from '@/lib/database'
+import { getActiveSession, getSessionById } from '@/lib/database'
 import { getRegistrationSchedules } from '@/lib/registration-schedules'
 import { getRegistrationStatus } from '@/lib/registration-status'
 import ScheduleViewer from '@/app/components/ScheduleViewer'
 
-export default async function SchedulePage() {
+export default async function SchedulePage({ searchParams }: { searchParams: Promise<{ sessionId?: string }> }) {
   const session = await getAuthenticatedUser()
-  const activeSession = await getActiveSession()
+  const { sessionId } = await searchParams
+  const activeSession = sessionId ? await getSessionById(sessionId) : await getActiveSession()
 
   if (!activeSession) {
     return (

@@ -504,6 +504,15 @@ export const authSessions = sqliteTable('auth_sessions', {
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`)
 })
 
+export const customReports = sqliteTable('custom_reports', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  definition: text('definition').notNull(),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
 // Type exports for TypeScript
 export type Family = typeof families.$inferSelect
 export type Guardian = typeof guardians.$inferSelect
@@ -511,6 +520,7 @@ export type Child = typeof children.$inferSelect
 export type Session = typeof sessions.$inferSelect
 export type UserGroup = typeof userGroups.$inferSelect
 export type UserGroupMembership = typeof userGroupMemberships.$inferSelect
+export type CustomReport = typeof customReports.$inferSelect
 export type SessionRegistrationWindow = typeof sessionRegistrationWindows.$inferSelect
 export type Classroom = typeof classrooms.$inferSelect
 export type SessionClassroom = typeof sessionClassrooms.$inferSelect

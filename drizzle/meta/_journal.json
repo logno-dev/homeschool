@@ -134,6 +134,13 @@
       "when": 1788393600000,
       "tag": "0041_class_teaching_registration_window",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788480000000,
+      "tag": "0042_custom_reports",
+      "breakpoints": true
     }
   ]
 }

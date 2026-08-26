@@ -5,12 +5,14 @@ import { useAuth } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '../../components/AdminLayout'
 import { useToast } from '../../components/ToastContainer'
+import { APP_TIMEZONES, DEFAULT_APP_TIMEZONE } from '@/lib/timezones'
 
 interface SettingsState {
   incrementDate: string
   lastRun: string | null
   registrationNotificationEmails: string
   classRequestNotificationEmails: string
+  appTimezone: string
 }
 
 interface Handbook {
@@ -28,7 +30,7 @@ export default function AdminSettingsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const { showSuccess, showError } = useToast()
-  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '' })
+  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE })
   const [handbooks, setHandbooks] = useState<Handbook[]>([])
   const [handbookVersion, setHandbookVersion] = useState('')
   const [handbookFile, setHandbookFile] = useState<File | null>(null)
@@ -56,7 +58,8 @@ export default function AdminSettingsPage() {
           incrementDate: result.incrementDate || '',
           lastRun: result.lastRun || null,
           registrationNotificationEmails: result.registrationNotificationEmails || '',
-          classRequestNotificationEmails: result.classRequestNotificationEmails || ''
+          classRequestNotificationEmails: result.classRequestNotificationEmails || '',
+          appTimezone: result.appTimezone || DEFAULT_APP_TIMEZONE
         })
         const handbooksResponse = await fetch('/api/admin/handbooks')
         if (handbooksResponse.ok) {
@@ -79,11 +82,12 @@ export default function AdminSettingsPage() {
       const response = await fetch('/api/admin/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-         body: JSON.stringify({
-           gradeIncrementDate: settings.incrementDate || null,
-            registrationNotificationEmails: settings.registrationNotificationEmails,
-            classRequestNotificationEmails: settings.classRequestNotificationEmails
-         })
+        body: JSON.stringify({
+          gradeIncrementDate: settings.incrementDate || null,
+          registrationNotificationEmails: settings.registrationNotificationEmails,
+          classRequestNotificationEmails: settings.classRequestNotificationEmails,
+          appTimezone: settings.appTimezone
+        })
       })
       const result = await response.json()
       if (!response.ok) {
@@ -183,6 +187,13 @@ export default function AdminSettingsPage() {
               </div>
             ) : (
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Application timezone</label>
+                  <select value={settings.appTimezone} onChange={(e) => setSettings((prev) => ({ ...prev, appTimezone: e.target.value }))} className="w-full max-w-xl border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500">
+                    {APP_TIMEZONES.map((timezone) => <option key={timezone.value} value={timezone.value}>{timezone.label} ({timezone.value})</option>)}
+                  </select>
+                  <p className="mt-2 text-xs text-gray-500">Business dates such as registration windows use this timezone. Stored timestamps remain UTC.</p>
+                </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Handbooks</h2>
                   <p className="mt-1 text-sm text-gray-600">Upload PDF handbooks and publish one active version. Previously uploaded handbooks remain available below.</p>

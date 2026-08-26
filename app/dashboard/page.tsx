@@ -8,7 +8,7 @@ export default async function Dashboard() {
   const session = await getAuthenticatedUser()
   const isAdmin = await checkAdminRole(session)
   const events = await fetchCalendarEvents()
-  const nextEvent = getNextUpcomingEvent(events)
+  const nextEvent = await getNextUpcomingEvent(events)
   const userName = [session.user.firstName, session.user.lastName].filter(Boolean).join(' ') || session.user.email
 
   const primaryActions = [

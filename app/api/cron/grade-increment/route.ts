@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getGradeIncrementSettings, incrementAllStudentGrades, setGradeIncrementDate, setGradeIncrementLastRun } from '@/lib/database'
+import { getConfiguredDateKey } from '@/lib/app-time'
 
 function getNextAnnualDate(value: string) {
   const [year, month, day] = value.split('-').map(Number)
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ status: 'skipped', reason: 'No increment date set' })
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = await getConfiguredDateKey()
   if (today !== incrementDate) {
     return NextResponse.json({ status: 'skipped', reason: 'Not increment date' })
   }

@@ -11,6 +11,7 @@ import RegistrationGrid from '@/app/components/RegistrationGrid'
 import VolunteerHourCounter from '@/app/components/VolunteerHourCounter'
 import ReadonlyScheduleView from '@/app/components/ReadonlyScheduleView'
 import { getRegistrationScheduleBundle } from '@/lib/registration'
+import Link from 'next/link'
 
 export default async function RegistrationPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const session = await getAuthenticatedUser()
@@ -259,6 +260,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
                   </h3>
                   <div className="mt-2 text-sm text-yellow-700">
                     <p>{registrationAccess.reason}</p>
+                    <Link href={`/schedule?sessionId=${sessionId}`} className="mt-3 inline-flex rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">View session schedule</Link>
                     {registrationAccess.isTeacher && classSessionInfo?.teacherRegistrationStartDate && (
                       <p className="mt-1 font-medium">
                         Your family has early access (teacher in family) starting {format(parseISO(classSessionInfo.teacherRegistrationStartDate), 'MMM d, yyyy \'at\' h:mm a')}.

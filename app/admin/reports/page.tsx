@@ -130,8 +130,9 @@ export default function AdminReportsPage() {
               <h1 className="text-2xl font-bold text-gray-900">Printable Reports</h1>
               <p className="text-sm text-gray-600">Choose a report, preview it, or print immediately.</p>
             </div>
-            <div className="flex items-center gap-3">
-              <select
+             <div className="flex items-center gap-3">
+               <button onClick={() => router.push('/admin/reports/custom')} className="rounded-md border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700">Custom reports</button>
+               <select
                 value={selectedSessionId}
                 onChange={(e) => setSelectedSessionId(e.target.value)}
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm"

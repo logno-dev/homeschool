@@ -113,7 +113,11 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
 
     if (!sessionId) return
 
-    fetchData()
+     fetch(`/api/registration/access/${sessionId}`).then(async (response) => {
+       const access = await response.json() as { isOpen?: boolean }
+       if (!response.ok || !access.isOpen) { router.push(`/registration/${sessionId}`); return }
+       fetchData()
+     }).catch(() => router.push(`/registration/${sessionId}`))
   }, [user, sessionId, authLoading, router])
 
   const fetchData = async () => {

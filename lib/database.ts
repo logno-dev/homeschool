@@ -4,6 +4,7 @@ import { families, guardians, children, feePayments, users, sessions, classrooms
 import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, SessionClassroom, Schedule, ScheduleDraft, ScheduleDraftEntry, ClassTeachingRequest, ScheduleComment, NewFamily, NewGuardian, NewChild, NewFeePayment, NewUser, NewSession, NewClassroom, NewSessionClassroom, NewSchedule, NewScheduleDraft, NewScheduleDraftEntry, NewClassTeachingRequest, NewScheduleComment, NewSessionVolunteerJob } from './schema'
 import { incrementGradeValue } from './grades'
 import { getRegistrationAccess } from './user-groups'
+import { getAppTimezone, parseAppDate } from './app-time'
 
 // Helper function to generate sharing codes
 function generateSharingCode(): string {
@@ -606,14 +607,9 @@ export async function isClassTeachingRegistrationOpen(): Promise<{ isOpen: boole
   }
 
   const now = new Date()
-  const parseWindowDate = (value: string, endOfDay = false) => {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      return new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`)
-    }
-    return new Date(value)
-  }
-  const sessionStart = parseWindowDate(activeSession.classTeachingRegistrationStartDate || activeSession.createdAt)
-  const sessionEnd = parseWindowDate(activeSession.classTeachingRegistrationEndDate || activeSession.registrationStartDate, true)
+  const timezone = await getAppTimezone()
+  const sessionStart = parseAppDate(activeSession.classTeachingRegistrationStartDate || activeSession.createdAt, timezone)
+  const sessionEnd = parseAppDate(activeSession.classTeachingRegistrationEndDate || activeSession.registrationStartDate, timezone, true)
 
   if (now < sessionStart) {
     return { isOpen: false, session: activeSession, reason: `Class teaching registration opens on ${sessionStart.toLocaleDateString()}` }

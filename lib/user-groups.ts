@@ -3,6 +3,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import { classTeachingRequests, sessions, sessionRegistrationWindows, userGroupMemberships, userGroups } from '@/lib/schema'
+import { getAppTimezone, parseAppDate } from '@/lib/app-time'
 
 export const FAMILY_GROUP_SLUG = 'family'
 export const TEACHER_GROUP_SLUG = 'teacher'
@@ -62,19 +63,20 @@ export async function getRegistrationAccess(sessionId: string, userId: string) {
     : []
 
   const now = new Date()
-  const activeWindow = windows.find((window) => new Date(window.startDate) <= now && now <= new Date(window.endDate))
+  const timezone = await getAppTimezone()
+  const activeWindow = windows.find((window) => parseAppDate(window.startDate, timezone) <= now && now <= parseAppDate(window.endDate, timezone, true))
   if (activeWindow) {
     return { isOpen: true, session, reason: '', group: groupById.get(activeWindow.groupId) || null, windows }
   }
 
   const upcomingWindow = windows
-    .filter((window) => new Date(window.startDate) > now)
-    .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())[0]
+    .filter((window) => parseAppDate(window.startDate, timezone) > now)
+    .sort((a, b) => parseAppDate(a.startDate, timezone).getTime() - parseAppDate(b.startDate, timezone).getTime())[0]
   if (upcomingWindow) {
     return {
       isOpen: false,
       session,
-      reason: `Registration opens on ${new Date(upcomingWindow.startDate).toLocaleDateString()}`,
+      reason: `Registration opens on ${parseAppDate(upcomingWindow.startDate, timezone).toLocaleDateString('en-US', { timeZone: timezone })}`,
       group: groupById.get(upcomingWindow.groupId) || null,
       windows
     }
