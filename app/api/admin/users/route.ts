@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { authAccounts, guardians, sessions, familySessionFees, users, userAcknowledgements } from '@/lib/schema'
+import { authAccounts, children, families, guardians, sessions, familySessionFees, users, userAcknowledgements } from '@/lib/schema'
 import { desc, eq } from 'drizzle-orm'
 
 export async function GET(request: NextRequest) {
@@ -118,6 +118,8 @@ export async function GET(request: NextRequest) {
     }
 
     const allUsers = await db.select().from(users)
+    const allFamilies = await db.select().from(families)
+    const allChildren = await db.select().from(children)
     const allAccounts = await db.select().from(authAccounts)
     const allGuardians = await db.select().from(guardians)
     const allAcknowledgements = await db
@@ -138,6 +140,7 @@ export async function GET(request: NextRequest) {
       .map((user) => {
         const account = accountByUserId.get(user.id)
         const acknowledgement = acknowledgementByUserId.get(user.id)
+        const family = allFamilies.find((entry) => entry.id === user.familyId)
         return {
           id: user.id,
           email: account?.email || user.email,
@@ -149,6 +152,8 @@ export async function GET(request: NextRequest) {
           photographyRelease: acknowledgement?.photographyRelease || null,
           handbookVersion: acknowledgement?.handbookVersion || null,
           acknowledgedAt: acknowledgement?.acceptedAt || null
+          , family: family ? { name: family.name, address: family.address, phone: family.phone, email: family.email, sharingCode: family.sharingCode } : null
+          , children: family ? allChildren.filter((child) => child.familyId === family.id).map((child) => ({ firstName: child.firstName, lastName: child.lastName, dateOfBirth: child.dateOfBirth, grade: child.grade })) : []
         }
       })
 

@@ -2,8 +2,8 @@ import { randomUUID } from 'crypto'
 import { eq, or } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { createUser } from '@/lib/database'
-import { authAccounts, users } from '@/lib/schema'
+import { createFamily, createUser } from '@/lib/database'
+import { authAccounts, children, families, guardians, users } from '@/lib/schema'
 import { createAuthAccountForUser, normalizeEmail } from '@/lib/auth-server'
 import { getGlobalSetting } from '@/lib/database'
 import { sendPendingActivationEmail, sendRegistrationNotificationEmail } from '@/lib/email'
@@ -19,7 +19,13 @@ export async function POST(request: NextRequest) {
       releaseLiabilityAgreed,
       contactInfoRelease,
       photographyRelease,
-      handbookAgreed
+       handbookAgreed,
+       familyMode = 'create',
+       familyName,
+       familyAddress,
+       familyPhone,
+       familyCode,
+       familyChildren = []
     } = await request.json()
 
     if (!email || !password || !firstName || !lastName) {
@@ -68,6 +74,19 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    let familyId: string
+    if (familyMode === 'join') {
+      const [family] = await db.select({ id: families.id }).from(families).where(eq(families.sharingCode, String(familyCode || '').trim().toUpperCase())).limit(1)
+      if (!family) return NextResponse.json({ error: 'Family code not found' }, { status: 400 })
+      familyId = family.id
+    } else if (familyMode === 'create') {
+      if (!String(familyName || '').trim() || !String(familyAddress || '').trim() || !String(familyPhone || '').trim()) return NextResponse.json({ error: 'Family name, address, and phone are required' }, { status: 400 })
+      if (!Array.isArray(familyChildren) || familyChildren.some((child) => !child || typeof child !== 'object' || !String(child.firstName || '').trim() || !String(child.lastName || '').trim() || !String(child.dateOfBirth || '').trim() || !String(child.grade || '').trim())) return NextResponse.json({ error: 'Each child requires a first name, last name, date of birth, and grade' }, { status: 400 })
+      const family = await createFamily({ name: String(familyName).trim(), address: String(familyAddress).trim(), phone: String(familyPhone).trim(), email: normalizedEmail })
+      familyId = family.id
+      for (const child of familyChildren) await db.insert(children).values({ id: randomUUID(), familyId, firstName: String(child.firstName).trim(), lastName: String(child.lastName).trim(), dateOfBirth: String(child.dateOfBirth), grade: String(child.grade).trim(), gradeYear: null, gradeLevel: null, allergies: null, medicalNotes: null })
+    } else return NextResponse.json({ error: 'Choose whether to create or join a family' }, { status: 400 })
+
     const user = await createUser({
       id: randomUUID(),
       email: normalizedEmail,
@@ -75,7 +94,7 @@ export async function POST(request: NextRequest) {
       lastName: String(lastName).trim(),
       role: 'user',
       activationStatus: 'pending',
-      familyId: null,
+       familyId,
       dateOfBirth: null,
       grade: null,
       emergencyContact: null
@@ -88,6 +107,7 @@ export async function POST(request: NextRequest) {
       mustResetPassword: false,
       isActive: false
     })
+    await db.insert(guardians).values({ id: user.id, email: normalizedEmail, firstName: String(firstName).trim(), lastName: String(lastName).trim(), role: 'user', familyId, isMainContact: familyMode === 'create', phone: familyMode === 'create' ? String(familyPhone).trim() : null })
 
     await recordAcknowledgement({
       userId: user.id,

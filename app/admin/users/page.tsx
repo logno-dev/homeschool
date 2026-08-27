@@ -36,6 +36,8 @@ interface PendingActivation {
   photographyRelease?: string | null
   handbookVersion?: string | null
   acknowledgedAt?: string | null
+  family?: { name: string; address: string; phone: string; email: string; sharingCode: string } | null
+  children?: Array<{ firstName: string; lastName: string; dateOfBirth: string; grade: string }>
 }
 
 interface PaginationInfo {

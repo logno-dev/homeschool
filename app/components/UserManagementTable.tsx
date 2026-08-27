@@ -41,6 +41,8 @@ interface PendingActivation {
   photographyRelease?: string | null
   handbookVersion?: string | null
   acknowledgedAt?: string | null
+  family?: { name: string; address: string; phone: string; email: string; sharingCode: string } | null
+  children?: Array<{ firstName: string; lastName: string; dateOfBirth: string; grade: string }>
 }
 
 interface PaginationInfo {
@@ -271,6 +273,8 @@ export default function UserManagementTable({
                   <div><dt className="font-medium text-blue-900">Photography release</dt><dd className="text-blue-800">{reviewApplicant.photographyRelease === 'agree' ? 'Agreed' : reviewApplicant.photographyRelease === 'do_not_agree' ? 'Did not agree' : 'Not recorded'}</dd></div>
                   <div><dt className="font-medium text-blue-900">Handbook version</dt><dd className="text-blue-800">{reviewApplicant.handbookVersion || 'Not recorded'}</dd></div>
                   <div><dt className="font-medium text-blue-900">Acknowledged</dt><dd className="text-blue-800">{reviewApplicant.acknowledgedAt ? new Date(reviewApplicant.acknowledgedAt).toLocaleString() : 'Not recorded'}</dd></div>
+                  <div className="sm:col-span-2"><dt className="font-medium text-blue-900">Family</dt><dd className="text-blue-800">{reviewApplicant.family ? <>{reviewApplicant.family.name}<br />{reviewApplicant.family.address}<br />{reviewApplicant.family.phone} · {reviewApplicant.family.email}<br /><span className="text-xs">Sharing code: {reviewApplicant.family.sharingCode}</span></> : 'Not provided'}</dd></div>
+                  <div className="sm:col-span-2"><dt className="font-medium text-blue-900">Children</dt><dd className="text-blue-800">{reviewApplicant.children?.length ? reviewApplicant.children.map((child) => <div key={`${child.firstName}-${child.lastName}`}>{child.firstName} {child.lastName} · Grade {child.grade} · DOB {child.dateOfBirth}</div>) : 'None listed'}</dd></div>
                 </dl>
                 <div className="mt-4 flex gap-2">
                   <button onClick={() => approveUser(reviewApplicant.id)} className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700">Approve</button>
