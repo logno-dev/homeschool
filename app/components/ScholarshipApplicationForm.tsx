@@ -22,10 +22,12 @@ interface ScholarshipApplication {
   approvedAmount: number | null
   status: string
   reviewNotes: string | null
+  supportingDocumentUrl: string | null
+  supportingDocumentFilename: string | null
   createdAt: string
 }
 
-export default function ScholarshipApplicationForm() {
+export default function ScholarshipApplicationForm({ scholarshipFormUrl, scholarshipFormFilename }: { scholarshipFormUrl?: string | null; scholarshipFormFilename?: string | null }) {
   const [fees, setFees] = useState<FeeData[]>([])
   const [applications, setApplications] = useState<ScholarshipApplication[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState<string>('')
@@ -33,6 +35,7 @@ export default function ScholarshipApplicationForm() {
   const [requestedAmount, setRequestedAmount] = useState('')
   const [reason, setReason] = useState('')
   const [additionalInfo, setAdditionalInfo] = useState('')
+  const [supportingDocument, setSupportingDocument] = useState<File | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -110,18 +113,16 @@ export default function ScholarshipApplicationForm() {
     setSuccessMessage(null)
 
     try {
+      const formData = new FormData()
+      formData.set('sessionId', selectedSessionId)
+      formData.set('scholarshipType', scholarshipType)
+      if (scholarshipType === 'partial') formData.set('requestedAmount', requestedAmount)
+      formData.set('reason', reason)
+      formData.set('additionalInfo', additionalInfo)
+      if (supportingDocument) formData.set('supportingDocument', supportingDocument)
       const response = await fetch('/api/family/scholarship-applications', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          sessionId: selectedSessionId,
-          scholarshipType,
-          requestedAmount: scholarshipType === 'partial' ? Number(requestedAmount) : undefined,
-          reason,
-          additionalInfo
-        })
+        body: formData
       })
 
       const payload = await response.json()
@@ -133,6 +134,7 @@ export default function ScholarshipApplicationForm() {
       setReason('')
       setAdditionalInfo('')
       setRequestedAmount('')
+      setSupportingDocument(null)
 
       const applicationsResponse = await fetch('/api/family/scholarship-applications')
       if (applicationsResponse.ok) {
@@ -162,6 +164,7 @@ export default function ScholarshipApplicationForm() {
     <div className="space-y-6">
       <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
         Scholarship assistance helps cover session fees. Requests are confidential and reviewed by the admin team.
+        {scholarshipFormUrl && <span className="mt-2 block">Download and complete the <a href={scholarshipFormUrl} target="_blank" rel="noreferrer" className="font-semibold underline">{scholarshipFormFilename || 'scholarship application form'}</a>. Turn it in in person or scan it and upload it with your digital request below.</span>}
       </div>
 
       {existingApplication && (
@@ -286,6 +289,12 @@ export default function ScholarshipApplicationForm() {
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Household considerations, timing needs, or anything else you'd like us to know."
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Completed Scholarship Application (Optional PDF)</label>
+          <input type="file" accept="application/pdf,.pdf" onChange={(event) => setSupportingDocument(event.target.files?.[0] || null)} disabled={submissionLocked} className="block w-full text-sm text-gray-700" />
+          <p className="mt-1 text-xs text-gray-500">Upload the completed form if you are submitting it digitally. Maximum size: 10 MB.</p>
         </div>
 
         {error && (

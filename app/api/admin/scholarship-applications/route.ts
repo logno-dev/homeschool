@@ -26,6 +26,8 @@ export async function GET() {
         approvedAmount: scholarshipApplications.approvedAmount,
         reason: scholarshipApplications.reason,
         additionalInfo: scholarshipApplications.additionalInfo,
+        supportingDocumentUrl: scholarshipApplications.supportingDocumentUrl,
+        supportingDocumentFilename: scholarshipApplications.supportingDocumentFilename,
         status: scholarshipApplications.status,
         reviewNotes: scholarshipApplications.reviewNotes,
         createdAt: scholarshipApplications.createdAt,

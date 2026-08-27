@@ -127,7 +127,8 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
           registrations: pendingRegistrations,
           volunteerAssignments: pendingVolunteerAssignments,
           emergencyContacts,
-          requestAdminOverride
+          requestAdminOverride,
+          overrideReason: requestAdminOverride ? overrideReason.trim() : undefined
         }),
       })
 

@@ -12,6 +12,7 @@ import {
 } from '@/lib/schema'
 import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
 
 export async function PATCH(
   request: NextRequest,
@@ -120,6 +121,13 @@ export async function PATCH(
           })
           .where(eq(familyRegistrationStatus.id, overrideId))
       })
+
+      // Pending registrations were not included in the original fee calculation.
+      try {
+        await createOrUpdateFamilySessionFee(overrideRequest.sessionId, overrideRequest.familyId)
+      } catch (feeError) {
+        console.error('Error calculating fees after override approval:', feeError)
+      }
 
       return NextResponse.json({
         success: true,

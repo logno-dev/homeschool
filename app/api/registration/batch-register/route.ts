@@ -430,13 +430,15 @@ export async function POST(request: Request) {
       sessionId, 
       registrations,
       volunteerAssignments: volunteerAssignmentsList,
-      requestAdminOverride = false
+      requestAdminOverride = false,
+      overrideReason: requestedOverrideReason
     }: {
       sessionId: string
       registrations: PendingRegistration[]
       volunteerAssignments: PendingVolunteerAssignment[]
       emergencyContacts: Record<string, EmergencyContact>
       requestAdminOverride?: boolean
+      overrideReason?: string
     } = body
 
     // Get the guardian's family information
@@ -582,6 +584,9 @@ export async function POST(request: Request) {
             .filter(Boolean)
             .join(', ')
           overrideReasonParts.push(`Grade range override requested for: ${classNames || 'selected classes'}`)
+        }
+        if (typeof requestedOverrideReason === 'string' && requestedOverrideReason.trim()) {
+          overrideReasonParts.push(`User reason: ${requestedOverrideReason.trim()}`)
         }
 
       await tx.insert(familyRegistrationStatus).values({

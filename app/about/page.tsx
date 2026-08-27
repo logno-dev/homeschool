@@ -58,14 +58,14 @@ export default async function About() {
                 opportunities to enjoy personal as well as public success.
               </p>
               <p>
-                DVCLC meets on <strong>Mondays</strong> at Grace Chapel in Indio, CA from <strong>9:30 a.m – 2:00 p.m.</strong>
+                DVCLC meets on <strong>Mondays</strong> in Indio, CA from <strong>9:30 a.m – 2:00 p.m.</strong>
               </p>
               <p>
                 Co-op is a unique, parent-led program that offers students a full day of classes, with a variety of
                 choices to enrich the lives of your students. We have found that when parents are able to teach things
                 that they love and are interested in, they bless our students with amazingly creative classes! We offer
                 both academic and elective classes, at 50 minutes per class, along with a 1 hour lunch break. Students can
-                take as many as four classes per session, but are not required to attend the full day.  Our Pre-K/Kindergarten
+                take as many as three classes per session, but are not required to attend the full day.  Our Pre-K/Kindergarten
                 group follows a slightly different schedule to meet their needs.
                 At least one parent from each family is required to actively participate throughout the entire co-op day by
                 volunteering each hour in one of our many volunteer positions. This is the only way we have found to make
@@ -113,7 +113,7 @@ export default async function About() {
           </div>
         </section>
 
-        <section className="mt-10 grid gap-8 lg:grid-cols-2">
+        <section className="mt-10 grid gap-8">
           <div className="rounded-2xl border border-blue-100 bg-white p-8 shadow-sm">
             <h2 className="text-2xl font-semibold text-gray-900">Where we serve</h2>
             <p className="mt-3 text-gray-700 italic">
@@ -122,18 +122,6 @@ export default async function About() {
             </p>
           </div>
 
-          <div className="rounded-2xl border border-blue-100 bg-white p-8 shadow-sm">
-            <h2 className="text-2xl font-semibold text-gray-900">Find us</h2>
-            <p className="mt-4 text-gray-700">Grace Chapel, Indio, CA</p>
-            <iframe
-              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3319.4271907655093!2d-116.25494572339673!3d33.69789333635636!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x80daf83fbdd65fbb%3A0xcdfe7bb4a72bee6f!2sGrace%20Chapel%20Indio!5e0!3m2!1sen!2sus!4v1785802438531!5m2!1sen!2sus"
-              width="100%"
-              height="220"
-              className="mt-4 border border-gray-200 rounded-lg"
-              loading="lazy"
-              referrerPolicy="strict-origin-when-cross-origin"
-            />
-          </div>
         </section>
 
         {publicFaqs.length > 0 && (

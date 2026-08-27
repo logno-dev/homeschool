@@ -21,6 +21,8 @@ interface ScholarshipApplicationData {
   approvedAmount: number | null
   reason: string
   additionalInfo: string | null
+  supportingDocumentUrl: string | null
+  supportingDocumentFilename: string | null
   status: string
   reviewNotes: string | null
   createdAt: string
@@ -297,6 +299,9 @@ export default function ScholarshipsPage() {
                   <div className="mt-3 text-sm text-gray-600">Reason: {application.reason}</div>
                   {application.additionalInfo && (
                     <div className="mt-2 text-xs text-gray-500">Additional: {application.additionalInfo}</div>
+                  )}
+                  {application.supportingDocumentUrl && (
+                    <div className="mt-3 text-sm"><a href={application.supportingDocumentUrl} target="_blank" rel="noreferrer" className="font-medium text-blue-600 hover:text-blue-800">View completed application{application.supportingDocumentFilename ? ` (${application.supportingDocumentFilename})` : ''}</a></div>
                   )}
                   <div className="mt-3 text-xs text-gray-500">Submitted {formatDate(application.createdAt)}</div>
 
