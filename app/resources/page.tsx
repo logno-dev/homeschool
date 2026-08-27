@@ -46,6 +46,20 @@ export default async function ResourcesPage() {
             <p className="text-gray-600">Find internal tools and trusted resources for families.</p>
           </div>
 
+          {privateFaqs.length > 0 && (
+            <section className="space-y-4">
+              <h2 className="text-xl font-semibold text-gray-900">Family FAQs</h2>
+              <div className="space-y-3">
+                {privateFaqs.map((faq) => (
+                  <details key={faq.id} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+                    <summary className="cursor-pointer list-none font-semibold text-gray-900">{faq.question}</summary>
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">{faq.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="space-y-6">
             <h2 className="text-xl font-semibold text-gray-900">Internal Resources</h2>
             <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm grid gap-2">
@@ -65,19 +79,6 @@ export default async function ResourcesPage() {
             </div>
           </section>
 
-          {privateFaqs.length > 0 && (
-            <section className="space-y-4">
-              <h2 className="text-xl font-semibold text-gray-900">Family FAQs</h2>
-              <div className="space-y-3">
-                {privateFaqs.map((faq) => (
-                  <details key={faq.id} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-                    <summary className="cursor-pointer list-none font-semibold text-gray-900">{faq.question}</summary>
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">{faq.answer}</p>
-                  </details>
-                ))}
-              </div>
-            </section>
-          )}
 
           <section className="space-y-4">
             <h2 className="text-xl font-semibold text-gray-900">External Resources</h2>
