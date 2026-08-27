@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { getGlobalSetting, getGradeIncrementSettings, incrementAllStudentGrades, setGlobalSetting, setGradeIncrementDate, setGradeIncrementLastRun } from '@/lib/database'
 import { DEFAULT_APP_TIMEZONE, isAppTimezone } from '@/lib/timezones'
+import { EMAIL_TYPES, type EmailType } from '@/lib/email-types'
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 
@@ -12,14 +13,16 @@ export async function GET() {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const [settings, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone] = await Promise.all([
+    const [settings, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone, senderAliases, ...senderSettings] = await Promise.all([
       getGradeIncrementSettings(),
       getGlobalSetting('registration_notification_emails'),
       getGlobalSetting('class_request_notification_emails'),
       getGlobalSetting('registration_override_notification_emails'),
       getGlobalSetting('handbook_url'),
       getGlobalSetting('handbook_version'),
-      getGlobalSetting('app_timezone')
+      getGlobalSetting('app_timezone'),
+      getGlobalSetting('email_sender_aliases'),
+      ...EMAIL_TYPES.flatMap((type) => [getGlobalSetting(`email_sender_${type}`), getGlobalSetting(`email_reply_to_${type}`)])
     ])
     return NextResponse.json({
       ...settings,
@@ -28,7 +31,10 @@ export async function GET() {
       registrationOverrideNotificationEmails: registrationOverrideNotificationEmails || '',
       handbookUrl: handbookUrl || '',
       handbookVersion: handbookVersion || '',
-      appTimezone: isAppTimezone(appTimezone) ? appTimezone : DEFAULT_APP_TIMEZONE
+      appTimezone: isAppTimezone(appTimezone) ? appTimezone : DEFAULT_APP_TIMEZONE,
+      emailSenderAliases: (() => { try { return JSON.parse(senderAliases || '[]') } catch { return [] } })(),
+      emailSenders: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 2] || ''])),
+      emailReplyTos: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 2 + 1] || '']))
     })
   } catch (error) {
     console.error('Error loading admin settings:', error)
@@ -44,7 +50,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { gradeIncrementDate, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone, runIncrementNow } = body
+    const { gradeIncrementDate, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone, emailSenderAliases, emailSenders, emailReplyTos, runIncrementNow } = body
 
     if (runIncrementNow) {
       const result = await incrementAllStudentGrades()
@@ -71,6 +77,16 @@ export async function POST(request: Request) {
 
     if (appTimezone !== undefined && !isAppTimezone(appTimezone)) {
       return NextResponse.json({ error: 'appTimezone must be a supported timezone' }, { status: 400 })
+    }
+
+    if (emailSenderAliases !== undefined && (!Array.isArray(emailSenderAliases) || emailSenderAliases.some((alias) => typeof alias !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/i.test(alias)))) {
+      return NextResponse.json({ error: 'emailSenderAliases must contain valid email local-parts' }, { status: 400 })
+    }
+    if (emailSenders !== undefined && (typeof emailSenders !== 'object' || emailSenders === null || Object.entries(emailSenders).some(([type, alias]) => !EMAIL_TYPES.includes(type as EmailType) || typeof alias !== 'string'))) {
+      return NextResponse.json({ error: 'emailSenders contains an invalid sender selection' }, { status: 400 })
+    }
+    if (emailReplyTos !== undefined && (typeof emailReplyTos !== 'object' || emailReplyTos === null || Object.entries(emailReplyTos).some(([type, alias]) => !EMAIL_TYPES.includes(type as EmailType) || typeof alias !== 'string'))) {
+      return NextResponse.json({ error: 'emailReplyTos contains an invalid reply-to selection' }, { status: 400 })
     }
 
     if (handbookUrl !== undefined && typeof handbookUrl !== 'string') {
@@ -124,6 +140,9 @@ export async function POST(request: Request) {
       await setGradeIncrementDate(gradeIncrementDate || null)
     }
     if (appTimezone !== undefined) await setGlobalSetting('app_timezone', appTimezone)
+    if (emailSenderAliases !== undefined) await setGlobalSetting('email_sender_aliases', JSON.stringify(Array.from(new Set(emailSenderAliases))))
+    if (emailSenders !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_sender_${type}`, emailSenders[type] || null)))
+    if (emailReplyTos !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_reply_to_${type}`, emailReplyTos[type] || null)))
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error saving admin settings:', error)

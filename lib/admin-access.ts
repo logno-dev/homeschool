@@ -1,7 +1,7 @@
 export const ADMIN_MODULES = [
   { key: 'users', label: 'User Management', supremeOnly: true },
   { key: 'groups', label: 'User Groups', supremeOnly: true },
-  { key: 'newsletters', label: 'Newsletters', supremeOnly: false },
+  { key: 'newsletters', label: 'Messaging', supremeOnly: false },
   { key: 'sessions', label: 'Session Management', supremeOnly: false },
   { key: 'registrations', label: 'Registrations', supremeOnly: false },
   { key: 'reports', label: 'Reports', supremeOnly: false },

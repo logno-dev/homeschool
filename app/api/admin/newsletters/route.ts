@@ -24,6 +24,8 @@ export async function POST(request: Request) {
       subject: String(body.subject || 'Untitled newsletter').trim(),
       html: String(body.html || ''),
       text: String(body.text || ''),
+      senderAlias: body.senderAlias ? String(body.senderAlias) : null,
+      replyToAlias: body.replyToAlias ? String(body.replyToAlias) : null,
       includeInactive: Boolean(body.includeInactive),
       createdBy: auth.session.user.id,
       createdAt: now,

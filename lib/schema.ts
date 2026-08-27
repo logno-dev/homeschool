@@ -102,6 +102,8 @@ export const newsletters = sqliteTable('newsletters', {
   subject: text('subject').notNull(),
   html: text('html').notNull(),
   text: text('text').notNull(),
+  senderAlias: text('sender_alias'),
+  replyToAlias: text('reply_to_alias'),
   status: text('status').notNull().default('draft'),
   includeInactive: integer('include_inactive', { mode: 'boolean' }).notNull().default(false),
   scheduledAt: text('scheduled_at'),

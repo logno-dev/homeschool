@@ -54,7 +54,7 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
       )
     },
     {
-      name: 'Newsletters',
+      name: 'Messaging',
       href: '/admin/newsletters',
       key: 'newsletters',
       icon: (

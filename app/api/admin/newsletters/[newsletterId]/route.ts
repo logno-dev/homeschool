@@ -7,7 +7,7 @@ import { newsletterGroups, newsletterRecipients, newsletters } from '@/lib/schem
 import { getNewsletterGroupIds, snapshotNewsletterRecipients } from '@/lib/newsletters'
 
 export async function GET(request: Request, { params }: { params: Promise<{ newsletterId: string }> }) {
-  const auth = await getAuthenticatedAdmin()
+  const auth = await getAuthenticatedAdmin('newsletters')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { newsletterId } = await params
   const [newsletter] = await db.select().from(newsletters).where(eq(newsletters.id, newsletterId)).limit(1)
@@ -19,7 +19,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ news
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ newsletterId: string }> }) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('newsletters')
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
     const { newsletterId } = await params
     const [existing] = await db.select().from(newsletters).where(eq(newsletters.id, newsletterId)).limit(1)
@@ -43,6 +43,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ne
       subject: body.subject === undefined ? existing.subject : String(body.subject).trim(),
       html: body.html === undefined ? existing.html : String(body.html),
       text: body.text === undefined ? existing.text : String(body.text),
+      senderAlias: body.senderAlias === undefined ? existing.senderAlias : (body.senderAlias ? String(body.senderAlias) : null),
+      replyToAlias: body.replyToAlias === undefined ? existing.replyToAlias : (body.replyToAlias ? String(body.replyToAlias) : null),
       includeInactive: body.includeInactive === undefined ? existing.includeInactive : Boolean(body.includeInactive),
       scheduledAt: schedule ? scheduledAt!.toISOString() : body.status === 'draft' ? null : existing.scheduledAt,
       status: body.status === 'draft' ? 'draft' : schedule ? 'scheduled' : existing.status,
@@ -66,7 +68,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ne
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ newsletterId: string }> }) {
-  const auth = await getAuthenticatedAdmin()
+  const auth = await getAuthenticatedAdmin('newsletters')
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
   const { newsletterId } = await params
   await db.delete(newsletters).where(and(eq(newsletters.id, newsletterId), eq(newsletters.status, 'draft')))

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth-client'
 import AdminLayout from '@/app/components/AdminLayout'
+import IndividualEmailComposer from '@/app/admin/newsletters/IndividualEmailComposer'
 
 interface Group { id: string; name: string; slug: string; isSystem: boolean }
 interface UserDetails { id: string; email: string; firstName: string; lastName: string; role: string; status: string }
@@ -15,12 +16,16 @@ export default function AdminUserDetailsPage() {
   const [details, setDetails] = useState<{ user: UserDetails; groups: Group[]; memberships: string[] } | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [temporaryPassword, setTemporaryPassword] = useState('')
+  const [senderAliases, setSenderAliases] = useState<string[]>([])
 
   const load = async () => {
     const response = await fetch(`/api/admin/users/${params.userId}`)
     const payload = await response.json()
     if (!response.ok) throw new Error(payload.error || 'Unable to load user')
     setDetails(payload)
+    const configResponse = await fetch('/api/admin/messaging/config')
+    if (configResponse.ok) setSenderAliases((await configResponse.json()).aliases || [])
   }
 
   useEffect(() => {
@@ -70,6 +75,22 @@ export default function AdminUserDetailsPage() {
     window.open(payload.url, '_blank', 'noopener,noreferrer')
   }
 
+  const resetPassword = async () => {
+    if (!confirm('Reset this user password and invalidate their active sessions?')) return
+    setBusy(true)
+    const response = await fetch(`/api/admin/users/${params.userId}/reset-password`, { method: 'POST' })
+    const payload = await response.json() as { temporaryPassword?: string; error?: string }
+    setBusy(false)
+    if (!response.ok) { setMessage(payload.error || 'Unable to reset password'); return }
+    setTemporaryPassword(payload.temporaryPassword || '')
+    setMessage('Temporary password generated. Give it to the user securely.')
+  }
+
+  const copyTemporaryPassword = async () => {
+    await navigator.clipboard.writeText(temporaryPassword)
+    setMessage('Temporary password copied')
+  }
+
   if (loading || !user || !details) return <div className="min-h-screen bg-gray-50" />
   const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
 
@@ -89,7 +110,14 @@ export default function AdminUserDetailsPage() {
               <label className="text-sm font-medium text-gray-700">Role<select value={details.user.role === 'staff' ? 'moderator' : details.user.role} onChange={(event) => updateRole(event.target.value)} disabled={busy || details.user.id === user.id} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="user">User</option><option value="moderator">Moderator</option><option value="admin">Admin</option></select></label>
               {details.user.id !== user.id && details.user.status === 'active' && <button onClick={deactivate} disabled={busy} className="self-end rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50">Deactivate User</button>}
             </div>
+            <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4">
+              <h3 className="text-sm font-semibold text-amber-900">Password reset</h3>
+              <p className="mt-1 text-sm text-amber-800">Generate a temporary password. The user will be required to choose a new password at sign-in.</p>
+              <button onClick={resetPassword} disabled={busy} className="mt-3 rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50">Reset password</button>
+              {temporaryPassword && <div className="mt-3 flex flex-wrap items-center gap-2"><code className="rounded bg-white px-3 py-2 text-sm text-gray-900">{temporaryPassword}</code><button onClick={copyTemporaryPassword} className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100">Copy</button></div>}
+            </div>
           </section>
+          <IndividualEmailComposer users={[details.user]} aliases={senderAliases} initialUserId={details.user.id} />
 
           <section className="mt-8 border-t pt-6">
             <h2 className="text-lg font-semibold text-gray-900">User Groups</h2>

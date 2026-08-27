@@ -150,6 +150,22 @@ export async function changePasswordForUser(input: {
   return { ok: true as const }
 }
 
+export async function resetPasswordByAdmin(userId: string) {
+  const [account] = await db.select().from(authAccounts).where(and(eq(authAccounts.userId, userId), eq(authAccounts.isActive, true))).limit(1)
+  if (!account) return null
+
+  const temporaryPassword = randomBytes(9).toString('base64url')
+  await db.update(authAccounts).set({
+    passwordHash: hashPassword(temporaryPassword),
+    mustResetPassword: true,
+    resetTokenHash: null,
+    resetTokenExpiresAt: null,
+    updatedAt: nowIso()
+  }).where(eq(authAccounts.id, account.id))
+  await deleteAllUserSessions(userId)
+  return temporaryPassword
+}
+
 export async function createSessionForUser(userId: string, ttlDays = SESSION_TTL_DAYS) {
   const token = randomBytes(32).toString('hex')
   const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000)

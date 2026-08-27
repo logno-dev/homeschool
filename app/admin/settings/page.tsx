@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import AdminLayout from '../../components/AdminLayout'
 import { useToast } from '../../components/ToastContainer'
 import { APP_TIMEZONES, DEFAULT_APP_TIMEZONE } from '@/lib/timezones'
+import { EMAIL_TYPES } from '@/lib/email-types'
 
 interface SettingsState {
   incrementDate: string
@@ -14,6 +15,9 @@ interface SettingsState {
   classRequestNotificationEmails: string
   registrationOverrideNotificationEmails: string
   appTimezone: string
+  emailSenderAliases: string
+  emailSenders: Record<string, string>
+  emailReplyTos: Record<string, string>
 }
 
 interface Handbook {
@@ -31,7 +35,7 @@ export default function AdminSettingsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const { showSuccess, showError } = useToast()
-  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE })
+  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {} })
   const [handbooks, setHandbooks] = useState<Handbook[]>([])
   const [handbookVersion, setHandbookVersion] = useState('')
   const [handbookFile, setHandbookFile] = useState<File | null>(null)
@@ -62,6 +66,9 @@ export default function AdminSettingsPage() {
           classRequestNotificationEmails: result.classRequestNotificationEmails || '',
           registrationOverrideNotificationEmails: result.registrationOverrideNotificationEmails || '',
           appTimezone: result.appTimezone || DEFAULT_APP_TIMEZONE
+          , emailSenderAliases: (result.emailSenderAliases || []).join(', ')
+          , emailSenders: result.emailSenders || {}
+          , emailReplyTos: result.emailReplyTos || {}
         })
         const handbooksResponse = await fetch('/api/admin/handbooks')
         if (handbooksResponse.ok) {
@@ -90,6 +97,9 @@ export default function AdminSettingsPage() {
           classRequestNotificationEmails: settings.classRequestNotificationEmails,
           registrationOverrideNotificationEmails: settings.registrationOverrideNotificationEmails,
           appTimezone: settings.appTimezone
+          , emailSenderAliases: settings.emailSenderAliases.split(',').map((alias) => alias.trim()).filter(Boolean)
+          , emailSenders: settings.emailSenders
+          , emailReplyTos: settings.emailReplyTos
         })
       })
       const result = await response.json()
@@ -283,6 +293,16 @@ export default function AdminSettingsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Registration override notification emails</label>
                   <input type="text" value={settings.registrationOverrideNotificationEmails} onChange={(e) => setSettings((prev) => ({ ...prev, registrationOverrideNotificationEmails: e.target.value }))} placeholder="admin@example.com, staff@example.com" className="w-full max-w-xl border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
                   <p className="mt-2 text-xs text-gray-500">Comma-separated addresses notified when a family requests an admin registration override.</p>
+                </div>
+                <div className="border-t border-gray-200 pt-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Email senders</h2>
+                  <p className="mt-1 text-sm text-gray-600">Configure local-part aliases for the verified Resend domain, then choose which sender each system email uses.</p>
+                  <label className="mt-4 block text-sm font-medium text-gray-700">Sender aliases</label>
+                  <input type="text" value={settings.emailSenderAliases} onChange={(e) => setSettings((prev) => ({ ...prev, emailSenderAliases: e.target.value }))} placeholder="noreply, announcements, payments" className="mt-2 w-full max-w-xl border border-gray-300 rounded-md px-3 py-2 text-sm" />
+                  <p className="mt-2 text-xs text-gray-500">Comma-separated local parts. With `@mydomain.com`, enter `noreply`, not a full email address.</p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {EMAIL_TYPES.map((type) => <div key={type} className="space-y-2 rounded-md border border-gray-200 bg-gray-50 p-3"><h3 className="text-sm font-semibold capitalize text-gray-800">{type.replaceAll('_', ' ')}</h3><label className="block text-sm font-medium text-gray-700">Sender<select value={settings.emailSenders[type] || ''} onChange={(e) => setSettings((prev) => ({ ...prev, emailSenders: { ...prev.emailSenders, [type]: e.target.value } }))} className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 font-normal"><option value="">Use first alias</option>{settings.emailSenderAliases.split(',').map((alias) => alias.trim()).filter(Boolean).map((alias) => <option key={alias} value={alias}>{alias}</option>)}</select></label><label className="block text-sm font-medium text-gray-700">Reply-to<select value={settings.emailReplyTos[type] || ''} onChange={(e) => setSettings((prev) => ({ ...prev, emailReplyTos: { ...prev.emailReplyTos, [type]: e.target.value } }))} className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 font-normal"><option value="">No reply-to address</option>{settings.emailSenderAliases.split(',').map((alias) => alias.trim()).filter(Boolean).map((alias) => <option key={alias} value={alias}>{alias}</option>)}</select></label></div>)}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">

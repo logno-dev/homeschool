@@ -30,7 +30,7 @@ export async function GET(request: Request) {
         }
 
         try {
-          const resendIds = await sendNewsletterBatch({ subject: newsletter.subject, html: newsletter.html, text: newsletter.text, recipients })
+           const resendIds = await sendNewsletterBatch({ subject: newsletter.subject, html: newsletter.html, text: newsletter.text, recipients, senderAlias: newsletter.senderAlias || undefined, replyToAlias: newsletter.replyToAlias || undefined })
           const sentAt = new Date().toISOString()
           for (const [index, recipient] of recipients.entries()) {
             await db.update(newsletterRecipients).set({ status: 'sent', resendId: resendIds[index] || null, sentAt }).where(eq(newsletterRecipients.id, recipient.id))
