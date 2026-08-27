@@ -1,2 +1,0 @@
-ALTER TABLE scholarship_applications ADD COLUMN supporting_document_url text;
-ALTER TABLE scholarship_applications ADD COLUMN supporting_document_filename text;

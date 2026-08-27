@@ -394,8 +394,6 @@ export const scholarshipApplications = sqliteTable('scholarship_applications', {
   requestedAmount: real('requested_amount'),
   reason: text('reason').notNull(),
   additionalInfo: text('additional_info'),
-  supportingDocumentUrl: text('supporting_document_url'),
-  supportingDocumentFilename: text('supporting_document_filename'),
   status: text('status').notNull().default('pending'), // pending, approved, rejected, withdrawn
   approvedAmount: real('approved_amount'),
   reviewNotes: text('review_notes'),

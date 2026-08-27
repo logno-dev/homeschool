@@ -13,8 +13,8 @@ type ExternalLink = {
 export default async function ResourcesPage() {
   await getAuthenticatedUser()
   const privateFaqs = await getFaqsByVisibility('private')
-  const scholarshipFormUrl = await getGlobalSetting('scholarship_form_url')
-  const scholarshipFormFilename = await getGlobalSetting('scholarship_form_filename')
+  const supervisionFormUrl = await getGlobalSetting('supervision_form_url')
+  const supervisionFormFilename = await getGlobalSetting('supervision_form_filename')
 
   const externalLinks: Array<ExternalLink> = [
     {
@@ -51,6 +51,7 @@ export default async function ResourcesPage() {
             <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm grid gap-2">
               <p>Due to California licensing regulations and liability issues, we require that a parent or guardian be on campus AT ALL TIMES for every student and child that is in attendance. Some exceptions can be made, on occasion. Please speak with a Board Member about these exceptions. Board Member approval will be required.</p>
               <p>If a student is brought to co-op by a family member, other than their parent, a <strong>Request for Adult Relative/Family Friend to Supervise and Provide Care for Student</strong> will need to be filled out ahead of time by the parent and signed, giving permission for that person to bring the student to co-op. That designated relative will need to remain on site with the student the entire time and may need to full fill some of the parents volunteer responsibilities unless other arrangements were made with a fellow DVCLC participant.</p>
+              {supervisionFormUrl && <p>Download and complete the <a href={supervisionFormUrl} target="_blank" rel="noreferrer" className="font-medium text-blue-600 underline">Request for Adult Relative/Family Friend to Supervise and Provide Care for Student form</a> and turn it in in person.</p>}
             </div>
             <div className="grid gap-6 md:grid-cols-2">
               <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
@@ -58,7 +59,7 @@ export default async function ResourcesPage() {
                 <p className="text-sm text-gray-600 mb-4">
                   Request fee assistance through the scholarship fund for your current session fees.
                 </p>
-                <ScholarshipApplicationForm scholarshipFormUrl={scholarshipFormUrl} scholarshipFormFilename={scholarshipFormFilename} />
+                <ScholarshipApplicationForm />
               </div>
               <ScholarshipDonationCard />
             </div>

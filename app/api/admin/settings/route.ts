@@ -13,15 +13,15 @@ export async function GET() {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const [settings, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, scholarshipFormUrl, scholarshipFormFilename, appTimezone, senderAliases, ...senderSettings] = await Promise.all([
+    const [settings, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, supervisionFormUrl, supervisionFormFilename, appTimezone, senderAliases, ...senderSettings] = await Promise.all([
       getGradeIncrementSettings(),
       getGlobalSetting('registration_notification_emails'),
       getGlobalSetting('class_request_notification_emails'),
       getGlobalSetting('registration_override_notification_emails'),
       getGlobalSetting('handbook_url'),
       getGlobalSetting('handbook_version'),
-      getGlobalSetting('scholarship_form_url'),
-      getGlobalSetting('scholarship_form_filename'),
+      getGlobalSetting('supervision_form_url'),
+      getGlobalSetting('supervision_form_filename'),
       getGlobalSetting('app_timezone'),
       getGlobalSetting('email_sender_aliases'),
       ...EMAIL_TYPES.flatMap((type) => [getGlobalSetting(`email_sender_${type}`), getGlobalSetting(`email_reply_to_${type}`)])
@@ -33,8 +33,8 @@ export async function GET() {
       registrationOverrideNotificationEmails: registrationOverrideNotificationEmails || '',
       handbookUrl: handbookUrl || '',
       handbookVersion: handbookVersion || '',
-      scholarshipFormUrl: scholarshipFormUrl || '',
-      scholarshipFormFilename: scholarshipFormFilename || '',
+      supervisionFormUrl: supervisionFormUrl || '',
+      supervisionFormFilename: supervisionFormFilename || '',
       appTimezone: isAppTimezone(appTimezone) ? appTimezone : DEFAULT_APP_TIMEZONE,
       emailSenderAliases: (() => { try { return JSON.parse(senderAliases || '[]') } catch { return [] } })(),
       emailSenders: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 2] || ''])),

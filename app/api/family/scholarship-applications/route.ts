@@ -5,9 +5,6 @@ import { scholarshipApplications, familySessionFees, sessions } from '@/lib/sche
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { getActiveSession, getGuardianById } from '@/lib/database'
-import { put } from '@vercel/blob'
-
-const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024
 
 export async function GET() {
   try {
@@ -28,8 +25,6 @@ export async function GET() {
         approvedAmount: scholarshipApplications.approvedAmount,
         status: scholarshipApplications.status,
         reviewNotes: scholarshipApplications.reviewNotes,
-        supportingDocumentUrl: scholarshipApplications.supportingDocumentUrl,
-        supportingDocumentFilename: scholarshipApplications.supportingDocumentFilename,
         createdAt: scholarshipApplications.createdAt
       })
       .from(scholarshipApplications)
@@ -53,11 +48,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Guardian not found' }, { status: 404 })
     }
 
-    const contentType = request.headers.get('content-type') || ''
-    const formData = contentType.includes('multipart/form-data') ? await request.formData() : null
-    const body = formData ? Object.fromEntries(formData.entries()) : await request.json()
+    const body = await request.json()
     const { sessionId, scholarshipType, requestedAmount, reason, additionalInfo } = body
-    const supportingDocument = formData?.get('supportingDocument')
     const activeSession = await getActiveSession()
     const targetSessionId = sessionId || activeSession?.id
 
@@ -118,23 +110,6 @@ export async function POST(request: Request) {
       normalizedRequestedAmount = requested
     }
 
-    let supportingDocumentUrl: string | null = null
-    let supportingDocumentFilename: string | null = null
-    if (supportingDocument instanceof File && supportingDocument.size > 0) {
-      if (supportingDocument.type !== 'application/pdf' && !supportingDocument.name.toLowerCase().endsWith('.pdf')) {
-        return NextResponse.json({ error: 'Supporting documents must be PDF files.' }, { status: 400 })
-      }
-      if (supportingDocument.size > MAX_DOCUMENT_SIZE) {
-        return NextResponse.json({ error: 'Supporting document must be 10 MB or smaller.' }, { status: 400 })
-      }
-      const blob = await put(`scholarship-submissions/${Date.now()}-${randomUUID()}-${supportingDocument.name}`, supportingDocument, {
-        access: 'public',
-        addRandomSuffix: true,
-        contentType: 'application/pdf'
-      })
-      supportingDocumentUrl = blob.url
-      supportingDocumentFilename = supportingDocument.name
-    }
 
     const applicationId = randomUUID()
     await db.insert(scholarshipApplications).values({
@@ -146,8 +121,6 @@ export async function POST(request: Request) {
       requestedAmount: normalizedRequestedAmount,
       reason: reason.trim(),
       additionalInfo: additionalInfo?.trim() || null,
-      supportingDocumentUrl,
-      supportingDocumentFilename,
       status: 'pending',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()

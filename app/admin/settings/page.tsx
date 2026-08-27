@@ -18,8 +18,8 @@ interface SettingsState {
   emailSenderAliases: string
   emailSenders: Record<string, string>
   emailReplyTos: Record<string, string>
-  scholarshipFormUrl: string
-  scholarshipFormFilename: string
+  supervisionFormUrl: string
+  supervisionFormFilename: string
 }
 
 interface Handbook {
@@ -37,16 +37,16 @@ export default function AdminSettingsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const { showSuccess, showError } = useToast()
-  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {}, scholarshipFormUrl: '', scholarshipFormFilename: '' })
+  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {}, supervisionFormUrl: '', supervisionFormFilename: '' })
   const [handbooks, setHandbooks] = useState<Handbook[]>([])
   const [handbookVersion, setHandbookVersion] = useState('')
   const [handbookFile, setHandbookFile] = useState<File | null>(null)
-  const [scholarshipFormFile, setScholarshipFormFile] = useState<File | null>(null)
+  const [supervisionFormFile, setSupervisionFormFile] = useState<File | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isRunning, setIsRunning] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [isUploadingScholarshipForm, setIsUploadingScholarshipForm] = useState(false)
+  const [isUploadingSupervisionForm, setIsUploadingSupervisionForm] = useState(false)
   const [isPublishing, setIsPublishing] = useState<string | null>(null)
 
   useEffect(() => {
@@ -73,8 +73,8 @@ export default function AdminSettingsPage() {
           , emailSenderAliases: (result.emailSenderAliases || []).join(', ')
           , emailSenders: result.emailSenders || {}
           , emailReplyTos: result.emailReplyTos || {}
-          , scholarshipFormUrl: result.scholarshipFormUrl || ''
-          , scholarshipFormFilename: result.scholarshipFormFilename || ''
+          , supervisionFormUrl: result.supervisionFormUrl || ''
+          , supervisionFormFilename: result.supervisionFormFilename || ''
         })
         const handbooksResponse = await fetch('/api/admin/handbooks')
         if (handbooksResponse.ok) {
@@ -185,25 +185,25 @@ export default function AdminSettingsPage() {
     }
   }
 
-  const uploadScholarshipForm = async () => {
-    if (!scholarshipFormFile) {
-      showError('Upload incomplete', 'Choose a scholarship application PDF.')
+  const uploadSupervisionForm = async () => {
+    if (!supervisionFormFile) {
+      showError('Upload incomplete', 'Choose a supervision form PDF.')
       return
     }
-    setIsUploadingScholarshipForm(true)
+    setIsUploadingSupervisionForm(true)
     try {
       const formData = new FormData()
-      formData.set('file', scholarshipFormFile)
-      const response = await fetch('/api/admin/scholarship-form', { method: 'POST', body: formData })
+      formData.set('file', supervisionFormFile)
+      const response = await fetch('/api/admin/supervision-form', { method: 'POST', body: formData })
       const result = await response.json()
-      if (!response.ok) throw new Error(result.error || 'Failed to upload scholarship form')
-      setSettings((current) => ({ ...current, scholarshipFormUrl: result.url, scholarshipFormFilename: result.filename }))
-      setScholarshipFormFile(null)
-      showSuccess('Scholarship form uploaded', 'The form is now available to families.')
+      if (!response.ok) throw new Error(result.error || 'Failed to upload supervision form')
+      setSettings((current) => ({ ...current, supervisionFormUrl: result.url, supervisionFormFilename: result.filename }))
+      setSupervisionFormFile(null)
+      showSuccess('Supervision form uploaded', 'The form is now available to families.')
     } catch (error) {
-      showError('Upload failed', error instanceof Error ? error.message : 'Unable to upload scholarship form')
+      showError('Upload failed', error instanceof Error ? error.message : 'Unable to upload supervision form')
     } finally {
-      setIsUploadingScholarshipForm(false)
+      setIsUploadingSupervisionForm(false)
     }
   }
 
@@ -236,16 +236,16 @@ export default function AdminSettingsPage() {
                   <p className="mt-2 text-xs text-gray-500">Business dates such as registration windows use this timezone. Stored timestamps remain UTC.</p>
                 </div>
                 <div className="border-t border-gray-200 pt-4">
-                  <h2 className="text-lg font-semibold text-gray-900">Scholarship Application Form</h2>
-                  <p className="mt-1 text-sm text-gray-600">Upload the PDF families should download, complete, and turn in in person or scan and upload with their digital scholarship request.</p>
+                  <h2 className="text-lg font-semibold text-gray-900">Supervision Form</h2>
+                  <p className="mt-1 text-sm text-gray-600">Upload the PDF families should download, complete, and turn in in person.</p>
                   <div className="mt-4 flex flex-wrap items-end gap-3">
                     <div className="min-w-0 flex-1">
                       <label className="block text-sm font-medium text-gray-700 mb-2">PDF file</label>
-                      <input type="file" accept="application/pdf,.pdf" onChange={(event) => setScholarshipFormFile(event.target.files?.[0] || null)} className="block w-full text-sm text-gray-700" />
+                      <input type="file" accept="application/pdf,.pdf" onChange={(event) => setSupervisionFormFile(event.target.files?.[0] || null)} className="block w-full text-sm text-gray-700" />
                     </div>
-                    <button type="button" onClick={uploadScholarshipForm} disabled={isUploadingScholarshipForm} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">{isUploadingScholarshipForm ? 'Uploading...' : 'Upload PDF'}</button>
+                    <button type="button" onClick={uploadSupervisionForm} disabled={isUploadingSupervisionForm} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60">{isUploadingSupervisionForm ? 'Uploading...' : 'Upload PDF'}</button>
                   </div>
-                  {settings.scholarshipFormUrl && <p className="mt-3 text-sm text-gray-600">Current form: <a href={settings.scholarshipFormUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800">{settings.scholarshipFormFilename || 'View PDF'}</a></p>}
+                  {settings.supervisionFormUrl && <p className="mt-3 text-sm text-gray-600">Current form: <a href={settings.supervisionFormUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800">{settings.supervisionFormFilename || 'View PDF'}</a></p>}
                 </div>
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">Handbooks</h2>
