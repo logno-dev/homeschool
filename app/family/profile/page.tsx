@@ -3,6 +3,7 @@ import FamilyActions from '@/app/components/FamilyActions'
 import FamilyRegistrationOptions from '@/app/components/FamilyRegistrationOptions'
 import FamilyProfileClient from '../../components/FamilyProfileClient'
 import { getGlobalSetting } from '@/lib/database'
+import { getAppTimezone } from '@/lib/app-time'
 
 export default async function FamilyProfilePage() {
   // Server-side authentication and data fetching
@@ -20,6 +21,7 @@ export default async function FamilyProfilePage() {
 
   const { family, guardians, children } = familyData
   const gradeIncrementDate = await getGlobalSetting('grade_increment_date')
+  const appTimezone = await getAppTimezone()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -61,6 +63,7 @@ export default async function FamilyProfilePage() {
               guardians={guardians}
               children={children}
               gradeIncrementDate={gradeIncrementDate}
+              appTimezone={appTimezone}
             />
           </div>
         </div>

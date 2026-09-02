@@ -39,9 +39,10 @@ interface FamilyProfileClientProps {
   guardians: Guardian[]
   children: Child[]
   gradeIncrementDate: string | null
+  appTimezone: string
 }
 
-export default function FamilyProfileClient({ family, guardians, children: initialChildren, gradeIncrementDate }: FamilyProfileClientProps) {
+export default function FamilyProfileClient({ family, guardians, children: initialChildren, gradeIncrementDate, appTimezone }: FamilyProfileClientProps) {
   const [children, setChildren] = useState(initialChildren)
   const [selectedChild, setSelectedChild] = useState<Child | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -62,6 +63,11 @@ export default function FamilyProfileClient({ family, guardians, children: initi
   const formattedGradeIncrementDate = gradeIncrementDate
     ? new Date(`${gradeIncrementDate}T00:00:00`).toLocaleDateString()
     : null
+
+  const formatBirthdate = (value: string) => new Intl.DateTimeFormat('en-US', {
+    timeZone: appTimezone,
+    dateStyle: 'medium'
+  }).format(new Date(`${value}T12:00:00Z`))
 
   const openEditModal = (child: Child) => {
     setSelectedChild(child)
@@ -252,7 +258,7 @@ export default function FamilyProfileClient({ family, guardians, children: initi
                   {/* Always visible basic info */}
                   <div className="space-y-1 text-sm text-gray-700">
                     <p><span className="font-medium text-gray-900">Grade:</span> {child.grade}</p>
-                    <p><span className="font-medium text-gray-900">DOB:</span> {new Date(child.dateOfBirth).toLocaleDateString()}</p>
+                    <p><span className="font-medium text-gray-900">DOB:</span> {formatBirthdate(child.dateOfBirth)}</p>
                   </div>
                   
                   {/* Collapsible additional info */}
