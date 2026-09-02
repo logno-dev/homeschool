@@ -109,6 +109,7 @@ interface RegistrationGridProps {
   nonPeriodVolunteerJobs: any[]
   teachingAssignments: TeachingAssignment[]
   volunteerJobAssignmentCounts?: Record<string, number>
+  costBreakdown?: string | null
 }
 
 const PERIODS = [
@@ -126,7 +127,8 @@ export default function RegistrationGrid({
   volunteerJobs,
   nonPeriodVolunteerJobs,
   teachingAssignments,
-  volunteerJobAssignmentCounts = {}
+  volunteerJobAssignmentCounts = {},
+  costBreakdown = null
 }: RegistrationGridProps) {
   const { showSuccess, showError } = useToast()
   const { 
@@ -847,7 +849,7 @@ export default function RegistrationGrid({
       )}
 
       {/* Registration Cart */}
-      <RegistrationCart sessionId={sessionId} children={children || []} />
+      <RegistrationCart sessionId={sessionId} children={children || []} costBreakdown={costBreakdown} />
     </>
   )
 }

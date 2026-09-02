@@ -93,19 +93,20 @@ export async function POST(request: Request) {
     }
 
     const remainingAmount = feeRecord[0].totalFee - feeRecord[0].paidAmount
+    const maximumScholarshipAmount = Math.round(feeRecord[0].registrationFee * 0.8 * 100) / 100
 
     if (remainingAmount <= 0) {
       return NextResponse.json({ error: 'Your account has no outstanding balance for this session.' }, { status: 400 })
     }
 
-    let normalizedRequestedAmount = remainingAmount
+    let normalizedRequestedAmount = maximumScholarshipAmount
     if (scholarshipType === 'partial') {
       const requested = Number(requestedAmount)
       if (!requested || requested <= 0) {
         return NextResponse.json({ error: 'Please enter a valid requested amount.' }, { status: 400 })
       }
-      if (requested > remainingAmount) {
-        return NextResponse.json({ error: 'Requested amount exceeds your outstanding balance.' }, { status: 400 })
+      if (requested > maximumScholarshipAmount) {
+        return NextResponse.json({ error: 'Requested amount cannot exceed 80% of the registration fee.' }, { status: 400 })
       }
       normalizedRequestedAmount = requested
     }

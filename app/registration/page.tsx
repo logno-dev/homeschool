@@ -2,13 +2,20 @@ import Link from 'next/link'
 import { getActiveSessions } from '@/lib/database'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { getRegistrationAccess } from '@/lib/user-groups'
+import { db } from '@/lib/db'
+import { sessionFeeConfigs } from '@/lib/schema'
+import { eq } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
 export default async function RegistrationPage() {
   const auth = await getAuthenticatedUser()
   const activeSessions = await getActiveSessions()
-  const sessions = await Promise.all(activeSessions.map(async (session) => ({ session, access: await getRegistrationAccess(session.id, auth.user.id) })))
+  const sessions = await Promise.all(activeSessions.map(async (session) => ({
+    session,
+    access: await getRegistrationAccess(session.id, auth.user.id),
+    feeConfig: (await db.select({ costBreakdown: sessionFeeConfigs.costBreakdown }).from(sessionFeeConfigs).where(eq(sessionFeeConfigs.sessionId, session.id)).limit(1))[0] || null
+  })))
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -22,7 +29,7 @@ export default async function RegistrationPage() {
 
             {sessions.length > 0 ? (
               <div className="space-y-4">
-                {sessions.map(({ session, access }) => (
+                {sessions.map(({ session, access, feeConfig }) => (
                   <div
                     key={session.id}
                     className="border border-gray-200 rounded-lg p-6 hover:border-orange-300 transition-colors"
@@ -32,6 +39,12 @@ export default async function RegistrationPage() {
                         <h3 className="text-xl font-semibold text-gray-900 mb-2">
                           {session.name}
                         </h3>
+                        {feeConfig?.costBreakdown && (
+                          <details className="mb-2 text-sm text-gray-600">
+                            <summary className="cursor-pointer font-medium text-gray-700">View cost breakdown</summary>
+                            <p className="mt-2 whitespace-pre-wrap">{feeConfig.costBreakdown}</p>
+                          </details>
+                        )}
                           <p className="text-gray-600">{access.isOpen ? 'Registration is currently open for this session.' : access.reason || 'Registration is not currently available for your user groups.'}</p>
                       </div>
                        <Link

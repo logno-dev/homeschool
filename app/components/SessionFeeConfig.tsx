@@ -35,9 +35,11 @@ export default function SessionFeeConfig({ sessionId, sessionName, startInEditMo
 
   const [formData, setFormData] = useState<{
     dueDate: string
+    costBreakdown: string
     pricingRules: RuleFormRow[]
   }>({
     dueDate: '',
+    costBreakdown: '',
     pricingRules: [defaultRule]
   })
 
@@ -92,12 +94,14 @@ export default function SessionFeeConfig({ sessionId, sessionName, startInEditMo
         setFeeConfig(config)
         setFormData({
           dueDate: config.dueDate ? config.dueDate.split('T')[0] : '',
+          costBreakdown: config.costBreakdown || '',
           pricingRules: toFormRows(parseStoredSessionFeeRules(config.pricingRules))
         })
       } else {
         setFeeConfig(null)
         setFormData({
           dueDate: '',
+          costBreakdown: '',
           pricingRules: [defaultRule]
         })
       }
@@ -125,7 +129,8 @@ export default function SessionFeeConfig({ sessionId, sessionName, startInEditMo
         },
         body: JSON.stringify({
           pricingRules: pricingRulesPayload,
-          dueDate: formData.dueDate
+          dueDate: formData.dueDate,
+          costBreakdown: formData.costBreakdown.trim() || null
         }),
       })
 
@@ -150,11 +155,13 @@ export default function SessionFeeConfig({ sessionId, sessionName, startInEditMo
     if (feeConfig) {
       setFormData({
         dueDate: feeConfig.dueDate ? feeConfig.dueDate.split('T')[0] : '',
+        costBreakdown: feeConfig.costBreakdown || '',
         pricingRules: toFormRows(parseStoredSessionFeeRules(feeConfig.pricingRules))
       })
     } else {
       setFormData({
         dueDate: '',
+        costBreakdown: '',
         pricingRules: [defaultRule]
       })
     }
@@ -270,6 +277,7 @@ export default function SessionFeeConfig({ sessionId, sessionName, startInEditMo
             </>
           )}
           <div>
+            {feeConfig.costBreakdown && <div className="mb-3 whitespace-pre-wrap"><span className="font-medium">Cost Breakdown:</span> {feeConfig.costBreakdown}</div>}
             <span className="font-medium">Due Date:</span> {format(parseISO(feeConfig.dueDate), 'MMM d, yyyy')}
           </div>
           <div className="text-sm text-gray-600 mt-4">
@@ -282,6 +290,12 @@ export default function SessionFeeConfig({ sessionId, sessionName, startInEditMo
         </div>
       ) : (
         <div className="space-y-4">
+          <div>
+            <label htmlFor="costBreakdown" className="block text-sm font-medium text-gray-700 mb-1">Cost Breakdown</label>
+            <textarea id="costBreakdown" rows={4} value={formData.costBreakdown} onChange={(e) => setFormData({ ...formData, costBreakdown: e.target.value })} placeholder="Explain what registration and class fees cover." className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <p className="mt-1 text-xs text-gray-500">This explanation is shown to families on the registration page and during checkout.</p>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Pricing Rules</label>
             <p className="text-sm text-gray-600 mb-2">Each row is the total fee for that number of students in the family (not an extra amount added on).</p>

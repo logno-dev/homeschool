@@ -18,6 +18,12 @@ export default async function ResourcesPage() {
 
   const externalLinks: Array<ExternalLink> = [
     {
+      id: 3,
+      label: "Desert Area Homeschoolers Facebook Group",
+      href: "https://www.facebook.com/groups/139350846089369/",
+      desc: "An all - inclusive group of homeschool families located in The Coachella Valley & surrounding areas. Please join us for support, friendship & collaboration."
+    },
+    {
       id: 1,
       label: "California Homeschool Network",
       href: "https://californiahomeschool.net/",
@@ -29,12 +35,6 @@ export default async function ResourcesPage() {
       href: "https://www.californiahomeschool.net/wp-content/uploads/2018/01/JTF-2018.pdf",
       desc: "Just the facts"
     },
-    {
-      id: 3,
-      label: "Desert Area Homeschoolers Facebook Group",
-      href: "https://www.facebook.com/groups/139350846089369/",
-      desc: "An all - inclusive group of homeschool families located in The Coachella Valley & surrounding areas. Please join us for support, friendship & collaboration."
-    }
   ]
 
   return (
@@ -61,7 +61,7 @@ export default async function ResourcesPage() {
           )}
 
           <section className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900">Internal Resources</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Co-op Forms</h2>
             <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm grid gap-2">
               <p>Due to California licensing regulations and liability issues, we require that a parent or guardian be on campus AT ALL TIMES for every student and child that is in attendance. Some exceptions can be made, on occasion. Please speak with a Board Member about these exceptions. Board Member approval will be required.</p>
               <p>If a student is brought to co-op by a family member, other than their parent, a <strong>Request for Adult Relative/Family Friend to Supervise and Provide Care for Student</strong> will need to be filled out ahead of time by the parent and signed, giving permission for that person to bring the student to co-op. That designated relative will need to remain on site with the student the entire time and may need to full fill some of the parents volunteer responsibilities unless other arrangements were made with a fellow DVCLC participant.</p>
@@ -81,15 +81,15 @@ export default async function ResourcesPage() {
 
 
           <section className="space-y-4">
-            <h2 className="text-xl font-semibold text-gray-900">External Resources</h2>
+            <h2 className="text-xl font-semibold text-gray-900">Helpful Homeschool Links</h2>
             <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
               <ul className="space-y-3 text-sm text-gray-700">
                 {externalLinks.map((link) => (
                   <li key={link.id}>
-                    <a className="text-blue-600 hover:text-blue-700 font-medium" href={link.href} target="_blank" rel="noreferrer">
+                    <a className="text-blue-600 hover:text-blue-700 text-lg" href={link.href} target="_blank" rel="noreferrer">
                       {link.label}
                     </a>
-                    <span className="block text-xs text-gray-500">{link.desc}</span>
+                    <span className="block text-sm text-gray-500">{link.desc}</span>
                   </li>
                 ))}
               </ul>

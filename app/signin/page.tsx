@@ -68,7 +68,7 @@ function SignInForm() {
           <BrandLogo variant="icon" width={64} alt="DVCLC" />
         </div>
         <h1 className="text-2xl font-semibold text-gray-900">Sign in</h1>
-        <p className="mt-2 text-sm text-gray-600">Use your DVCLC email and password.</p>
+        <p className="mt-2 text-sm text-gray-600">Sign in to Desert Valley Creative Learning Collaborative co-op with your email and password.</p>
         {pendingNotice && <p className="mt-4 rounded-md bg-blue-50 p-3 text-sm text-blue-800">Your account was created and is waiting for administrator approval.</p>}
         {reactivationNotice && <p className="mt-4 rounded-md bg-blue-50 p-3 text-sm text-blue-800">Your account is pending reactivation approval. Sign in again after an administrator approves it.</p>}
 

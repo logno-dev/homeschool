@@ -39,7 +39,8 @@ export async function calculateFamilySessionFees(
   const registeredChildren = await db
     .select({
       childId: classRegistrations.childId,
-      classFee: classTeachingRequests.feeAmount
+      classFee: classTeachingRequests.feeAmount,
+      registrationFeeExempt: classTeachingRequests.registrationFeeExempt
     })
     .from(classRegistrations)
     .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
@@ -51,7 +52,11 @@ export async function calculateFamilySessionFees(
     ))
 
   // Count unique children
-  const uniqueChildren = new Set(registeredChildren.map(r => r.childId))
+  const uniqueChildren = new Set(
+    registeredChildren
+      .filter((registration) => !registration.registrationFeeExempt)
+      .map((registration) => registration.childId)
+  )
   const childrenCount = uniqueChildren.size
 
   const parsedRules = parseStoredSessionFeeRules(config.pricingRules)

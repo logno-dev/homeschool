@@ -44,7 +44,7 @@ export default function Home() {
               Desert Valley Creative Learning Collaborative
             </p>
             <h1 className="mt-4 text-4xl md:text-5xl font-bold text-gray-900 leading-tight">
-              A structured, parent-powered learning pathway
+              Coachella Valley homeschool co-op
             </h1>
             <p className="mt-6 text-lg text-gray-700 max-w-xl">
               DVCLC is a homeschool collaborative for families who want academics, creativity,

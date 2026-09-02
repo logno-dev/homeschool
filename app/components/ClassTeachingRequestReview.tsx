@@ -223,8 +223,9 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                                 maxStudents: request.maxStudents,
                                 helpersNeeded: request.helpersNeeded,
                                 coTeacher: request.coTeacher,
-                                classroomNeeds: request.classroomNeeds,
-                                requiresFee: request.requiresFee,
+                                 classroomNeeds: request.classroomNeeds,
+                                 registrationFeeExempt: request.registrationFeeExempt,
+                                 requiresFee: request.requiresFee,
                                 feeAmount: request.feeAmount,
                                  schedulingRequirements: request.schedulingRequirements
                                })
@@ -257,6 +258,9 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                         <div>
                           <span className="font-medium">Supply Fee:</span> ${request.feeAmount}
                         </div>
+                      )}
+                      {request.registrationFeeExempt && (
+                        <div className="font-medium text-green-700">Registration Fee Exempt</div>
                       )}
                       <div>
                         <span className="font-medium">Submitted:</span> {formatDate(request.createdAt)}
@@ -468,7 +472,11 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                     />
                   </div>
 
-                  <div className="flex items-center space-x-4">
+                   <div className="flex flex-wrap items-center gap-4">
+                     <label className="flex items-center">
+                       <input type="checkbox" checked={editFormData.registrationFeeExempt || false} onChange={(e) => setEditFormData({ ...editFormData, registrationFeeExempt: e.target.checked })} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded" />
+                       <span className="ml-2 text-sm text-gray-700">Exempt from registration fee</span>
+                     </label>
                     <label className="flex items-center">
                       <input
                         type="checkbox"

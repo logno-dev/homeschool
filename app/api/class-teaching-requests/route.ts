@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       helpersNeeded,
       coTeacher,
       classroomNeeds,
-      requiresFee,
+       requiresFee,
       feeAmount,
       schedulingRequirements
     } = body
@@ -163,7 +163,9 @@ export async function POST(request: Request) {
       helpersNeeded: finalHelpersNeeded,
       coTeacher: coTeacher?.trim() || null,
       classroomNeeds: classroomNeeds?.trim() || null,
-      requiresFee: requiresFee || false,
+       // Registration fee exemption is controlled by administrators only.
+       registrationFeeExempt: false,
+       requiresFee: requiresFee || false,
       feeAmount: requiresFee ? feeAmount : null,
       schedulingRequirements: schedulingRequirements?.trim() || null,
       status: 'pending',

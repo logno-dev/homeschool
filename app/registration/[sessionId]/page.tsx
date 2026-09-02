@@ -12,17 +12,21 @@ import VolunteerHourCounter from '@/app/components/VolunteerHourCounter'
 import ReadonlyScheduleView from '@/app/components/ReadonlyScheduleView'
 import { getRegistrationScheduleBundle } from '@/lib/registration'
 import Link from 'next/link'
+import { db } from '@/lib/db'
+import { sessionFeeConfigs } from '@/lib/schema'
+import { eq } from 'drizzle-orm'
 
 export default async function RegistrationPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const session = await getAuthenticatedUser()
   const { sessionId } = await params
-  const [sessionData, registrationStatus, hasEarlyAccess, groupRegistrationAccess, scheduleBundle, isStaffAdmin] = await Promise.all([
+  const [sessionData, registrationStatus, hasEarlyAccess, groupRegistrationAccess, scheduleBundle, isStaffAdmin, feeConfig] = await Promise.all([
     getSessionById(sessionId),
     getRegistrationStatus(sessionId, session.user.id),
     userBelongsToGroup(session.user.id, 'teacher'),
     getRegistrationAccess(sessionId, session.user.id),
     getRegistrationScheduleBundle(sessionId, session.user.id),
-    checkAdminRole(session)
+    checkAdminRole(session),
+    db.select({ costBreakdown: sessionFeeConfigs.costBreakdown }).from(sessionFeeConfigs).where(eq(sessionFeeConfigs.sessionId, sessionId)).limit(1).then((rows) => rows[0] || null)
   ])
 
   if (!session?.user?.id) {
@@ -183,6 +187,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
                 nonPeriodVolunteerJobs={scheduleBundle.nonPeriodVolunteerJobs}
                 teachingAssignments={scheduleBundle.teachingAssignments}
                 volunteerJobAssignmentCounts={scheduleBundle.volunteerJobAssignmentCounts}
+                costBreakdown={feeConfig?.costBreakdown}
               />
             </RegistrationProvider>
           </div>
@@ -324,6 +329,7 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
                 nonPeriodVolunteerJobs={scheduleBundle.nonPeriodVolunteerJobs}
                 teachingAssignments={scheduleBundle.teachingAssignments}
                 volunteerJobAssignmentCounts={scheduleBundle.volunteerJobAssignmentCounts}
+                costBreakdown={feeConfig?.costBreakdown}
               />
             </RegistrationProvider>
           </div>

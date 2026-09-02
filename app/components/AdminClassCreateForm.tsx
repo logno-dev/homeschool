@@ -10,7 +10,7 @@ interface Props { sessions: Session[]; teachers: Teacher[]; onCreated: () => voi
 const gradeOptions = ['Pre-K', 'Pre-K-2', 'K-2', '3-5', '6-8', '9-12', 'All Ages']
 const initialForm = {
   sessionId: '', className: '', description: '', gradeRange: '', gradeRangeFrom: '', gradeRangeTo: '', maxStudents: '20', helpersNeeded: '0',
-  teacherId: '', teacherName: '', coTeacher: '', classroomNeeds: '', requiresFee: false, feeAmount: '', schedulingRequirements: ''
+  teacherId: '', teacherName: '', coTeacher: '', classroomNeeds: '', registrationFeeExempt: false, requiresFee: false, feeAmount: '', schedulingRequirements: ''
 }
 
 export default function AdminClassCreateForm({ sessions, teachers, onCreated }: Props) {
@@ -57,7 +57,7 @@ export default function AdminClassCreateForm({ sessions, teachers, onCreated }: 
         </div>
         <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-gray-700">Co-Teacher<input value={form.coTeacher} onChange={(event) => setForm({ ...form, coTeacher: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label><label className="text-sm font-medium text-gray-700">Classroom Needs<input value={form.classroomNeeds} onChange={(event) => setForm({ ...form, classroomNeeds: event.target.value })} placeholder="TV, projector, supplies" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label></div>
         <label className="block text-sm font-medium text-gray-700">Scheduling Requirements<textarea value={form.schedulingRequirements} onChange={(event) => setForm({ ...form, schedulingRequirements: event.target.value })} rows={2} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>
-        <div className="flex items-end gap-4"><label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.requiresFee} onChange={(event) => setForm({ ...form, requiresFee: event.target.checked })} />Requires class fee</label>{form.requiresFee && <label className="text-sm font-medium text-gray-700">Fee Amount<input required type="number" min="0" step="0.01" value={form.feeAmount} onChange={(event) => setForm({ ...form, feeAmount: event.target.value })} className="mt-1 block w-32 rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>}</div>
+         <div className="flex flex-wrap items-end gap-4"><label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.registrationFeeExempt} onChange={(event) => setForm({ ...form, registrationFeeExempt: event.target.checked })} />Exempt from registration fee</label><label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.requiresFee} onChange={(event) => setForm({ ...form, requiresFee: event.target.checked })} />Requires class fee</label>{form.requiresFee && <label className="text-sm font-medium text-gray-700">Fee Amount<input required type="number" min="0" step="0.01" value={form.feeAmount} onChange={(event) => setForm({ ...form, feeAmount: event.target.value })} className="mt-1 block w-32 rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>}</div>
         <button disabled={busy} className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{busy ? 'Creating...' : 'Create Approved Class'}</button>
       </form>}
       {message && <p className="mt-4 text-sm text-blue-700">{message}</p>}

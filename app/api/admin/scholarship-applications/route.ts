@@ -29,7 +29,8 @@ export async function GET() {
         status: scholarshipApplications.status,
         reviewNotes: scholarshipApplications.reviewNotes,
         createdAt: scholarshipApplications.createdAt,
-        remainingAmount: sql<number>`COALESCE(${familySessionFees.totalFee} - ${familySessionFees.paidAmount}, 0)`
+         remainingAmount: sql<number>`COALESCE(${familySessionFees.totalFee} - ${familySessionFees.paidAmount}, 0)`
+        , eligibleAmount: sql<number>`ROUND(COALESCE(${familySessionFees.registrationFee}, 0) * 0.8, 2)`
       })
       .from(scholarshipApplications)
       .leftJoin(families, eq(scholarshipApplications.familyId, families.id))

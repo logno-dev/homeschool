@@ -320,6 +320,27 @@ export default function ClassTeachingForm({
         </div>
 
         <div>
+          <label className="flex items-center gap-3 text-sm text-gray-900">
+            <input
+              type="checkbox"
+              checked={formData.requiresFee}
+              onChange={(e) => setFormData({ ...formData, requiresFee: e.target.checked, feeAmount: e.target.checked ? formData.feeAmount : '' })}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+            />
+            This class requires a supply fee
+          </label>
+          {formData.requiresFee && (
+            <div className="mt-3 max-w-xs">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Supply Fee Amount *</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <input type="number" min="0" step="0.01" required value={formData.feeAmount} onChange={(e) => setFormData({ ...formData, feeAmount: e.target.value })} className="w-full border border-gray-300 rounded-md pl-7 pr-3 py-2" placeholder="0.00" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Class Description *
           </label>
@@ -365,43 +386,6 @@ export default function ClassTeachingForm({
             className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="e.g., TV/projector, art supplies, tables for group work, etc."
           />
-        </div>
-
-        {/* Mobile-optimized checkbox and fee section */}
-        <div className="space-y-4">
-          <div className="flex items-start">
-            <input
-              type="checkbox"
-              id="requiresFee"
-              checked={formData.requiresFee}
-              onChange={(e) => setFormData({ ...formData, requiresFee: e.target.checked, feeAmount: e.target.checked ? formData.feeAmount : '' })}
-              className="h-5 w-5 sm:h-4 sm:w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mt-0.5"
-            />
-            <label htmlFor="requiresFee" className="ml-3 sm:ml-2 block text-sm sm:text-sm text-gray-900 leading-5">
-              This class requires a supply fee
-            </label>
-          </div>
-
-          {formData.requiresFee && (
-            <div className="pl-8 sm:pl-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Supply Fee Amount *
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-500 text-lg sm:text-base sm:left-3">$</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  required={formData.requiresFee}
-                  value={formData.feeAmount}
-                  onChange={(e) => setFormData({ ...formData, feeAmount: e.target.value })}
-                  className="w-full border border-gray-300 rounded-md pl-8 pr-4 py-3 text-base sm:text-sm sm:pl-8 sm:pr-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-          )}
         </div>
 
         <div>

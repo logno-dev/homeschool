@@ -95,7 +95,7 @@ export async function PATCH(
       helpersNeeded: finalHelpersNeeded,
       coTeacher: coTeacher?.trim() || null,
       classroomNeeds: classroomNeeds?.trim() || null,
-      requiresFee: requiresFee || false,
+       requiresFee: requiresFee || false,
       feeAmount: requiresFee ? feeAmount : null,
       schedulingRequirements: schedulingRequirements?.trim() || null,
       status: 'pending'

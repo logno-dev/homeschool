@@ -52,6 +52,7 @@ export async function POST(
     const {
       dueDate,
       pricingRules,
+      costBreakdown,
       firstChildFee,
       additionalChildFee
     } = body
@@ -113,8 +114,9 @@ export async function POST(
           pricingRules: hasPricingRules
             ? serializeSessionFeeRules(normalizedRules)
             : '[]',
-          dueDate,
-          updatedAt: new Date().toISOString()
+           dueDate,
+           costBreakdown: typeof costBreakdown === 'string' ? costBreakdown.trim() || null : null,
+           updatedAt: new Date().toISOString()
         })
         .where(eq(sessionFeeConfigs.sessionId, sessionId))
 
@@ -135,7 +137,8 @@ export async function POST(
           pricingRules: hasPricingRules
             ? serializeSessionFeeRules(normalizedRules)
             : '[]',
-          dueDate
+           dueDate
+           , costBreakdown: typeof costBreakdown === 'string' ? costBreakdown.trim() || null : null
         })
 
       return NextResponse.json({

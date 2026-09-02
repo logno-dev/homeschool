@@ -210,6 +210,7 @@ export const classTeachingRequests = sqliteTable('class_teaching_requests', {
   helpersNeeded: integer('helpers_needed').notNull().default(1), // Number of parent helpers needed (min 1 if no co-teacher)
   coTeacher: text('co_teacher'), // Optional co-teacher name
   classroomNeeds: text('classroom_needs'), // e.g., "TV, projector, art supplies"
+  registrationFeeExempt: integer('registration_fee_exempt', { mode: 'boolean' }).notNull().default(false),
   requiresFee: integer('requires_fee', { mode: 'boolean' }).notNull().default(false),
   feeAmount: real('fee_amount'), // Dollar amount if fee is required
   schedulingRequirements: text('scheduling_requirements'), // Optional scheduling notes
@@ -315,6 +316,7 @@ export const sessionFeeConfigs = sqliteTable('session_fee_configs', {
   firstChildFee: real('first_child_fee').notNull().default(0), // Fee for first child in family
   additionalChildFee: real('additional_child_fee').notNull().default(0), // Fee for each additional child
   pricingRules: text('pricing_rules').notNull().default('[]'),
+  costBreakdown: text('cost_breakdown'),
   dueDate: text('due_date').notNull(), // When fees are due (before session starts)
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),

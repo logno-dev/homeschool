@@ -103,6 +103,7 @@ export async function PATCH(
       if (editData.helpersNeeded !== undefined) updateData.helpersNeeded = parseInt(editData.helpersNeeded)
       if (editData.coTeacher !== undefined) updateData.coTeacher = editData.coTeacher?.trim() || null
       if (editData.classroomNeeds !== undefined) updateData.classroomNeeds = editData.classroomNeeds?.trim() || null
+      if (editData.registrationFeeExempt !== undefined) updateData.registrationFeeExempt = Boolean(editData.registrationFeeExempt)
       if (editData.requiresFee !== undefined) updateData.requiresFee = editData.requiresFee
       if (editData.feeAmount !== undefined) updateData.feeAmount = editData.requiresFee ? parseFloat(editData.feeAmount) : null
       if (editData.schedulingRequirements !== undefined) updateData.schedulingRequirements = editData.schedulingRequirements?.trim() || null

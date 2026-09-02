@@ -8,6 +8,7 @@ interface FeeData {
   sessionId: string
   sessionName: string
   totalFee: number
+  registrationFee: number
   paidAmount: number
   remainingAmount: number
   dueDate: string
@@ -29,7 +30,7 @@ export default function ScholarshipApplicationForm() {
   const [fees, setFees] = useState<FeeData[]>([])
   const [applications, setApplications] = useState<ScholarshipApplication[]>([])
   const [selectedSessionId, setSelectedSessionId] = useState<string>('')
-  const [scholarshipType, setScholarshipType] = useState<'full' | 'partial'>('full')
+  const [amountMode, setAmountMode] = useState<'percentage' | 'dollar'>('percentage')
   const [requestedAmount, setRequestedAmount] = useState('')
   const [reason, setReason] = useState('')
   const [additionalInfo, setAdditionalInfo] = useState('')
@@ -100,8 +101,24 @@ export default function ScholarshipApplicationForm() {
       return
     }
 
-    if (scholarshipType === 'partial' && (!requestedAmount || Number(requestedAmount) <= 0)) {
-      setError('Please enter a partial scholarship amount.')
+    const amount = Number(requestedAmount)
+    const maximumAmount = selectedFee ? Math.round(selectedFee.registrationFee * 0.8 * 100) / 100 : 0
+    const requestedScholarshipAmount = amountMode === 'percentage'
+      ? Math.round(maximumAmount * amount / 80 * 100) / 100
+      : amount
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError('Please enter a scholarship amount greater than $0.')
+      return
+    }
+
+    if (amountMode === 'percentage' && amount > 80) {
+      setError('Scholarship percentage cannot exceed 80%.')
+      return
+    }
+
+    if (requestedScholarshipAmount > maximumAmount) {
+      setError(`The maximum scholarship for this session is ${formatCurrency(maximumAmount)}.`)
       return
     }
 
@@ -110,15 +127,16 @@ export default function ScholarshipApplicationForm() {
     setSuccessMessage(null)
 
     try {
-      const formData = new FormData()
-      formData.set('sessionId', selectedSessionId)
-      formData.set('scholarshipType', scholarshipType)
-      if (scholarshipType === 'partial') formData.set('requestedAmount', requestedAmount)
-      formData.set('reason', reason)
-      formData.set('additionalInfo', additionalInfo)
       const response = await fetch('/api/family/scholarship-applications', {
         method: 'POST',
-        body: formData
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: selectedSessionId,
+          scholarshipType: 'partial',
+          requestedAmount: requestedScholarshipAmount,
+          reason,
+          additionalInfo
+        })
       })
 
       const payload = await response.json()
@@ -158,7 +176,9 @@ export default function ScholarshipApplicationForm() {
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-        Scholarship assistance helps cover session fees. Requests are confidential and reviewed by the admin team.
+        <p>It is our desire to help our children discover the many hidden treasures within themselves and also in their peers by lovingly providing a creative learning environment where they can have abundant opportunities to enjoy personal as well as public success. We understand the struggles families sometimes face, and as a co-op, we are here to help one another.</p>
+        <p className="mt-3">Scholarship money is available to cover a portion of your family registration fees. The more you are able to contribute, the further our scholarship funds can go towards helping all our families.</p>
+        <p className="mt-3">Please complete the following and the board members will determine the availability of funds. A new form will need to be completed each session that a scholarship is requested.</p>
       </div>
 
       {existingApplication && (
@@ -213,51 +233,49 @@ export default function ScholarshipApplicationForm() {
         )}
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Scholarship Type</label>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Scholarship Amount</label>
           <div className="flex flex-col gap-3 sm:flex-row">
             <label className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2">
                 <input
                   type="radio"
-                  checked={scholarshipType === 'full'}
-                  onChange={() => setScholarshipType('full')}
+                  checked={amountMode === 'percentage'}
+                  onChange={() => setAmountMode('percentage')}
                   disabled={submissionLocked}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500"
                 />
-                Full scholarship (cover entire balance)
+                Percentage of registration fee
               </label>
               <label className="flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2">
                 <input
                   type="radio"
-                  checked={scholarshipType === 'partial'}
-                  onChange={() => setScholarshipType('partial')}
+                  checked={amountMode === 'dollar'}
+                  onChange={() => setAmountMode('dollar')}
                   disabled={submissionLocked}
                   className="h-4 w-4 text-blue-600 focus:ring-blue-500"
                 />
-                Partial scholarship
+                Dollar amount
               </label>
           </div>
         </div>
 
-        {scholarshipType === 'partial' && (
+        {selectedFee && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Requested Amount</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Requested {amountMode === 'percentage' ? 'Percentage' : 'Dollar Amount'}</label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+              {amountMode === 'dollar' && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>}
               <input
                 type="number"
                 min="1"
-                max={selectedFee?.remainingAmount}
-                step="1"
+                max={amountMode === 'percentage' ? 80 : Math.round(selectedFee.registrationFee * 0.8 * 100) / 100}
+                step={amountMode === 'percentage' ? 1 : 0.01}
                 value={requestedAmount}
                 onChange={(event) => setRequestedAmount(event.target.value)}
                 disabled={submissionLocked}
-                className="pl-7 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={`${amountMode === 'dollar' ? 'pl-7' : 'pl-3'} w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500`}
                 placeholder="0"
               />
             </div>
-            {selectedFee && (
-              <p className="mt-1 text-xs text-gray-500">Maximum: {formatCurrency(selectedFee.remainingAmount)}</p>
-            )}
+            <p className="mt-1 text-xs text-gray-500">Maximum: 80% of the registration fee ({formatCurrency(Math.round(selectedFee.registrationFee * 0.8 * 100) / 100)}). Class fees are not eligible.</p>
           </div>
         )}
 

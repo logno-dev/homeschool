@@ -25,6 +25,7 @@ interface ScholarshipApplicationData {
   reviewNotes: string | null
   createdAt: string
   remainingAmount: number
+  eligibleAmount: number
 }
 
 interface ScholarshipTransaction {
@@ -290,6 +291,7 @@ export default function ScholarshipsPage() {
                     <div>Type: {application.scholarshipType}</div>
                     <div>Requested: {formatCurrency(application.requestedAmount || 0)}</div>
                     <div>Outstanding: {formatCurrency(application.remainingAmount)}</div>
+                    <div>Eligible (80% of registration fee): {formatCurrency(application.eligibleAmount)}</div>
                     {application.approvedAmount !== null && (
                       <div>Approved: {formatCurrency(application.approvedAmount)}</div>
                     )}

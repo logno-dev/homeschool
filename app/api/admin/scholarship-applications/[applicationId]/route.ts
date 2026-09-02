@@ -71,14 +71,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
 
     const fee = feeRecord[0]
     const remainingAmount = fee.totalFee - fee.paidAmount
+    const maximumScholarshipAmount = Math.round(fee.registrationFee * 0.8 * 100) / 100
 
     if (remainingAmount <= 0) {
       return NextResponse.json({ error: 'This family has no outstanding balance.' }, { status: 400 })
     }
 
-    const requestedAmount = record.scholarshipType === 'full'
-      ? remainingAmount
-      : Math.min(record.requestedAmount || 0, remainingAmount)
+    const requestedAmount = record.scholarshipType === 'full' ? maximumScholarshipAmount : (record.requestedAmount || 0)
+
+    if (requestedAmount > maximumScholarshipAmount) {
+      return NextResponse.json({ error: 'Scholarship amount cannot exceed 80% of the registration fee.' }, { status: 400 })
+    }
 
     if (!requestedAmount || requestedAmount <= 0) {
       return NextResponse.json({ error: 'Invalid requested amount on application.' }, { status: 400 })

@@ -24,6 +24,7 @@ interface RegistrationCartProps {
     lastName: string
     grade: string
   }>
+  costBreakdown?: string | null
 }
 
 interface EmergencyContact {
@@ -31,7 +32,7 @@ interface EmergencyContact {
   phone: string
 }
 
-export default function RegistrationCart({ sessionId, children }: RegistrationCartProps) {
+export default function RegistrationCart({ sessionId, children, costBreakdown }: RegistrationCartProps) {
   const { 
     pendingRegistrations, 
     pendingVolunteerAssignments, 
@@ -582,6 +583,7 @@ export default function RegistrationCart({ sessionId, children }: RegistrationCa
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               Payment is due upon registration. If you defer payment, your selections may not be guaranteed.
             </div>
+            {costBreakdown && <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800"><h3 className="font-semibold">Cost Breakdown</h3><p className="mt-1 whitespace-pre-wrap">{costBreakdown}</p></div>}
             <div className="bg-gray-50 p-4 rounded-md">
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>

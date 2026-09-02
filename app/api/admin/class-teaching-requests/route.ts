@@ -71,6 +71,7 @@ export async function POST(request: Request) {
       helpersNeeded: Math.max(0, Number(body.helpersNeeded || 0)),
       coTeacher: String(body.coTeacher || '').trim() || null,
       classroomNeeds: String(body.classroomNeeds || '').trim() || null,
+      registrationFeeExempt: Boolean(body.registrationFeeExempt),
       requiresFee: Boolean(body.requiresFee),
       feeAmount: body.feeAmount === '' || body.feeAmount === undefined ? null : Number(body.feeAmount),
       schedulingRequirements: String(body.schedulingRequirements || '').trim() || null,
