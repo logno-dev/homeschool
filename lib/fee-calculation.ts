@@ -5,6 +5,7 @@ import {
   classRegistrations, 
   schedules, 
   classTeachingRequests
+  , familyFeeCredits
 } from '@/lib/schema'
 import { calculateFeeFromRules, parseStoredSessionFeeRules } from '@/lib/session-fee-rules'
 import { eq, and } from 'drizzle-orm'
@@ -103,8 +104,9 @@ export async function createOrUpdateFamilySessionFee(
     ))
     .limit(1)
 
-  if (existingFee.length > 0) {
-    // Update existing fee
+    if (existingFee.length > 0) {
+    const overpaymentAmount = Math.max(0, existingFee[0].paidAmount - calculation.totalFee)
+      // Update existing fee
     await db
       .update(familySessionFees)
       .set({
@@ -113,7 +115,12 @@ export async function createOrUpdateFamilySessionFee(
         totalFee: calculation.totalFee,
         dueDate: calculation.dueDate,
         calculatedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+         updatedAt: new Date().toISOString(),
+         overpaymentAmount,
+         overpaymentStatus: overpaymentAmount > 0 ? 'pending' : 'none',
+         overpaymentResolvedAt: null,
+         overpaymentResolvedBy: null,
+         overpaymentResolutionNotes: null,
         // Reset status to pending if total changed and not fully paid
         status: existingFee[0].paidAmount >= calculation.totalFee ? 'paid' : 
                 existingFee[0].paidAmount > 0 ? 'partial' : 'pending'
@@ -133,7 +140,9 @@ export async function createOrUpdateFamilySessionFee(
         registrationFee: calculation.registrationFee,
         classFees: calculation.classFees,
         totalFee: calculation.totalFee,
-        paidAmount: 0,
+         paidAmount: 0,
+         overpaymentAmount: 0,
+         overpaymentStatus: 'none',
         status: 'pending',
         dueDate: calculation.dueDate,
         calculatedAt: new Date().toISOString()
@@ -162,10 +171,15 @@ export async function getFamilySessionFeeStatus(
 
   const feeRecord = fee[0]
   const isOverdue = new Date() > new Date(feeRecord.dueDate)
+  const credits = await db
+    .select({ amount: familyFeeCredits.amount })
+    .from(familyFeeCredits)
+    .where(and(eq(familyFeeCredits.familyId, familyId), eq(familyFeeCredits.status, 'available')))
   
   return {
     ...feeRecord,
     isOverdue,
     remainingAmount: feeRecord.totalFee - feeRecord.paidAmount
+    , accountCredit: credits.reduce((total, credit) => total + credit.amount, 0)
   }
 }

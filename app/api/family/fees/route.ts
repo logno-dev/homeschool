@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
         classFees: familySessionFees.classFees,
         totalFee: familySessionFees.totalFee,
         paidAmount: familySessionFees.paidAmount,
+        overpaymentAmount: familySessionFees.overpaymentAmount,
+        overpaymentStatus: familySessionFees.overpaymentStatus,
         status: familySessionFees.status,
         dueDate: familySessionFees.dueDate,
         calculatedAt: familySessionFees.calculatedAt,

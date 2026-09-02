@@ -110,6 +110,9 @@ interface RegistrationGridProps {
   teachingAssignments: TeachingAssignment[]
   volunteerJobAssignmentCounts?: Record<string, number>
   costBreakdown?: string | null
+  modifyRegistration?: boolean
+  preserveAdminOverride?: boolean
+  initialEmergencyContacts?: Record<string, { name: string; phone: string }>
 }
 
 const PERIODS = [
@@ -128,7 +131,10 @@ export default function RegistrationGrid({
   nonPeriodVolunteerJobs,
   teachingAssignments,
   volunteerJobAssignmentCounts = {},
-  costBreakdown = null
+  costBreakdown = null,
+  modifyRegistration = false,
+  preserveAdminOverride = false,
+  initialEmergencyContacts = {}
 }: RegistrationGridProps) {
   const { showSuccess, showError } = useToast()
   const { 
@@ -753,7 +759,7 @@ export default function RegistrationGrid({
             
             <div className="space-y-3">
               {children && children
-                .filter(child => registrationMode === 'waitlisted' || !isChildRegisteredInPeriod(child.id, selectedClass.schedule.period))
+                .filter(child => modifyRegistration || registrationMode === 'waitlisted' || !isChildRegisteredInPeriod(child.id, selectedClass.schedule.period))
                 .map((child) => (
                   <div key={child.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                     <div>
@@ -769,7 +775,7 @@ export default function RegistrationGrid({
                   </div>
                 ))}
               
-              {(!children || children.filter(child => !isChildRegisteredInPeriod(child.id, selectedClass.schedule.period)).length === 0) && (
+              {(!children || children.filter(child => modifyRegistration || !isChildRegisteredInPeriod(child.id, selectedClass.schedule.period)).length === 0) && (
                 <p className="text-gray-500 text-center py-4">
                   No available children for this period. All children are either already registered for another class this period or there are no children in your family.
                 </p>
@@ -849,7 +855,7 @@ export default function RegistrationGrid({
       )}
 
       {/* Registration Cart */}
-      <RegistrationCart sessionId={sessionId} children={children || []} costBreakdown={costBreakdown} />
+      <RegistrationCart sessionId={sessionId} children={children || []} costBreakdown={costBreakdown} modifyRegistration={modifyRegistration} preserveAdminOverride={preserveAdminOverride} initialEmergencyContacts={initialEmergencyContacts} />
     </>
   )
 }

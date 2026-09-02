@@ -81,6 +81,7 @@ interface RegistrationProviderProps {
   sessionId?: string
   initialRegistrations?: PendingRegistration[]
   initialVolunteerAssignments?: PendingVolunteerAssignment[]
+  modifyMode?: boolean
   children: ReactNode
 }
 
@@ -89,7 +90,8 @@ export function RegistrationProvider({
   teachingAssignments = [],
   sessionId: initialSessionId,
   initialRegistrations = [],
-  initialVolunteerAssignments = []
+  initialVolunteerAssignments = [],
+  modifyMode = false
 }: RegistrationProviderProps) {
   const [pendingRegistrations, setPendingRegistrations] = useState<PendingRegistration[]>(initialRegistrations)
   const [pendingVolunteerAssignments, setPendingVolunteerAssignments] = useState<PendingVolunteerAssignment[]>(initialVolunteerAssignments)
@@ -99,6 +101,14 @@ export function RegistrationProvider({
   const addChildRegistration = useCallback(async (registration: PendingRegistration) => {
     if (!sessionId) {
       throw new Error('Missing session information for registration holds.')
+    }
+
+    if (modifyMode) {
+      setPendingRegistrations(prev => [
+        ...prev.filter((entry) => !(entry.childId === registration.childId && entry.period === registration.period)),
+        registration
+      ])
+      return
     }
 
     const existingRegistration = pendingRegistrations.find((entry) =>
@@ -157,7 +167,7 @@ export function RegistrationProvider({
       })
       return [...filtered, registrationWithHold]
     })
-  }, [sessionId, pendingRegistrations])
+  }, [sessionId, pendingRegistrations, modifyMode])
 
   const removeChildRegistration = useCallback(async (childId: string, period: string, scheduleId?: string) => {
     const match = pendingRegistrations.find((entry) => {
@@ -184,6 +194,14 @@ export function RegistrationProvider({
   const addVolunteerAssignment = useCallback(async (assignment: PendingVolunteerAssignment) => {
     if (!sessionId) {
       throw new Error('Missing session information for volunteer holds.')
+    }
+
+    if (modifyMode) {
+      setPendingVolunteerAssignments(prev => [
+        ...prev.filter((entry) => entry.period !== assignment.period),
+        assignment
+      ])
+      return
     }
 
     const existingAssignment = pendingVolunteerAssignments.find((entry) => entry.period === assignment.period)
@@ -224,7 +242,7 @@ export function RegistrationProvider({
       const filtered = prev.filter(a => a.period !== assignment.period)
       return [...filtered, assignmentWithHold]
     })
-  }, [sessionId, pendingVolunteerAssignments])
+  }, [sessionId, pendingVolunteerAssignments, modifyMode])
 
   const removeVolunteerAssignment = useCallback(async (period: string) => {
     const match = pendingVolunteerAssignments.find((assignment) => assignment.period === period)

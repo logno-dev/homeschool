@@ -25,6 +25,9 @@ interface RegistrationCartProps {
     grade: string
   }>
   costBreakdown?: string | null
+  modifyRegistration?: boolean
+  preserveAdminOverride?: boolean
+  initialEmergencyContacts?: Record<string, EmergencyContact>
 }
 
 interface EmergencyContact {
@@ -32,7 +35,7 @@ interface EmergencyContact {
   phone: string
 }
 
-export default function RegistrationCart({ sessionId, children, costBreakdown }: RegistrationCartProps) {
+export default function RegistrationCart({ sessionId, children, costBreakdown, modifyRegistration = false, preserveAdminOverride = false, initialEmergencyContacts = {} }: RegistrationCartProps) {
   const { 
     pendingRegistrations, 
     pendingVolunteerAssignments, 
@@ -63,7 +66,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown }:
     isOverdue: boolean
   } | null>(null)
   const [overrideReason, setOverrideReason] = useState('')
-  const [emergencyContacts, setEmergencyContacts] = useState<Record<string, EmergencyContact>>({})
+  const [emergencyContacts, setEmergencyContacts] = useState<Record<string, EmergencyContact>>(initialEmergencyContacts)
   const [overrideContext, setOverrideContext] = useState<'volunteer' | 'grade_range' | 'mixed'>('volunteer')
   const [gradeRangeConflicts, setGradeRangeConflicts] = useState<string[]>([])
   const [canRequestOverride, setCanRequestOverride] = useState(false)
@@ -96,7 +99,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown }:
   }
 
   const submitAllRegistrations = async (requestAdminOverride = false) => {
-    if (pendingRegistrations.length === 0) {
+    if (!modifyRegistration && pendingRegistrations.length === 0 && pendingVolunteerAssignments.length === 0) {
       showError('No registrations to submit', 'Please select some classes first.')
       return
     }
@@ -128,7 +131,8 @@ export default function RegistrationCart({ sessionId, children, costBreakdown }:
           registrations: pendingRegistrations,
           volunteerAssignments: pendingVolunteerAssignments,
           emergencyContacts,
-          requestAdminOverride,
+          requestAdminOverride: requestAdminOverride || preserveAdminOverride,
+          modifyRegistration,
           overrideReason: requestAdminOverride ? overrideReason.trim() : undefined
         }),
       })
@@ -561,10 +565,10 @@ export default function RegistrationCart({ sessionId, children, costBreakdown }:
               ) : (
                 <button
                   onClick={() => submitAllRegistrations()}
-                  disabled={submitting || totalItems === 0 || conflicts.length > 0}
+                   disabled={submitting || (!modifyRegistration && totalItems === 0) || conflicts.length > 0}
                   className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto"
                 >
-                  {submitting ? 'Submitting...' : `Submit Registration (${totalItems} items)`}
+                  {submitting ? 'Submitting...' : `${modifyRegistration ? 'Save Registration Changes' : 'Submit Registration'} (${totalItems} items)`}
                 </button>
               )}
             </div>

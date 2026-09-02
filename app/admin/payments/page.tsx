@@ -45,6 +45,13 @@ interface Session {
   name: string
 }
 
+interface FeeOverpayment {
+  feeId: string
+  familyName: string
+  sessionName: string
+  amount: number
+}
+
 interface ClassFeeSummary {
   classTeachingRequestId: string
   sessionId: string
@@ -67,6 +74,7 @@ export default function PaymentsPage() {
   const [activeTab, setActiveTab] = useState<'family' | 'classFees' | 'reimbursements'>('family')
   const [classFeeSummaries, setClassFeeSummaries] = useState<ClassFeeSummary[]>([])
   const [reimbursements, setReimbursements] = useState<TeacherReimbursement[]>([])
+  const [overpayments, setOverpayments] = useState<FeeOverpayment[]>([])
   const [updatingReimbursementId, setUpdatingReimbursementId] = useState<string | null>(null)
   
   // Filter and sort states
@@ -112,6 +120,7 @@ export default function PaymentsPage() {
     fetchFamiliesAndSessions()
     fetchClassFeeSummaries()
     fetchReimbursements()
+    fetchOverpayments()
   }, [user, authLoading, router])
 
   const fetchPayments = async () => {
@@ -174,6 +183,32 @@ export default function PaymentsPage() {
       setReimbursements(data.reimbursements || [])
     } catch (err) {
       console.error('Error fetching reimbursements:', err)
+    }
+  }
+
+  const fetchOverpayments = async () => {
+    try {
+      const response = await fetch('/api/admin/fee-overpayments')
+      if (response.ok) setOverpayments((await response.json()).overpayments || [])
+    } catch (err) {
+      console.error('Error fetching overpayments:', err)
+    }
+  }
+
+  const refundOverpayment = async (overpayment: FeeOverpayment, disposition: 'cash' | 'wire') => {
+    const notes = window.prompt(`Optional notes for this ${disposition} refund:`)
+    if (notes === null) return
+    try {
+      const response = await fetch('/api/admin/fee-overpayments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ feeId: overpayment.feeId, disposition, notes })
+      })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to refund overpayment')
+      await Promise.all([fetchOverpayments(), fetchPayments()])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to refund overpayment')
     }
   }
 
@@ -500,6 +535,7 @@ export default function PaymentsPage() {
 
         {activeTab === 'family' && (
           <>
+            {overpayments.length > 0 && <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-6"><h2 className="text-lg font-semibold text-amber-900">Unresolved Family Overpayments</h2><p className="mt-1 text-sm text-amber-800">Issue a cash or wire refund. The adjustment is recorded in payment history and cannot be processed twice.</p><div className="mt-4 space-y-3">{overpayments.map((overpayment) => <div key={overpayment.feeId} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-white p-3"><div className="text-sm text-gray-700"><span className="font-medium">{overpayment.familyName}</span> · {overpayment.sessionName} · <span className="font-semibold">{formatCurrency(overpayment.amount)}</span></div><div className="flex gap-2"><button type="button" onClick={() => refundOverpayment(overpayment, 'cash')} className="rounded-md bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700">Refund Cash</button><button type="button" onClick={() => refundOverpayment(overpayment, 'wire')} className="rounded-md bg-purple-600 px-3 py-2 text-xs font-medium text-white hover:bg-purple-700">Refund Wire</button></div></div>)}</div></div>}
             <div className="bg-white rounded-lg shadow mb-6 p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                 <div>

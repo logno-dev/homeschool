@@ -16,9 +16,10 @@ import { db } from '@/lib/db'
 import { sessionFeeConfigs } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 
-export default async function RegistrationPage({ params }: { params: Promise<{ sessionId: string }> }) {
+export default async function RegistrationPage({ params, searchParams }: { params: Promise<{ sessionId: string }>; searchParams: Promise<{ modify?: string }> }) {
   const session = await getAuthenticatedUser()
   const { sessionId } = await params
+  const { modify } = await searchParams
   const [sessionData, registrationStatus, hasEarlyAccess, groupRegistrationAccess, scheduleBundle, isStaffAdmin, feeConfig] = await Promise.all([
     getSessionById(sessionId),
     getRegistrationStatus(sessionId, session.user.id),
@@ -90,11 +91,43 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
   
   // Check if family has a denied override
   const hasDeniedOverride = registrationStatus && registrationStatus.registrationState === 'denied'
+  const isModifying = modify === '1'
+  const editableRegistrations = registrationStatus.classRegistrations.map((entry) => {
+    const schedule = scheduleBundle.schedules.find((item) => item.schedule.id === entry.registration.scheduleId)
+    return {
+      childId: entry.registration.childId,
+      scheduleId: entry.registration.scheduleId,
+      period: entry.schedule.period,
+      className: entry.classTeachingRequest.className,
+      teacher: schedule ? `${schedule.teacher.firstName} ${schedule.teacher.lastName}` : '',
+      classroom: entry.classroom.name,
+      status: entry.registration.status === 'waitlisted' ? 'waitlisted' as const : 'registered' as const
+    }
+  })
+  const editableVolunteerAssignments = registrationStatus.volunteerAssignments.map((entry) => ({
+    guardianId: entry.assignment.guardianId,
+    guardianName: scheduleBundle.guardians.find((guardian) => guardian.id === entry.assignment.guardianId)
+      ? `${scheduleBundle.guardians.find((guardian) => guardian.id === entry.assignment.guardianId)?.firstName} ${scheduleBundle.guardians.find((guardian) => guardian.id === entry.assignment.guardianId)?.lastName}`
+      : 'Guardian',
+    period: entry.assignment.period,
+    volunteerType: entry.assignment.volunteerType,
+    scheduleId: entry.assignment.scheduleId || undefined,
+    volunteerJobId: entry.assignment.volunteerJobId || undefined,
+    className: entry.classTeachingRequest?.className || undefined,
+    classroom: entry.classroom?.name || undefined,
+    jobTitle: entry.volunteerJob?.title || undefined
+  }))
+  const editableEmergencyContacts = Object.fromEntries(
+    registrationStatus.classRegistrations.map((entry) => [entry.registration.childId, {
+      name: entry.registration.emergencyContact || '',
+      phone: entry.registration.emergencyPhone || ''
+    }])
+  )
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 overflow-x-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {hasPendingOverride ? (
+        {hasPendingOverride && !isModifying ? (
           // Show pending override status with readonly view
           <div>
             <div className="mb-8">
@@ -112,9 +145,10 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
                     </h3>
                     <div className="mt-2 text-sm text-yellow-700">
                       <p>You requested an admin override because volunteer requirements weren't fully met. Your class selections are reserved while awaiting approval.</p>
-                      {registrationStatus?.status?.adminOverrideReason && (
-                        <p className="mt-1"><strong>Reason:</strong> {registrationStatus.status.adminOverrideReason}</p>
-                      )}
+                       {registrationStatus?.status?.adminOverrideReason && (
+                         <p className="mt-1"><strong>Reason:</strong> {registrationStatus.status.adminOverrideReason}</p>
+                       )}
+                       <Link href={`/registration/${sessionId}?modify=1`} className="mt-3 inline-flex rounded-md bg-yellow-600 px-3 py-2 font-medium text-white hover:bg-yellow-700">Modify Registration</Link>
                     </div>
                   </div>
                 </div>
@@ -122,8 +156,8 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
             </div>
 
             <ReadonlyScheduleView 
-              sessionId={sessionId}
-              classRegistrations={registrationStatus.classRegistrations || []}
+               sessionId={sessionId}
+               classRegistrations={registrationStatus.classRegistrations || []}
               volunteerAssignments={registrationStatus.volunteerAssignments || []}
               sessionInfo={classSessionInfo}
             />
@@ -169,11 +203,11 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
               </div>
             )}
 
-            <RegistrationProvider
-              teachingAssignments={scheduleBundle.teachingAssignments}
-              sessionId={sessionId}
-              initialRegistrations={scheduleBundle.initialRegistrations}
-              initialVolunteerAssignments={scheduleBundle.initialVolunteerAssignments}
+             <RegistrationProvider
+               teachingAssignments={scheduleBundle.teachingAssignments}
+               sessionId={sessionId}
+               initialRegistrations={isModifying ? editableRegistrations : scheduleBundle.initialRegistrations}
+               initialVolunteerAssignments={isModifying ? editableVolunteerAssignments : scheduleBundle.initialVolunteerAssignments}
             >
               {/* Volunteer Hour Counter */}
               <VolunteerHourCounter teachingAssignments={scheduleBundle.teachingAssignments} />
@@ -186,12 +220,15 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
                 volunteerJobs={scheduleBundle.volunteerJobs}
                 nonPeriodVolunteerJobs={scheduleBundle.nonPeriodVolunteerJobs}
                 teachingAssignments={scheduleBundle.teachingAssignments}
-                volunteerJobAssignmentCounts={scheduleBundle.volunteerJobAssignmentCounts}
-                costBreakdown={feeConfig?.costBreakdown}
+                 volunteerJobAssignmentCounts={scheduleBundle.volunteerJobAssignmentCounts}
+                 costBreakdown={feeConfig?.costBreakdown}
+                 modifyRegistration={isModifying}
+                 preserveAdminOverride={registrationStatus.registrationState === 'admin_override'}
+                 initialEmergencyContacts={isModifying ? editableEmergencyContacts : undefined}
               />
             </RegistrationProvider>
           </div>
-        ) : isRegistered ? (
+        ) : isRegistered && !isModifying ? (
           // Show readonly view for registered families
           <div>
             <div className="mb-8">
@@ -209,9 +246,13 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
                     </h3>
                     <div className="mt-2 text-sm text-green-700">
                       <p>Your family is already registered for this session. You can view your schedule and roster below.</p>
-                      {registrationStatus.registrationState === 'admin_override' && (
-                        <p className="mt-1 font-medium">Note: Your registration is pending admin approval due to volunteer hour requirements.</p>
-                      )}
+                       {registrationStatus.registrationState === 'admin_override' && (
+                         <p className="mt-1 font-medium">Note: Your registration is pending admin approval due to volunteer hour requirements.</p>
+                       )}
+                       <div className="mt-3 flex flex-wrap gap-2">
+                         <Link href={`/schedule?sessionId=${sessionId}`} className="inline-flex rounded-md border border-green-300 bg-white px-3 py-2 font-medium text-green-700 hover:bg-green-50">View Schedule</Link>
+                         <Link href={`/registration/${sessionId}?modify=1`} className="inline-flex rounded-md bg-green-600 px-3 py-2 font-medium text-white hover:bg-green-700">Modify Registration</Link>
+                       </div>
                     </div>
                   </div>
                 </div>
@@ -280,8 +321,8 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
           // Show normal registration interface
           <div>
             <div className="mb-8">
-              <h1 className="text-3xl font-bold text-gray-900">Class Registration</h1>
-              <p className="mt-2 text-gray-600">Click on any available class to register your children.</p>
+              <h1 className="text-3xl font-bold text-gray-900">{isModifying ? 'Modify Registration' : 'Class Registration'}</h1>
+              <p className="mt-2 text-gray-600">{isModifying ? 'Update your class selections and volunteer assignments, then submit the changes.' : 'Click on any available class to register your children.'}</p>
               {registrationAccess.teacherEarlyAccess && (
                 <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                   <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
@@ -311,11 +352,12 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
               </div>
             )}
 
-            <RegistrationProvider
-              teachingAssignments={scheduleBundle.teachingAssignments}
-              sessionId={sessionId}
-              initialRegistrations={scheduleBundle.initialRegistrations}
-              initialVolunteerAssignments={scheduleBundle.initialVolunteerAssignments}
+             <RegistrationProvider
+               teachingAssignments={scheduleBundle.teachingAssignments}
+               sessionId={sessionId}
+               modifyMode={isModifying}
+               initialRegistrations={isModifying ? editableRegistrations : scheduleBundle.initialRegistrations}
+               initialVolunteerAssignments={isModifying ? editableVolunteerAssignments : scheduleBundle.initialVolunteerAssignments}
             >
               {/* Volunteer Hour Counter */}
               <VolunteerHourCounter teachingAssignments={scheduleBundle.teachingAssignments} />
@@ -328,8 +370,11 @@ export default async function RegistrationPage({ params }: { params: Promise<{ s
                 volunteerJobs={scheduleBundle.volunteerJobs}
                 nonPeriodVolunteerJobs={scheduleBundle.nonPeriodVolunteerJobs}
                 teachingAssignments={scheduleBundle.teachingAssignments}
-                volunteerJobAssignmentCounts={scheduleBundle.volunteerJobAssignmentCounts}
-                costBreakdown={feeConfig?.costBreakdown}
+                 volunteerJobAssignmentCounts={scheduleBundle.volunteerJobAssignmentCounts}
+                 costBreakdown={feeConfig?.costBreakdown}
+                 modifyRegistration={isModifying}
+                 preserveAdminOverride={registrationStatus.registrationState === 'admin_override'}
+                 initialEmergencyContacts={isModifying ? editableEmergencyContacts : undefined}
               />
             </RegistrationProvider>
           </div>

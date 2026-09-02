@@ -331,9 +331,25 @@ export const familySessionFees = sqliteTable('family_session_fees', {
   classFees: real('class_fees').notNull().default(0), // Sum of all class fees for this family
   totalFee: real('total_fee').notNull().default(0), // Total amount due (registration + class fees)
   paidAmount: real('paid_amount').notNull().default(0), // Amount paid so far
+  overpaymentAmount: real('overpayment_amount').notNull().default(0),
+  overpaymentStatus: text('overpayment_status').notNull().default('none'), // none, pending, credit, scholarship, cash, wire
+  overpaymentResolvedAt: text('overpayment_resolved_at'),
+  overpaymentResolvedBy: text('overpayment_resolved_by').references(() => guardians.id, { onDelete: 'set null' }),
+  overpaymentResolutionNotes: text('overpayment_resolution_notes'),
   status: text('status').notNull().default('pending'), // pending, partial, paid, overdue
   dueDate: text('due_date').notNull(), // When this fee is due
   calculatedAt: text('calculated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const familyFeeCredits = sqliteTable('family_fee_credits', {
+  id: text('id').primaryKey(),
+  familyId: text('family_id').notNull().references(() => families.id, { onDelete: 'cascade' }),
+  sourceFeeId: text('source_fee_id').references(() => familySessionFees.id, { onDelete: 'set null' }),
+  amount: real('amount').notNull(),
+  status: text('status').notNull().default('available'), // available, applied
+  notes: text('notes'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
@@ -541,6 +557,7 @@ export type VolunteerAssignment = typeof volunteerAssignments.$inferSelect
 export type FamilyRegistrationStatus = typeof familyRegistrationStatus.$inferSelect
 export type SessionFeeConfig = typeof sessionFeeConfigs.$inferSelect
 export type FamilySessionFee = typeof familySessionFees.$inferSelect
+export type FamilyFeeCredit = typeof familyFeeCredits.$inferSelect
 export type FeePayment = typeof feePayments.$inferSelect
 export type ClassMaterialCharge = typeof classMaterialCharges.$inferSelect
 export type ClassMaterialPayment = typeof classMaterialPayments.$inferSelect
@@ -573,6 +590,7 @@ export type NewVolunteerAssignment = typeof volunteerAssignments.$inferInsert
 export type NewFamilyRegistrationStatus = typeof familyRegistrationStatus.$inferInsert
 export type NewSessionFeeConfig = typeof sessionFeeConfigs.$inferInsert
 export type NewFamilySessionFee = typeof familySessionFees.$inferInsert
+export type NewFamilyFeeCredit = typeof familyFeeCredits.$inferInsert
 export type NewFeePayment = typeof feePayments.$inferInsert
 export type NewClassMaterialCharge = typeof classMaterialCharges.$inferInsert
 export type NewClassMaterialPayment = typeof classMaterialPayments.$inferInsert

@@ -13,7 +13,7 @@ import {
   sessions,
   sessionVolunteerJobs
 } from '@/lib/schema'
-import { eq, and, inArray, or, gt } from 'drizzle-orm'
+import { eq, and, inArray, or, gt, not } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
 import { isGradeWithinRange } from '@/lib/grades'
@@ -107,7 +107,8 @@ async function validateRegistration(
   registrations: PendingRegistration[],
   volunteerAssignmentsList: PendingVolunteerAssignment[],
   familyId: string,
-  guardianId: string
+  guardianId: string,
+  excludeFamilyId?: string
 ): Promise<ValidationResult> {
   const conflicts: ConflictDetails[] = []
   const gradeRangeConflicts: ConflictDetails[] = []
@@ -163,11 +164,12 @@ async function validateRegistration(
           .from(classRegistrations)
           .where(eq(classRegistrations.scheduleId, registration.scheduleId))
 
-        const totalRegistrations = currentRegistrations.filter((row) =>
-          row.status === 'registered' ||
-          row.status === 'pending' ||
-          (row.status === 'hold' && row.holdExpiresAt && row.holdExpiresAt > now && row.familyId !== familyId)
-        ).length
+        const totalRegistrations = currentRegistrations.filter((row) => (
+          (!excludeFamilyId || row.familyId !== excludeFamilyId) &&
+          (row.status === 'registered' ||
+            row.status === 'pending' ||
+            (row.status === 'hold' && row.holdExpiresAt && row.holdExpiresAt > now && row.familyId !== familyId))
+        )).length
 
         if (totalRegistrations >= classTeachingRequest.maxStudents) {
           conflicts.push({
@@ -196,6 +198,7 @@ async function validateRegistration(
           eq(classRegistrations.childId, registration.childId),
           eq(classRegistrations.sessionId, sessionId),
           eq(schedules.period, registration.period),
+          excludeFamilyId ? not(eq(classRegistrations.familyId, excludeFamilyId)) : undefined,
           or(
             inArray(classRegistrations.status, ['registered', 'pending']),
             and(eq(classRegistrations.status, 'hold'), gt(classRegistrations.holdExpiresAt, now))
@@ -249,8 +252,11 @@ async function validateRegistration(
         )
       ))
 
-    if (existingAssignment.length > 0) {
-      const existing = existingAssignment[0]
+    const relevantAssignments = excludeFamilyId
+      ? existingAssignment.filter((entry) => entry.familyId !== excludeFamilyId)
+      : existingAssignment
+    if (relevantAssignments.length > 0) {
+      const existing = relevantAssignments[0]
       const matchesAssignment = existing.scheduleId
         ? existing.scheduleId === assignment.scheduleId
         : existing.volunteerJobId === assignment.volunteerJobId
@@ -297,13 +303,16 @@ async function validateRegistration(
             )
           ))
 
-        if (currentHelpers.length >= classTeachingRequest.helpersNeeded) {
+        const availableHelpers = excludeFamilyId
+          ? currentHelpers.filter((entry) => entry.familyId !== excludeFamilyId)
+          : currentHelpers
+        if (availableHelpers.length >= classTeachingRequest.helpersNeeded) {
           conflicts.push({
             type: 'volunteer_full',
             scheduleId: assignment.scheduleId,
             period: assignment.period,
             className: assignment.className,
-            message: `No helper spots available for "${assignment.className}" (${currentHelpers.length}/${classTeachingRequest.helpersNeeded})`
+            message: `No helper spots available for "${assignment.className}" (${availableHelpers.length}/${classTeachingRequest.helpersNeeded})`
           })
         }
       }
@@ -333,11 +342,12 @@ async function validateRegistration(
             )
           ))
 
-        const totalAssignments = currentAssignments.filter((entry) =>
-          entry.status === 'assigned' ||
-          entry.status === 'pending' ||
-          (entry.status === 'hold' && entry.holdExpiresAt && entry.holdExpiresAt > now && entry.familyId !== familyId)
-        ).length
+        const totalAssignments = currentAssignments.filter((entry) => (
+          (!excludeFamilyId || entry.familyId !== excludeFamilyId) &&
+          (entry.status === 'assigned' ||
+            entry.status === 'pending' ||
+            (entry.status === 'hold' && entry.holdExpiresAt && entry.holdExpiresAt > now && entry.familyId !== familyId))
+        )).length
 
         if (totalAssignments >= sessionJob[0].quantityAvailable) {
           conflicts.push({
@@ -431,6 +441,7 @@ export async function POST(request: Request) {
       registrations,
       volunteerAssignments: volunteerAssignmentsList,
       requestAdminOverride = false,
+      modifyRegistration = false,
       overrideReason: requestedOverrideReason
     }: {
       sessionId: string
@@ -438,6 +449,7 @@ export async function POST(request: Request) {
       volunteerAssignments: PendingVolunteerAssignment[]
       emergencyContacts: Record<string, EmergencyContact>
       requestAdminOverride?: boolean
+      modifyRegistration?: boolean
       overrideReason?: string
     } = body
 
@@ -453,6 +465,13 @@ export async function POST(request: Request) {
     }
 
     const familyId = guardian[0].familyId
+    const existingFamilyStatus = modifyRegistration
+      ? await db.select().from(familyRegistrationStatus).where(and(
+        eq(familyRegistrationStatus.familyId, familyId),
+        eq(familyRegistrationStatus.sessionId, sessionId)
+      )).limit(1)
+      : []
+    const isPendingOverride = existingFamilyStatus[0]?.status === 'admin_override'
 
     const registeredChildIds = Array.from(new Set((registrations || []).map((registration) => registration.childId)))
     const missingEmergencyContact = registeredChildIds.find((childId) => {
@@ -482,7 +501,8 @@ export async function POST(request: Request) {
       registrations,
       volunteerAssignmentsList,
       familyId,
-      session.user.id
+      session.user.id,
+      modifyRegistration ? familyId : undefined
     )
 
     const hasOnlyGradeRangeConflicts =
@@ -532,8 +552,21 @@ export async function POST(request: Request) {
       }, { status: 400 })
     }
 
+    if (modifyRegistration) {
+      await db.transaction(async (tx) => {
+        await tx.delete(classRegistrations).where(and(
+          eq(classRegistrations.familyId, familyId),
+          eq(classRegistrations.sessionId, sessionId)
+        ))
+        await tx.delete(volunteerAssignments).where(and(
+          eq(volunteerAssignments.familyId, familyId),
+          eq(volunteerAssignments.sessionId, sessionId)
+        ))
+      })
+    }
+
     // Path 3: Handle admin override request
-    if ((!validation.volunteerRequirementsMet || hasOnlyGradeRangeConflicts) && !existingOverride && requestAdminOverride) {
+    if ((!validation.volunteerRequirementsMet || hasOnlyGradeRangeConflicts || isPendingOverride) && !existingOverride && requestAdminOverride) {
       // Process the registration immediately but with "pending" status to hold slots
       await db.transaction(async (tx) => {
         // Insert class registrations with pending status
@@ -589,15 +622,25 @@ export async function POST(request: Request) {
           overrideReasonParts.push(`User reason: ${requestedOverrideReason.trim()}`)
         }
 
-      await tx.insert(familyRegistrationStatus).values({
-          id: randomUUID(),
-          sessionId,
-          familyId,
-          status: 'admin_override',
-          volunteerRequirementsMet: validation.volunteerRequirementsMet,
-          adminOverride: true,
-          adminOverrideReason: overrideReasonParts.join(' | ')
-        })
+        if (modifyRegistration && existingFamilyStatus[0]) {
+          await tx.update(familyRegistrationStatus).set({
+            status: 'admin_override',
+            volunteerRequirementsMet: validation.volunteerRequirementsMet,
+            adminOverride: true,
+            adminOverrideReason: overrideReasonParts.join(' | '),
+            updatedAt: new Date().toISOString()
+          }).where(eq(familyRegistrationStatus.id, existingFamilyStatus[0].id))
+        } else {
+          await tx.insert(familyRegistrationStatus).values({
+            id: randomUUID(),
+            sessionId,
+            familyId,
+            status: 'admin_override',
+            volunteerRequirementsMet: validation.volunteerRequirementsMet,
+            adminOverride: true,
+            adminOverrideReason: overrideReasonParts.join(' | ')
+          })
+        }
       })
 
       const notificationRecipients = (await getGlobalSetting('registration_override_notification_emails'))?.split(',').map((recipient) => recipient.trim()).filter(Boolean) || []

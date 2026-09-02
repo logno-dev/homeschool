@@ -15,6 +15,9 @@ interface FeeStatus {
   dueDate: string
   isOverdue: boolean
   remainingAmount: number
+  overpaymentAmount: number
+  overpaymentStatus: string
+  accountCredit?: number
   calculatedAt: string
 }
 
@@ -79,6 +82,20 @@ export default function FamilyFeeStatus({ sessionId, sessionName }: FamilyFeeSta
       case 'pending': return 'Payment Pending'
       default: return 'Unknown'
     }
+  }
+
+  const resolveOverpayment = async (disposition: 'credit' | 'scholarship') => {
+    const response = await fetch(`/api/family/fees/${sessionId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disposition })
+    })
+    const payload = await response.json()
+    if (!response.ok) {
+      setError(payload.error || 'Unable to resolve overpayment')
+      return
+    }
+    await fetchFeeStatus()
   }
 
   if (isLoading) {
@@ -169,6 +186,20 @@ export default function FamilyFeeStatus({ sessionId, sessionName }: FamilyFeeSta
         </div>
 
         {/* Payment Instructions */}
+        {feeStatus.overpaymentAmount > 0 && feeStatus.overpaymentStatus === 'pending' && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <h4 className="font-medium text-amber-800 mb-2">Overpayment Available</h4>
+            <p className="text-sm text-amber-700">You have an overpayment of ${feeStatus.overpaymentAmount.toFixed(2)}. Choose to keep it as an account credit or donate it to the scholarship fund.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" onClick={() => resolveOverpayment('credit')} className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">Keep Account Credit</button>
+              <button type="button" onClick={() => resolveOverpayment('scholarship')} className="rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700">Donate to Scholarship Fund</button>
+            </div>
+          </div>
+        )}
+        {feeStatus.accountCredit && feeStatus.accountCredit > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800">Available account credit: ${feeStatus.accountCredit.toFixed(2)}</div>
+        )}
+
         {feeStatus.remainingAmount > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h4 className="font-medium text-blue-800 mb-2">Payment Instructions</h4>
