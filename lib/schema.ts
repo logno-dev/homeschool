@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 // Families table
@@ -84,7 +84,9 @@ export const userGroupMemberships = sqliteTable('user_group_memberships', {
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   groupId: text('group_id').notNull().references(() => userGroups.id, { onDelete: 'cascade' }),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-})
+}, (table) => ({
+  userGroupUnique: uniqueIndex('user_group_memberships_user_group_idx').on(table.userId, table.groupId),
+}))
 
 export const sessionRegistrationWindows = sqliteTable('session_registration_windows', {
   id: text('id').primaryKey(),

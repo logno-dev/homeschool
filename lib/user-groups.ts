@@ -23,6 +23,11 @@ export async function getUserGroups(userId: string) {
 }
 
 export async function addUserToGroup(userId: string, groupId: string) {
+  const [existingMembership] = await db.select({ id: userGroupMemberships.id })
+    .from(userGroupMemberships)
+    .where(and(eq(userGroupMemberships.userId, userId), eq(userGroupMemberships.groupId, groupId)))
+    .limit(1)
+  if (existingMembership) return
   await db.insert(userGroupMemberships).values({ id: randomUUID(), userId, groupId }).onConflictDoNothing()
 }
 

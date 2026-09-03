@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       ? await db.select({ id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName }).from(guardians).where(eq(guardians.id, requestedCoTeacherId)).limit(1)
       : []
     if (requestedCoTeacherId && !selectedCoTeacher) return NextResponse.json({ error: 'Co-teacher not found' }, { status: 404 })
-    if (selectedCoTeacher?.id === selectedTeacher?.id) return NextResponse.json({ error: 'A teacher cannot also be the co-teacher' }, { status: 400 })
+    if (selectedTeacher?.id && selectedCoTeacher?.id === selectedTeacher.id) return NextResponse.json({ error: 'A teacher cannot also be the co-teacher' }, { status: 400 })
 
     const now = new Date().toISOString()
     const [created] = await db.insert(classTeachingRequests).values({
