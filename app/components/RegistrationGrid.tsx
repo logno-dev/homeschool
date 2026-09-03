@@ -367,6 +367,23 @@ export default function RegistrationGrid({
     return roster
   }, [pendingRegistrations, selectedClass, children])
 
+  const selectableChildren = useMemo(() => {
+    if (!selectedClass) return []
+
+    return children.filter((child) => {
+      const registrationKey = `${selectedClass.schedule.id}:${child.id}`
+      const alreadyInSelectedClass = selectedClass.roster.some((student) => student.id === child.id)
+        && !removedRegistrationKeys.has(registrationKey)
+      const alreadyPendingForSelectedClass = pendingRegistrations.some((registration) =>
+        registration.childId === child.id && registration.scheduleId === selectedClass.schedule.id
+      )
+
+      if (alreadyInSelectedClass || alreadyPendingForSelectedClass) return false
+      if (registrationMode === 'waitlisted') return true
+      return modifyRegistration || !isChildRegisteredInPeriod(child.id, selectedClass.schedule.period)
+    })
+  }, [children, selectedClass, removedRegistrationKeys, pendingRegistrations, registrationMode, modifyRegistration, isChildRegisteredInPeriod])
+
 
 
   // groupedSchedules is now memoized above
@@ -794,9 +811,7 @@ export default function RegistrationGrid({
             </p>
             
             <div className="space-y-3">
-              {children && children
-                .filter(child => modifyRegistration || registrationMode === 'waitlisted' || !isChildRegisteredInPeriod(child.id, selectedClass.schedule.period))
-                .map((child) => (
+               {selectableChildren.map((child) => (
                   <div key={child.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                     <div>
                       <p className="font-medium text-gray-900">{child.firstName} {child.lastName}</p>
@@ -811,7 +826,7 @@ export default function RegistrationGrid({
                   </div>
                 ))}
               
-              {(!children || children.filter(child => modifyRegistration || !isChildRegisteredInPeriod(child.id, selectedClass.schedule.period)).length === 0) && (
+               {selectableChildren.length === 0 && (
                 <p className="text-gray-500 text-center py-4">
                   No available children for this period. All children are either already registered for another class this period or there are no children in your family.
                 </p>
