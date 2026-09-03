@@ -44,6 +44,7 @@ export default async function ClassroomAttendancePrintPage({ params, searchParam
         className: classTeachingRequests.className,
         classroomName: sessionClassrooms.name,
         teacherId: guardians.id,
+        teacherName: classTeachingRequests.teacherName,
         teacherFirstName: guardians.firstName,
         teacherLastName: guardians.lastName
       })
@@ -174,7 +175,7 @@ export default async function ClassroomAttendancePrintPage({ params, searchParam
                 <tbody>
                   <tr className="border-t">
                     <td className="px-3 py-2">
-                      {schedule.teacherFirstName} {schedule.teacherLastName}
+                      {schedule.teacherName || `${schedule.teacherFirstName} ${schedule.teacherLastName}`}
                     </td>
                     <td className="px-3 py-2">Teacher</td>
                     {weekDates.map((date) => (

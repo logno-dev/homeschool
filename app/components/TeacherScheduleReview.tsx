@@ -80,7 +80,7 @@ export default function TeacherScheduleReview() {
         if (data.approvedClasses) {
           data.approvedClasses.forEach((classRequest: any) => {
             teacherMap[classRequest.id] = {
-              name: `${classRequest.guardian.firstName} ${classRequest.guardian.lastName}`,
+               name: classRequest.teacherName || `${classRequest.guardian.firstName} ${classRequest.guardian.lastName}`,
               gradeRange: classRequest.gradeRange,
               className: classRequest.className
             }

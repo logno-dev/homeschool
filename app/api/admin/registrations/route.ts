@@ -46,7 +46,8 @@ export async function GET(request: Request) {
             period: schedules.period
           },
           classTeachingRequest: {
-            className: classTeachingRequests.className
+            className: classTeachingRequests.className,
+            teacherName: classTeachingRequests.teacherName
           },
           classroom: {
             name: sessionClassrooms.name
@@ -64,11 +65,12 @@ export async function GET(request: Request) {
           id: schedules.id,
           classroomId: sessionClassrooms.id,
           period: schedules.period,
-          className: classTeachingRequests.className,
-          classroom: sessionClassrooms.name,
+           className: classTeachingRequests.className,
+           teacherName: classTeachingRequests.teacherName,
+           classroom: sessionClassrooms.name,
           teacherFirstName: guardians.firstName,
-          teacherLastName: guardians.lastName,
-          maxStudents: classTeachingRequests.maxStudents
+           teacherLastName: guardians.lastName,
+           maxStudents: classTeachingRequests.maxStudents
         })
         .from(schedules)
         .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
@@ -89,8 +91,9 @@ export async function GET(request: Request) {
           },
           scheduleId: volunteerAssignments.scheduleId,
           volunteerJobId: volunteerAssignments.volunteerJobId,
-          className: classTeachingRequests.className,
-          classroom: sessionClassrooms.name,
+           className: classTeachingRequests.className,
+           teacherName: classTeachingRequests.teacherName,
+           classroom: sessionClassrooms.name,
           jobTitle: volunteerJobs.title
         })
         .from(volunteerAssignments)
@@ -155,7 +158,7 @@ export async function GET(request: Request) {
       period: row.period,
       className: row.className,
       classroom: row.classroom,
-      teacher: `${row.teacherFirstName} ${row.teacherLastName}`,
+       teacher: row.teacherName || `${row.teacherFirstName} ${row.teacherLastName}`,
       maxStudents: row.maxStudents,
       currentRegistrations: registrationCountMap[row.id] || 0
     }))
@@ -172,7 +175,7 @@ export async function GET(request: Request) {
             period: row.period,
             className: row.className || 'Class',
             classroom: row.classroom || 'Room',
-            teacher: 'Teacher'
+             teacher: row.className ? (row.teacherName || 'Teacher') : 'Teacher'
           }
         : null,
       volunteerJob: row.volunteerJobId

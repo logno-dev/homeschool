@@ -649,8 +649,8 @@ export async function getClassTeachingRequestsWithSession(): Promise<(ClassTeach
     .select({
       id: classTeachingRequests.id,
       sessionId: classTeachingRequests.sessionId,
-      guardianId: classTeachingRequests.guardianId,
-      teacherName: classTeachingRequests.teacherName,
+         guardianId: classTeachingRequests.guardianId,
+       teacherName: classTeachingRequests.teacherName,
       className: classTeachingRequests.className,
       description: classTeachingRequests.description,
       gradeRange: classTeachingRequests.gradeRange,
@@ -703,7 +703,8 @@ export async function getClassTeachingRequestsByGuardianWithSession(guardianId: 
     .select({
       id: classTeachingRequests.id,
       sessionId: classTeachingRequests.sessionId,
-      guardianId: classTeachingRequests.guardianId,
+       guardianId: classTeachingRequests.guardianId,
+       teacherName: classTeachingRequests.teacherName,
       className: classTeachingRequests.className,
       description: classTeachingRequests.description,
       gradeRange: classTeachingRequests.gradeRange,
@@ -1017,8 +1018,9 @@ export async function getScheduleWithDetails(sessionId: string): Promise<(Schedu
       classTeachingRequest: {
         id: classTeachingRequests.id,
         sessionId: classTeachingRequests.sessionId,
-        guardianId: classTeachingRequests.guardianId,
-        className: classTeachingRequests.className,
+         guardianId: classTeachingRequests.guardianId,
+         teacherName: classTeachingRequests.teacherName,
+         className: classTeachingRequests.className,
         description: classTeachingRequests.description,
         gradeRange: classTeachingRequests.gradeRange,
         gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
@@ -1047,7 +1049,7 @@ export async function getScheduleWithDetails(sessionId: string): Promise<(Schedu
     .from(schedules)
     .leftJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
     .leftJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
-    .where(eq(schedules.sessionId, sessionId))
+    .where(and(eq(schedules.sessionId, sessionId), sql`${schedules.status} != 'holding'`))
   
   return result as (Schedule & { classTeachingRequest: ClassTeachingRequest, classroom: SessionClassroom })[]
 }
@@ -1088,8 +1090,9 @@ export async function getApprovedClassesForSession(sessionId: string): Promise<(
     .select({
       id: classTeachingRequests.id,
       sessionId: classTeachingRequests.sessionId,
-      guardianId: classTeachingRequests.guardianId,
-      className: classTeachingRequests.className,
+       guardianId: classTeachingRequests.guardianId,
+       teacherName: classTeachingRequests.teacherName,
+       className: classTeachingRequests.className,
       description: classTeachingRequests.description,
       gradeRange: classTeachingRequests.gradeRange,
       gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
@@ -1142,7 +1145,7 @@ export async function updateScheduleStatus(sessionId: string, status: 'draft' | 
       status,
       updatedAt: new Date().toISOString()
     })
-    .where(eq(schedules.sessionId, sessionId))
+    .where(and(eq(schedules.sessionId, sessionId), sql`${schedules.status} != 'holding'`))
 }
 
 // Permission checking functions

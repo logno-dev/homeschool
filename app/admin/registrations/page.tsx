@@ -212,10 +212,15 @@ export default function AdminRegistrationsPage() {
 
   const registeredStudents = registrationsForSchedule.filter((registration) => registration.status === 'registered')
   const waitlistedStudents = registrationsForSchedule.filter((registration) => registration.status === 'waitlisted')
+  const heldStudents = registrationsForSchedule.filter((registration) => registration.status === 'hold')
 
   const volunteersForSchedule = useMemo(() => {
     if (!selectedSchedule) return []
     return volunteerAssignments.filter((assignment) => assignment.schedule?.id === selectedSchedule.id && assignment.status === 'assigned')
+  }, [volunteerAssignments, selectedSchedule])
+  const heldVolunteersForSchedule = useMemo(() => {
+    if (!selectedSchedule) return []
+    return volunteerAssignments.filter((assignment) => assignment.schedule?.id === selectedSchedule.id && assignment.status === 'hold')
   }, [volunteerAssignments, selectedSchedule])
 
   const nonPeriodJobs = useMemo(
@@ -656,6 +661,23 @@ export default function AdminRegistrationsPage() {
             </div>
 
             <div>
+              {heldStudents.length > 0 && (
+                <div className="mb-6 rounded-md border border-amber-200 bg-amber-50 p-4">
+                  <h3 className="text-sm font-semibold text-amber-900">Needs Reassignment</h3>
+                  <p className="mt-1 text-xs text-amber-800">These students were affected by a published schedule change.</p>
+                  <ul className="mt-2 space-y-2">
+                    {heldStudents.map((registration) => (
+                      <li key={registration.id} className="flex items-center justify-between rounded-md border border-amber-200 bg-white px-3 py-2">
+                        <span className="text-sm font-medium text-gray-900">{registration.child.firstName} {registration.child.lastName}</span>
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => openMoveModal(registration)} className="text-sm text-blue-600 hover:text-blue-700">Move</button>
+                          <button onClick={() => updateRegistrationStatus(registration.id, 'cancelled')} className="text-sm text-red-600 hover:text-red-700">Drop</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <h3 className="text-sm font-semibold text-gray-900">Registered Students</h3>
               {registeredStudents.length === 0 ? (
                 <p className="text-sm text-gray-500 mt-2">No registered students.</p>
@@ -794,6 +816,22 @@ export default function AdminRegistrationsPage() {
                     </li>
                   ))}
                 </ul>
+              )}
+              {heldVolunteersForSchedule.length > 0 && (
+                <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-4">
+                  <h3 className="text-sm font-semibold text-amber-900">Volunteers Needing Reassignment</h3>
+                  <ul className="mt-2 space-y-2">
+                    {heldVolunteersForSchedule.map((assignment) => (
+                      <li key={assignment.id} className="flex items-center justify-between rounded-md border border-amber-200 bg-white px-3 py-2">
+                        <span className="text-sm font-medium text-gray-900">{assignment.guardian.firstName} {assignment.guardian.lastName}</span>
+                        <div className="flex items-center gap-3">
+                          <button onClick={() => openAssignmentModal(assignment)} className="text-sm text-blue-600 hover:text-blue-700">Reassign</button>
+                          <button onClick={() => handleRemoveAssignment(assignment.id)} className="text-sm text-red-600 hover:text-red-700">Remove</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           </div>

@@ -49,6 +49,8 @@ export async function POST(request: Request) {
     if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
 
     const requestedTeacherId = String(body.teacherId || '')
+    const requestedTeacherName = String(body.teacherName || '').trim()
+    if (!requestedTeacherId && !requestedTeacherName) return NextResponse.json({ error: 'Enter a teacher placeholder when no assigned teacher is selected' }, { status: 400 })
     const [selectedTeacher] = requestedTeacherId
       ? await db.select({ id: guardians.id }).from(guardians).where(eq(guardians.id, requestedTeacherId)).limit(1)
       : []
@@ -61,7 +63,7 @@ export async function POST(request: Request) {
       id: randomUUID(),
       sessionId,
       guardianId,
-      teacherName: String(body.teacherName || '').trim() || null,
+      teacherName: requestedTeacherName || null,
       className,
       description,
       gradeRange,

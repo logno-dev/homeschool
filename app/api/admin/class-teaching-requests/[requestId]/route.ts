@@ -112,7 +112,11 @@ export async function PATCH(
         if (!teacher) return NextResponse.json({ error: 'Teacher not found' }, { status: 404 })
         updateData.guardianId = teacher.id
       }
-      if (editData.teacherName !== undefined) updateData.teacherName = editData.teacherName?.trim() || null
+      if (editData.teacherName !== undefined) {
+        const teacherName = editData.teacherName?.trim() || ''
+        if (!editData.teacherId && !teacherName) return NextResponse.json({ error: 'Enter a teacher placeholder when no assigned teacher is selected' }, { status: 400 })
+        updateData.teacherName = teacherName || null
+      }
 
       if (updateData.gradeRange && (updateData.gradeRangeFrom === undefined || updateData.gradeRangeTo === undefined)) {
         const fallbackRange = getGradeRangeFromLabel(updateData.gradeRange)

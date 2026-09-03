@@ -214,6 +214,9 @@ export async function getRegistrationSchedules(sessionId: string) {
     const currentHelpers = volunteerCountMap[item.schedule.id]?.filter((v) => v === 'helper').length || 0
     return {
       ...item,
+      teacher: item.classTeachingRequest.teacherName
+        ? { ...item.teacher, firstName: item.classTeachingRequest.teacherName, lastName: '' }
+        : item.teacher,
       currentRegistrations: registrationCountMap[item.schedule.id] || 0,
       availableSpots: item.classTeachingRequest.maxStudents - (registrationCountMap[item.schedule.id] || 0),
       helpersAvailable: item.classTeachingRequest.helpersNeeded - currentHelpers,

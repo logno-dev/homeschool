@@ -67,7 +67,7 @@ export async function PATCH(
       .update(classRegistrations)
       .set({
         ...(scheduleId ? { scheduleId } : {}),
-        ...(status ? { status } : {}),
+        ...(scheduleId ? { status: 'registered', holdExpiresAt: null } : status ? { status } : {}),
         updatedAt: new Date().toISOString()
       })
       .where(eq(classRegistrations.id, registrationId))

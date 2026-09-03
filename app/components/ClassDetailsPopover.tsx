@@ -101,7 +101,7 @@ export default function ClassDetailsPopover({ classRequest, children, isDragging
         <div>
           <h4 className="font-medium text-gray-900 text-sm mb-1">Teaching Team</h4>
           <div className="text-sm text-gray-700">
-            <p>Primary Teacher: <span className="font-medium">{classRequest.guardian.firstName} {classRequest.guardian.lastName}</span></p>
+            <p>Primary Teacher: <span className="font-medium">{classRequest.teacherName || `${classRequest.guardian.firstName} ${classRequest.guardian.lastName}`}</span></p>
             {classRequest.coTeacher && (
               <p>Co-Teacher: <span className="font-medium">{classRequest.coTeacher}</span></p>
             )}

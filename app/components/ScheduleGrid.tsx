@@ -145,8 +145,8 @@ export default function ScheduleGrid({
   const getSlotKey = (classroomId: string, period: string) => `${classroomId}-${period}`
 
   const handleDragStart = (e: React.DragEvent, classRequest: ClassTeachingRequest, fromSlot?: string) => {
-    // Disable dragging if schedule is submitted or published
-    if (scheduleStatus === 'submitted' || scheduleStatus === 'published') {
+    // Submitted schedules remain locked; published schedules can be edited and re-saved.
+    if (scheduleStatus === 'submitted') {
       e.preventDefault()
       return
     }
@@ -218,7 +218,7 @@ export default function ScheduleGrid({
 
   // Touch interaction handlers for mobile
   const handleClassSelect = (classRequest: ClassTeachingRequest, fromSlot?: string) => {
-    if (scheduleStatus === 'submitted' || scheduleStatus === 'published') return
+    if (scheduleStatus === 'submitted') return
     
     if (selectedClass?.id === classRequest.id && selectedFromSlot === fromSlot) {
       // Deselect if clicking the same class
@@ -232,7 +232,7 @@ export default function ScheduleGrid({
   }
 
   const handleSlotTap = (classroomId: string, period: string) => {
-    if (scheduleStatus === 'submitted' || scheduleStatus === 'published') return
+    if (scheduleStatus === 'submitted') return
     
     const slotKey = getSlotKey(classroomId, period)
     const existingClass = getClassInSlot(classroomId, period)
@@ -315,7 +315,12 @@ export default function ScheduleGrid({
 
       if (response.ok) {
         setScheduleStatus('draft')
-        showSuccess('Draft saved successfully!')
+        const result = await response.json()
+        if (result.impacted?.length > 0) {
+          showSuccess('Draft saved with registration holds', `${result.impacted.length} published class change${result.impacted.length === 1 ? '' : 's'} affected registrations. Review them in Registration Management.`)
+        } else {
+          showSuccess('Draft saved successfully!')
+        }
       } else {
         showError('Failed to save draft')
       }
@@ -605,7 +610,7 @@ export default function ScheduleGrid({
           </div>
           <button
             onClick={saveCurrentDraft}
-            disabled={isSaving || !currentDraftId || scheduleStatus === 'submitted' || scheduleStatus === 'published'}
+            disabled={isSaving || !currentDraftId || scheduleStatus === 'submitted'}
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
           >
             {isSaving ? 'Saving...' : 'Save'}
@@ -619,7 +624,7 @@ export default function ScheduleGrid({
           </button>
           <button
             onClick={submitForReview}
-            disabled={isSaving || scheduleStatus === 'submitted' || scheduleStatus === 'published'}
+            disabled={isSaving || scheduleStatus === 'submitted'}
             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
           >
             {isSaving ? 'Submitting...' : 'Submit for Review'}
@@ -685,7 +690,7 @@ export default function ScheduleGrid({
           {unscheduledClasses.map((classRequest) => (
             <ClassDetailsPopover key={`pool-${classRequest.id}`} classRequest={classRequest} isDragging={isDragging}>
               <div
-                draggable={!isMobile && scheduleStatus !== 'submitted' && scheduleStatus !== 'published'}
+                draggable={!isMobile && scheduleStatus !== 'submitted'}
                 onDragStart={(e) => handleDragStart(e, classRequest)}
                 onDragEnd={handleDragEnd}
                 onClick={isMobile ? (e) => {
@@ -693,7 +698,7 @@ export default function ScheduleGrid({
                   handleClassSelect(classRequest)
                 } : undefined}
                 className={`bg-blue-50 border rounded-md p-3 transition-all min-h-[44px] ${
-                  scheduleStatus === 'submitted' || scheduleStatus === 'published'
+                  scheduleStatus === 'submitted'
                     ? 'cursor-not-allowed opacity-60 border-blue-200' 
                     : selectedClass?.id === classRequest.id && !selectedFromSlot
                       ? 'border-blue-500 bg-blue-100 ring-2 ring-blue-300 cursor-pointer'
@@ -767,11 +772,11 @@ export default function ScheduleGrid({
                          {scheduledClass ? (
                             <ClassDetailsPopover key={`scheduled-${scheduledClass.id}-${slotKey}`} classRequest={scheduledClass} isDragging={isDragging}>
                              <div 
-                               draggable={scheduleStatus !== 'submitted' && scheduleStatus !== 'published'}
+                               draggable={scheduleStatus !== 'submitted'}
                                onDragStart={(e) => handleDragStart(e, scheduledClass, slotKey)}
                                onDragEnd={handleDragEnd}
                                className={`rounded-md p-3 transition-colors ${
-                                 scheduleStatus === 'submitted' || scheduleStatus === 'published'
+                                  scheduleStatus === 'submitted'
                                    ? 'cursor-not-allowed opacity-60 bg-green-50 border border-green-200'
                                    : isHovered && isValidDropZone
                                      ? 'bg-gray-100 border border-gray-400 cursor-move' 
@@ -851,7 +856,7 @@ export default function ScheduleGrid({
                               ? 'border-blue-400 bg-blue-50 border-dashed hover:bg-blue-100 active:bg-blue-200'
                               : 'border-gray-300 bg-white border-dashed hover:bg-gray-50 active:bg-gray-100'
                         } ${
-                          scheduleStatus === 'submitted' || scheduleStatus === 'published'
+                           scheduleStatus === 'submitted'
                             ? 'cursor-not-allowed opacity-60'
                             : 'cursor-pointer'
                         }`}

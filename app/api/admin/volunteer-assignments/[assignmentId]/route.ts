@@ -52,7 +52,7 @@ export async function PATCH(
       ...(volunteerType ? { volunteerType } : {}),
       ...(scheduleId !== undefined && volunteerType ? { scheduleId: volunteerType === 'volunteer_job' ? null : scheduleId } : {}),
       ...(volunteerJobId !== undefined && volunteerType ? { volunteerJobId: volunteerType === 'volunteer_job' ? volunteerJobId : null } : {}),
-      ...(status ? { status } : {}),
+      ...((scheduleId !== undefined || volunteerJobId !== undefined) ? { status: 'assigned', holdExpiresAt: null } : status ? { status } : {}),
       updatedAt: new Date().toISOString()
     }
 

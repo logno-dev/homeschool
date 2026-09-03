@@ -21,7 +21,7 @@ const HOURS = [
 const gradeOptions = BUILT_IN_GRADE_RANGES
 const initialForm = {
   sessionId: '', className: '', description: '', gradeRange: '', gradeRangeFrom: '', gradeRangeTo: '', maxStudents: '20', helpersNeeded: '2',
-  teacherId: '', teacherName: '', coTeacher: '', classroomNeeds: '', registrationFeeExempt: false, requiresFee: false, feeAmount: '', schedulingRequirements: ''
+  teacherId: '', teacherName: 'Staff Instructor', coTeacher: '', classroomNeeds: '', registrationFeeExempt: false, requiresFee: false, feeAmount: '', schedulingRequirements: ''
 }
 
 export default function AdminClassCreateForm({ sessions, teachers, onCreated }: Props) {
@@ -169,7 +169,7 @@ export default function AdminClassCreateForm({ sessions, teachers, onCreated }: 
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm font-medium text-gray-700">Assigned Teacher<select value={form.teacherId} onChange={(event) => setForm({ ...form, teacherId: event.target.value, teacherName: '' })} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Use placeholder instead</option>{teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}</select></label>
-          <label className="text-sm font-medium text-gray-700">Teacher Placeholder<input value={form.teacherName} disabled={Boolean(form.teacherId)} onChange={(event) => setForm({ ...form, teacherName: event.target.value })} placeholder="e.g. Staff Instructor" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal disabled:bg-gray-100" /></label>
+           <label className="text-sm font-medium text-gray-700">Teacher Placeholder{!form.teacherId && ' *'}<input required={!form.teacherId} value={form.teacherName} disabled={Boolean(form.teacherId)} onChange={(event) => setForm({ ...form, teacherName: event.target.value })} placeholder="e.g. Staff Instructor" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal disabled:bg-gray-100" /></label>
         </div>
         <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-gray-700">Co-Teacher<input value={form.coTeacher} onChange={(event) => setForm({ ...form, coTeacher: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label><label className="text-sm font-medium text-gray-700">Classroom Needs<input value={form.classroomNeeds} onChange={(event) => setForm({ ...form, classroomNeeds: event.target.value })} placeholder="TV, projector, supplies" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label></div>
         <label className="block text-sm font-medium text-gray-700">Scheduling Requirements<textarea value={form.schedulingRequirements} onChange={(event) => setForm({ ...form, schedulingRequirements: event.target.value })} rows={2} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>
