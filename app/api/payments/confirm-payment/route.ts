@@ -5,7 +5,7 @@ import { randomUUID } from 'crypto'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { getGuardianById } from '@/lib/database'
-import { familySessionFees, feePayments, scholarshipFundTransactions } from '@/lib/schema'
+import { familySessionFees, familyFeeCredits, feePayments, scholarshipFundTransactions } from '@/lib/schema'
 import {
   capturePayPalOrder,
   getCaptureAmountCents,
@@ -21,6 +21,7 @@ interface FeeConfirmationPayload {
   status?: string
   expectedFeeAmountCents?: number
   expectedDonationAmountCents?: number
+  creditAmount?: number
 }
 
 interface ParsedFeeMetadata {
@@ -187,7 +188,7 @@ async function capturePayPalOrderAndReadMetadata(
   }
 }
 
-async function recordFeePayment(familySessionFeeId: string, metadata: ParsedFeeMetadata, orderId: string) {
+async function recordFeePayment(familySessionFeeId: string, metadata: ParsedFeeMetadata, orderId: string, creditAmount = 0) {
   const feeRecord = await db
     .select()
     .from(familySessionFees)
@@ -201,44 +202,60 @@ async function recordFeePayment(familySessionFeeId: string, metadata: ParsedFeeM
   const fee = feeRecord[0]
   const paymentAmount = metadata.paymentAmountCents / 100
   const donationValue = metadata.donationAmountCents / 100
-  const newPaidAmount = fee.paidAmount + paymentAmount
-  const newStatus = newPaidAmount >= fee.totalFee ? 'paid' : 'partial'
+  const availableBalance = fee.totalFee - fee.paidAmount
+  if (!Number.isFinite(creditAmount) || creditAmount < 0 || creditAmount > availableBalance - paymentAmount + 0.005) {
+    throw new Error('Invalid account credit amount')
+  }
 
-  await db
-    .update(familySessionFees)
-    .set({
+  await db.transaction(async (tx) => {
+    let remainingCredit = creditAmount
+    if (remainingCredit > 0) {
+      const credits = await tx.select().from(familyFeeCredits).where(and(
+        eq(familyFeeCredits.familyId, fee.familyId),
+        eq(familyFeeCredits.status, 'available')
+      ))
+      for (const credit of credits) {
+        if (remainingCredit <= 0) break
+        const applied = Math.min(credit.amount, remainingCredit)
+        await tx.update(familyFeeCredits).set({
+          amount: credit.amount - applied,
+          status: credit.amount - applied <= 0.005 ? 'applied' : 'available',
+          updatedAt: new Date().toISOString()
+        }).where(eq(familyFeeCredits.id, credit.id))
+        remainingCredit -= applied
+      }
+      if (remainingCredit > 0.005) throw new Error('Insufficient account credit')
+    }
+
+    const newPaidAmount = fee.paidAmount + paymentAmount + creditAmount
+    await tx.update(familySessionFees).set({
       paidAmount: newPaidAmount,
-      status: newStatus,
+      status: newPaidAmount >= fee.totalFee ? 'paid' : 'partial',
       updatedAt: new Date().toISOString()
-    })
-    .where(eq(familySessionFees.id, familySessionFeeId))
+    }).where(eq(familySessionFees.id, familySessionFeeId))
 
-  await db
-    .insert(feePayments)
-    .values({
-      id: randomUUID(),
-      familySessionFeeId,
-      familyId: fee.familyId,
-      sessionId: fee.sessionId,
-      amount: paymentAmount,
-      paymentDate: new Date().toISOString(),
-      paymentMethod: 'online',
-      notes: `PayPal order payment - Order ID: ${orderId}`
-    })
-
-  if (donationValue > 0) {
-    await db
-      .insert(scholarshipFundTransactions)
-      .values({
-        id: randomUUID(),
-        amount: donationValue,
-        transactionType: 'donation',
-        source: 'online',
-        familyId: fee.familyId,
-        sessionId: fee.sessionId,
+    if (paymentAmount > 0) {
+      await tx.insert(feePayments).values({
+        id: randomUUID(), familySessionFeeId, familyId: fee.familyId, sessionId: fee.sessionId,
+        amount: paymentAmount, paymentDate: new Date().toISOString(), paymentMethod: 'online',
+        notes: `PayPal order payment - Order ID: ${orderId}`
+      })
+    }
+    if (creditAmount > 0) {
+      await tx.insert(feePayments).values({
+        id: randomUUID(), familySessionFeeId, familyId: fee.familyId, sessionId: fee.sessionId,
+        amount: creditAmount, paymentDate: new Date().toISOString(), paymentMethod: 'credit',
+        notes: 'Applied available account credit'
+      })
+    }
+    if (donationValue > 0) {
+      await tx.insert(scholarshipFundTransactions).values({
+        id: randomUUID(), amount: donationValue, transactionType: 'donation', source: 'online',
+        familyId: fee.familyId, sessionId: fee.sessionId,
         notes: `Scholarship donation with PayPal order ${orderId}`
       })
-  }
+    }
+  })
 }
 
 async function handleConfirmation(request: NextRequest) {
@@ -250,7 +267,8 @@ async function handleConfirmation(request: NextRequest) {
     orderId: rawOrderId,
     paymentIntentId,
     expectedFeeAmountCents,
-    expectedDonationAmountCents
+    expectedDonationAmountCents,
+    creditAmount
   } = payload
   const orderId = rawOrderId || paymentIntentId
 
@@ -304,7 +322,7 @@ async function handleConfirmation(request: NextRequest) {
     paymentAmountCents: metadata.paymentAmountCents,
     donationAmountCents: metadata.donationAmountCents
   })
-  await recordFeePayment(familySessionFeeId, metadata, orderId)
+  await recordFeePayment(familySessionFeeId, metadata, orderId, Number(creditAmount) || 0)
 
   return NextResponse.json({ success: true })
 }

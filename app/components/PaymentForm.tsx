@@ -7,12 +7,13 @@ import PayPalCheckout from './PayPalCheckout'
 interface PaymentFormProps {
   familySessionFeeId: string
   amount: number
+  availableCredit?: number
   onSuccess: () => void
   onCancel: () => void
   cancelLabel?: string
 }
 
-export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, cancelLabel = 'Cancel' }: PaymentFormProps) {
+export function PaymentForm({ familySessionFeeId, amount, availableCredit = 0, onSuccess, onCancel, cancelLabel = 'Cancel' }: PaymentFormProps) {
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [customAmount, setCustomAmount] = useState(amount.toString())
   const [useCustomAmount, setUseCustomAmount] = useState(false)
@@ -25,6 +26,9 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, c
   const [environment, setEnvironment] = useState<'sandbox' | 'live' | null>(null)
   const [expectedFeeAmountCents, setExpectedFeeAmountCents] = useState<number>(0)
   const [expectedDonationAmountCents, setExpectedDonationAmountCents] = useState<number>(0)
+  const [useAccountCredit, setUseAccountCredit] = useState(false)
+
+  const creditApplied = useAccountCredit ? Math.min(availableCredit, amount) : 0
 
   useEffect(() => {
     const loadEnvironment = async () => {
@@ -46,7 +50,7 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, c
     loadEnvironment()
   }, [])
 
-  const paymentAmount = useCustomAmount ? parseFloat(customAmount) : amount
+  const paymentAmount = Math.max(0, (useCustomAmount ? parseFloat(customAmount) : amount) - creditApplied)
   const resolvedDonationAmount = includeDonation
     ? (donationPreset ?? parseFloat(donationAmount))
     : 0
@@ -56,13 +60,13 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, c
     setPaymentError(null)
     setOrderId(null)
     setClientId('')
-  }, [useCustomAmount, customAmount, includeDonation, donationPreset, donationAmount, amount])
+  }, [useCustomAmount, customAmount, includeDonation, donationPreset, donationAmount, amount, useAccountCredit])
 
   const createOrder = async () => {
     setPaymentError(null)
 
-    if (!Number.isFinite(paymentAmount) || paymentAmount <= 0 || paymentAmount > amount) {
-      setPaymentError(`Payment amount must be between $0.01 and $${amount.toFixed(2)}`)
+    if (!Number.isFinite(paymentAmount) || paymentAmount < 0 || paymentAmount > amount) {
+      setPaymentError(`Payment amount must be between $0.00 and $${amount.toFixed(2)}`)
       return
     }
 
@@ -71,7 +75,24 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, c
       return
     }
 
+    if (paymentAmount === 0 && resolvedDonationAmount > 0) {
+      setPaymentError('Please remove the donation or leave a payment amount for PayPal.')
+      return
+    }
+
     try {
+      if (paymentAmount === 0) {
+        const response = await fetch('/api/payments/apply-credit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ familySessionFeeId, amount: creditApplied })
+        })
+        const result = await response.json()
+        if (!response.ok) throw new Error(result.error || 'Unable to apply account credit')
+        onSuccess()
+        return
+      }
+
       setIsCreatingOrder(true)
 
       const response = await fetch('/api/payments/create-payment-intent', {
@@ -117,8 +138,9 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, c
           orderId: approvedOrderId,
           status: 'succeeded',
           familySessionFeeId,
-          expectedFeeAmountCents,
-          expectedDonationAmountCents
+           expectedFeeAmountCents,
+           expectedDonationAmountCents,
+           creditAmount: creditApplied
         })
       })
 
@@ -189,6 +211,21 @@ export function PaymentForm({ familySessionFeeId, amount, onSuccess, onCancel, c
             </div>
           )}
         </div>
+
+        {availableCredit > 0 && (
+          <label className="mb-4 flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-medium text-blue-900">
+            <input
+              type="checkbox"
+              checked={useAccountCredit}
+              onChange={(event) => setUseAccountCredit(event.target.checked)}
+              className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+            />
+            <span>
+              Use account credit ({availableCredit.toFixed(2)} available)
+              {creditApplied > 0 && `, applying $${creditApplied.toFixed(2)}`}
+            </span>
+          </label>
+        )}
       </div>
 
       <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-4 space-y-3">

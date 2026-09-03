@@ -245,6 +245,7 @@ export default function FeesSummary() {
             <PaymentForm
               familySessionFeeId={selectedFee.id}
               amount={selectedFee.remainingAmount}
+              availableCredit={accountCredit}
               onSuccess={handlePaymentSuccess}
               onCancel={handlePaymentCancel}
             />

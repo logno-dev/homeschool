@@ -65,6 +65,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
     totalFee: number
     paidAmount: number
     remainingAmount: number
+    accountCredit?: number
     overpaymentAmount: number
     overpaymentStatus: string
     dueDate: string
@@ -698,6 +699,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
             <PaymentForm
               familySessionFeeId={pendingPaymentFee.id}
               amount={pendingPaymentFee.remainingAmount}
+              availableCredit={pendingPaymentFee.accountCredit}
               onSuccess={handlePaymentSuccess}
               onCancel={handlePaymentDefer}
               cancelLabel="Defer Payment"
