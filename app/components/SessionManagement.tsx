@@ -172,6 +172,76 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
     return format(parseISO(dateString), 'MMM d, yyyy')
   }
 
+  const sortedSessions = [...sessions].sort(
+    (a, b) => parseISO(b.startDate).getTime() - parseISO(a.startDate).getTime()
+  )
+  const isPastSession = (session: Session) => {
+    const endOfSession = new Date(`${session.endDate}T23:59:59`)
+    return endOfSession < new Date()
+  }
+  const currentSessions = sortedSessions.filter((session) => !isPastSession(session))
+  const pastSessions = sortedSessions.filter(isPastSession)
+
+  const renderSession = (session: Session) => (
+    <li key={session.id} className="px-4 sm:px-6 py-4">
+      {/* Mobile-first layout: stack everything vertically */}
+      <div className="space-y-4">
+        {/* Session header */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center">
+            <h3 className="text-lg font-medium text-gray-900">
+              {session.name}
+              {session.isActive && (
+                <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  Active
+                </span>
+              )}
+            </h3>
+          </div>
+        </div>
+
+        {/* Description */}
+        {session.description && (
+          <p className="text-sm text-gray-600">{session.description}</p>
+        )}
+
+        {/* Session info - stacked vertically on mobile, grid on larger screens */}
+        <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 text-sm text-gray-600">
+          <div className="flex flex-col sm:block">
+            <span className="font-medium text-gray-900">Session Dates</span>
+            <span className="mt-1">{formatDate(session.startDate)} - {formatDate(session.endDate)}</span>
+          </div>
+          <div className="flex flex-col sm:block">
+            <span className="font-medium text-gray-900">Created</span>
+            <span className="mt-1">{formatDate(session.createdAt)}</span>
+          </div>
+        </div>
+
+        {/* Action buttons - stacked on mobile, horizontal on larger screens */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 pt-2 border-t border-gray-100 sm:border-t-0">
+          <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-2">
+            <button
+              onClick={() => router.push(`/admin/schedule/${session.id}`)}
+              disabled={isLoading}
+              className="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
+            >
+              Schedule
+            </button>
+            {!session.isActive && (
+              <button
+                onClick={() => handleSetActive(session.id)}
+                disabled={isLoading}
+                className="bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
+              >
+                Set Active
+              </button>
+            )}
+            <Link href={`/admin/sessions/${session.id}`} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium min-h-[44px] flex items-center justify-center">Manage</Link>
+          </div>
+        </div>
+      </div>
+    </li>
+  )
 
 
   return (
@@ -316,70 +386,21 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
               No sessions found. Create your first session to get started.
             </li>
           ) : (
-            sessions.map((session) => (
-              <li key={session.id} className="px-4 sm:px-6 py-4">
-                {/* Mobile-first layout: stack everything vertically */}
-                <div className="space-y-4">
-                  {/* Session header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex items-center">
-                      <h3 className="text-lg font-medium text-gray-900">
-                        {session.name}
-                        {session.isActive && (
-                          <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Active
-                          </span>
-                        )}
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Description */}
-                  {session.description && (
-                    <p className="text-sm text-gray-600">{session.description}</p>
-                  )}
-
-                  {/* Session info - stacked vertically on mobile, grid on larger screens */}
-                  <div className="space-y-3 sm:space-y-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 text-sm text-gray-600">
-                    <div className="flex flex-col sm:block">
-                      <span className="font-medium text-gray-900">Session Dates</span>
-                      <span className="mt-1">
-                        {formatDate(session.startDate)} - {formatDate(session.endDate)}
-                      </span>
-                    </div>
-                    <div className="flex flex-col sm:block">
-                      <span className="font-medium text-gray-900">Created</span>
-                      <span className="mt-1">
-                        {formatDate(session.createdAt)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Action buttons - stacked on mobile, horizontal on larger screens */}
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-2 pt-2 border-t border-gray-100 sm:border-t-0">
-                    <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-2">
-                      <button
-                        onClick={() => router.push(`/admin/schedule/${session.id}`)}
-                        disabled={isLoading}
-                        className="bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
-                      >
-                        Schedule
-                      </button>
-                      {!session.isActive && (
-                        <button
-                          onClick={() => handleSetActive(session.id)}
-                          disabled={isLoading}
-                          className="bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-3 py-2 rounded text-sm font-medium disabled:opacity-50 transition-colors min-h-[44px] flex items-center justify-center"
-                        >
-                          Set Active
-                        </button>
-                      )}
-                      <Link href={`/admin/sessions/${session.id}`} className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm font-medium min-h-[44px] flex items-center justify-center">Manage</Link>
-                    </div>
-                  </div>
-                </div>
-              </li>
-            ))
+            <>
+              {currentSessions.map(renderSession)}
+              {pastSessions.length > 0 && (
+                <li className="border-t border-gray-200">
+                  <details>
+                    <summary className="cursor-pointer px-4 py-4 text-sm font-semibold text-gray-700 hover:bg-gray-50 sm:px-6">
+                      Past Sessions ({pastSessions.length})
+                    </summary>
+                    <ul className="divide-y divide-gray-200 border-t border-gray-200">
+                      {pastSessions.map(renderSession)}
+                    </ul>
+                  </details>
+                </li>
+              )}
+            </>
           )}
         </ul>
       </div>

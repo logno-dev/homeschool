@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
-import { GRADE_ORDER, PRE_K_LABEL, getGradeRangeFromLabel } from '@/lib/grades'
+import { BUILT_IN_GRADE_RANGES, CHILD_GRADE_OPTIONS, getGradeRangeFromLabel, getGradeIndex, getGradeLabel } from '@/lib/grades'
 
 interface ClassTeachingFormProps {
   onSuccess: () => void
@@ -11,7 +11,7 @@ interface ClassTeachingFormProps {
   mode?: 'create' | 'edit'
 }
 
-const GRADE_OPTIONS = ['Pre-K', 'Pre-K-2', 'K-2', '3-5', '6-8', '9-12', 'All Ages']
+const GRADE_OPTIONS: readonly string[] = BUILT_IN_GRADE_RANGES.map((option) => option.value)
 
 export default function ClassTeachingForm({
   onSuccess,
@@ -28,7 +28,7 @@ export default function ClassTeachingForm({
     gradeRangeFrom: '',
     gradeRangeTo: '',
     maxStudents: '20',
-    helpersNeeded: '1',
+    helpersNeeded: '2',
     coTeacher: '',
     classroomNeeds: '',
     requiresFee: false,
@@ -43,8 +43,8 @@ export default function ClassTeachingForm({
       const fallbackRange = getGradeRangeFromLabel(initialRequest.gradeRange)
       const fromIndex = initialRequest.gradeRangeFrom ?? fallbackRange.from
       const toIndex = initialRequest.gradeRangeTo ?? fallbackRange.to
-       const fromLabel = fromIndex === -1 ? PRE_K_LABEL : typeof fromIndex === 'number' ? GRADE_ORDER[fromIndex] ?? '' : ''
-      const toLabel = typeof toIndex === 'number' ? GRADE_ORDER[toIndex] ?? '' : ''
+       const fromLabel = getGradeLabel(fromIndex)
+       const toLabel = getGradeLabel(toIndex)
       const isCustomRange = !GRADE_OPTIONS.includes(initialRequest.gradeRange)
 
       setUseCustomGradeRange(isCustomRange)
@@ -93,9 +93,9 @@ export default function ClassTeachingForm({
           return
         }
 
-        const fromIndex = GRADE_ORDER.indexOf(formData.gradeRangeFrom as typeof GRADE_ORDER[number])
-        const toIndex = GRADE_ORDER.indexOf(formData.gradeRangeTo as typeof GRADE_ORDER[number])
-        if (fromIndex === -1 || toIndex === -1 || fromIndex > toIndex) {
+        const fromIndex = getGradeIndex(formData.gradeRangeFrom)
+        const toIndex = getGradeIndex(formData.gradeRangeTo)
+        if (fromIndex === null || toIndex === null || fromIndex > toIndex) {
           setGradeRangeError('Starting grade must be lower than ending grade.')
           setIsLoading(false)
           return
@@ -108,10 +108,10 @@ export default function ClassTeachingForm({
           ? `${formData.gradeRangeFrom}-${formData.gradeRangeTo}`
           : formData.gradeRange,
         gradeRangeFrom: useCustomGradeRange
-          ? GRADE_ORDER.indexOf(formData.gradeRangeFrom as typeof GRADE_ORDER[number])
+           ? getGradeIndex(formData.gradeRangeFrom)
           : getGradeRangeFromLabel(formData.gradeRange).from,
         gradeRangeTo: useCustomGradeRange
-          ? GRADE_ORDER.indexOf(formData.gradeRangeTo as typeof GRADE_ORDER[number])
+           ? getGradeIndex(formData.gradeRangeTo)
           : getGradeRangeFromLabel(formData.gradeRange).to,
         maxStudents: parseInt(formData.maxStudents),
         helpersNeeded: parseInt(formData.helpersNeeded),
@@ -167,7 +167,7 @@ export default function ClassTeachingForm({
           </h4>
           <div className="space-y-1 text-sm text-blue-700">
             <p>
-              <span className="font-medium">Session Period:</span> {new Date(currentSession.startDate).toLocaleDateString()} - {new Date(currentSession.endDate).toLocaleDateString()}
+              <span className="font-medium">Session Dates:</span> {new Date(currentSession.startDate).toLocaleDateString()} - {new Date(currentSession.endDate).toLocaleDateString()}
             </p>
             <p>
               <span className="font-medium">Registration Opens:</span> {new Date(currentSession.registrationStartDate).toLocaleDateString()}
@@ -178,7 +178,7 @@ export default function ClassTeachingForm({
       <p className="text-sm text-gray-600 mb-6">
         {mode === 'edit'
           ? 'Update your class request while it is still pending review. Administrators will see your latest changes.'
-          : 'Submit your class teaching request before regular registration opens. Administrators will review and approve classes before the registration period begins.'}
+          : 'Submit your class teaching request before regular registration opens. Administrators will review and approve classes before the registration window begins.'}
       </p>
       
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -229,8 +229,8 @@ export default function ClassTeachingForm({
                 className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Select grade range</option>
-                {GRADE_OPTIONS.map(grade => (
-                  <option key={grade} value={grade}>{grade}</option>
+                {BUILT_IN_GRADE_RANGES.map((grade) => (
+                  <option key={grade.value} value={grade.value}>{grade.label}</option>
                 ))}
                 <option value="custom">Custom Grade Range</option>
               </select>
@@ -249,7 +249,7 @@ export default function ClassTeachingForm({
                         className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">Select grade</option>
-                         {[PRE_K_LABEL, ...GRADE_ORDER].map((grade) => (
+                         {CHILD_GRADE_OPTIONS.filter((grade) => grade !== 'Graduated').map((grade) => (
                           <option key={grade} value={grade}>{grade}</option>
                         ))}
                       </select>
@@ -266,7 +266,7 @@ export default function ClassTeachingForm({
                         className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">Select grade</option>
-                         {[PRE_K_LABEL, ...GRADE_ORDER].map((grade) => (
+                         {CHILD_GRADE_OPTIONS.filter((grade) => grade !== 'Graduated').map((grade) => (
                           <option key={grade} value={grade}>{grade}</option>
                         ))}
                       </select>

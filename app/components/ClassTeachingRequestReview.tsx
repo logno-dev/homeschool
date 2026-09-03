@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
+import { BUILT_IN_GRADE_RANGES } from '@/lib/grades'
+import SessionOptions from './SessionOptions'
 
 interface ClassTeachingRequestReviewProps {
   initialRequests: (ClassTeachingRequest & { session: Session; teacherDisplayName?: string })[]
@@ -90,15 +92,7 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
     }
   }
 
-  const gradeOptions = [
-    'Pre-K',
-    'Pre-K-2',
-    'K-2',
-    '3-5',
-    '6-8',
-    '9-12',
-    'All Ages'
-  ]
+  const gradeOptions = BUILT_IN_GRADE_RANGES
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -156,11 +150,7 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
             className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="all">All Sessions</option>
-            {availableSessions.map(session => (
-              <option key={session.id} value={session.id}>
-                {session.name}
-              </option>
-            ))}
+             <SessionOptions sessions={availableSessions} />
           </select>
           <div className="text-sm text-gray-600">
             {counts.pending} pending • {counts.changesRequested} changes • {counts.approved} approved • {counts.rejected} rejected • {counts.total} total
@@ -363,7 +353,7 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                       </label>
                       <select
                         required
-                        value={gradeOptions.includes(editFormData.gradeRange || '') ? editFormData.gradeRange : 'custom'}
+                         value={gradeOptions.some((option) => option.value === editFormData.gradeRange) ? editFormData.gradeRange : 'custom'}
                         onChange={(e) => {
                           if (e.target.value === 'custom') {
                             // Keep current value if it's custom
@@ -374,12 +364,12 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">Select grade range</option>
-                        {gradeOptions.map(grade => (
-                          <option key={grade} value={grade}>{grade}</option>
+                         {gradeOptions.map((grade) => (
+                           <option key={grade.value} value={grade.value}>{grade.label}</option>
                         ))}
                         <option value="custom">Custom Grade Range</option>
                       </select>
-                      {!gradeOptions.includes(editFormData.gradeRange || '') && (
+                       {!gradeOptions.some((option) => option.value === editFormData.gradeRange) && (
                         <input
                           type="text"
                           value={editFormData.gradeRange || ''}

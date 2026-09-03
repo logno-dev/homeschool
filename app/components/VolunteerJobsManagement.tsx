@@ -227,13 +227,13 @@ export function VolunteerJobsManagement() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
-                <option value="non_period">Non-Period Job</option>
-                <option value="period_based">Period-Based Job</option>
+                <option value="non_period">General Job</option>
+                <option value="period_based">Hour-Based Job</option>
               </select>
               <p className="text-sm text-gray-500 mt-1">
-                <strong>Period-Based:</strong> Job occurs during each class period (first, second, third). 
+                    <strong>Hour-Based:</strong> Job occurs during each class hour (first, second, third).
                 <br />
-                <strong>Non-Period:</strong> Job does not relate to specific class periods.
+                    <strong>General:</strong> Job does not relate to specific class hours.
               </p>
             </div>
 
@@ -262,12 +262,12 @@ export function VolunteerJobsManagement() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Period-Based Jobs */}
+          {/* Hour-Based Jobs */}
           {jobs.filter(job => job.jobType === 'period_based').length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
-                Period-Based Jobs
+                Hour-Based Jobs
               </h3>
               <p className="text-sm text-gray-600 mb-4">
                 These jobs occur during each class period (first, second, third). The quantity represents positions available per period.
@@ -280,7 +280,7 @@ export function VolunteerJobsManagement() {
                         <div className="flex items-center gap-2 mb-2">
                           <h4 className="text-lg font-semibold text-gray-900">{job.title}</h4>
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                            Period-Based
+                            Hour-Based
                           </span>
                         </div>
                         <p className="text-gray-600 mt-2 whitespace-pre-wrap">{job.description}</p>
@@ -311,15 +311,15 @@ export function VolunteerJobsManagement() {
             </div>
           )}
 
-          {/* Non-Period Jobs */}
+          {/* General Jobs */}
           {jobs.filter(job => job.jobType === 'non_period').length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <span className="w-3 h-3 bg-gray-500 rounded-full"></span>
-                Non-Period Jobs
+                General Jobs
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                These jobs do not relate to specific class periods. The quantity represents total positions available.
+                These jobs do not relate to specific class hours. The quantity represents total positions available.
               </p>
               <div className="space-y-4">
                 {jobs.filter(job => job.jobType === 'non_period').map((job) => (
@@ -329,7 +329,7 @@ export function VolunteerJobsManagement() {
                         <div className="flex items-center gap-2 mb-2">
                           <h4 className="text-lg font-semibold text-gray-900">{job.title}</h4>
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
-                            Non-Period
+                            General
                           </span>
                         </div>
                         <p className="text-gray-600 mt-2 whitespace-pre-wrap">{job.description}</p>

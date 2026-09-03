@@ -30,9 +30,9 @@ interface VolunteerJobsGridProps {
 }
 
 const PERIODS = [
-  { id: 'first', name: 'First Period' },
-  { id: 'second', name: 'Second Period' },
-  { id: 'third', name: 'Third Period' }
+  { id: 'first', name: 'First Hour' },
+  { id: 'second', name: 'Second Hour' },
+  { id: 'third', name: 'Third Hour' }
 ]
 
 export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules = [], jobAssignmentCounts = {} }: VolunteerJobsGridProps) {
@@ -98,7 +98,7 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
 
   return (
     <>
-      <div className="mt-12">
+      <div className="h-full">
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900">Volunteer Jobs</h2>
           <p className="mt-2 text-gray-600">Click on any available volunteer job to sign up a parent/guardian.</p>
@@ -276,7 +276,7 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
               <h3 className="text-lg font-semibold text-gray-900 mb-2">{selectedJob.title}</h3>
               <p className="text-sm text-gray-600 mb-2">{selectedJob.description}</p>
               <p className="text-sm text-gray-500">
-                Period: <strong>{PERIODS.find(p => p.id.toString() === selectedPeriod)?.name}</strong>
+                  Hour: <strong>{PERIODS.find(p => p.id.toString() === selectedPeriod)?.name}</strong>
               </p>
             </div>
             
@@ -329,7 +329,7 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                 return !currentAssignment || currentAssignment.guardianId !== guardian.id
               }).length === 0) && (
                 <p className="text-gray-500 text-center py-4">
-                  No available guardians for volunteering this period.
+                  No available guardians for volunteering this hour.
                 </p>
               )}
             </div>

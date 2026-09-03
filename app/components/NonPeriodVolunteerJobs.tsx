@@ -78,10 +78,10 @@ export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians, jobAs
 
   return (
     <>
-      <div className="mt-12">
+      <div className="h-full">
         <div className="mb-6">
           <h2 className="text-2xl font-bold text-gray-900">General Volunteer Opportunities</h2>
-          <p className="mt-2 text-gray-600">These volunteer opportunities are not tied to specific class periods. Click on any available position to sign up a parent/guardian.</p>
+          <p className="mt-2 text-gray-600">These volunteer opportunities are not tied to specific class hours. Click on any available position to sign up a parent/guardian.</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

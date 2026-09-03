@@ -90,7 +90,7 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
   const [loading, setLoading] = useState(true)
   const [registrations, setRegistrations] = useState<FamilyRegistration>({})
   const [volunteerAssignments, setVolunteerAssignments] = useState<VolunteerAssignment>({})
-  const [emergencyContacts, setEmergencyContacts] = useState<Record<string, EmergencyContact>>({})
+  const [emergencyContact, setEmergencyContact] = useState<EmergencyContact>({ name: '', phone: '' })
   const [submitting, setSubmitting] = useState(false)
   const [sessionId, setSessionId] = useState<string>('')
 
@@ -201,8 +201,8 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
     setSubmitting(true)
     try {
       const registeredChildIds = Array.from(new Set(Object.values(registrations).flatMap((periodRegistrations) => Object.keys(periodRegistrations))))
-      if (registeredChildIds.some((childId) => !emergencyContacts[childId]?.name.trim() || !emergencyContacts[childId]?.phone.trim())) {
-        alert('Please provide an emergency contact name and phone number for every registered child.')
+      if (registeredChildIds.length > 0 && (!emergencyContact.name.trim() || !emergencyContact.phone.trim())) {
+        alert('Please provide one emergency contact name and phone number for your family.')
         setSubmitting(false)
         return
       }
@@ -211,7 +211,7 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
         sessionId,
         registrations,
         volunteerAssignments,
-        emergencyContacts
+        emergencyContact
       }
 
       const response = await fetch('/api/registration/family', {
@@ -239,9 +239,9 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
 
   const formatPeriod = (period: string) => {
     switch (period) {
-      case 'first': return 'First Period'
-      case 'second': return 'Second Period'
-      case 'third': return 'Third Period'
+      case 'first': return 'First Hour'
+      case 'second': return 'Second Hour'
+      case 'third': return 'Third Hour'
       case 'lunch': return 'Lunch'
       default: return period
     }
@@ -310,31 +310,23 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
           
           {registeredChildIds.length > 0 && (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <h3 className="font-medium text-amber-900">Emergency Contacts for This Session</h3>
-              <p className="mt-1 text-sm text-amber-800">Please provide current emergency contact information for each registered child.</p>
-              <div className="mt-3 space-y-3">
-                {registeredChildIds.map((childId) => {
-                  const contact = emergencyContacts[childId] || { name: '', phone: '' }
-                  return (
-                    <div key={childId} className="grid gap-3 sm:grid-cols-3">
-                      <p className="self-center text-sm font-medium text-gray-900">{children.find((child) => child.id === childId)?.firstName} {children.find((child) => child.id === childId)?.lastName}</p>
-                      <input
-                        type="text"
-                        value={contact.name}
-                        onChange={(event) => setEmergencyContacts((current) => ({ ...current, [childId]: { ...contact, name: event.target.value } }))}
-                        placeholder="Emergency contact name"
-                        className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-                      />
-                      <input
-                        type="tel"
-                        value={contact.phone}
-                        onChange={(event) => setEmergencyContacts((current) => ({ ...current, [childId]: { ...contact, phone: event.target.value } }))}
-                        placeholder="Emergency contact phone"
-                        className="rounded-md border border-gray-300 px-3 py-2 text-sm"
-                      />
-                    </div>
-                  )
-                })}
+              <h3 className="font-medium text-amber-900">Family Emergency Contact</h3>
+              <p className="mt-1 text-sm text-amber-800">Please provide one emergency contact name and phone number for your family.</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <input
+                  type="text"
+                  value={emergencyContact.name}
+                  onChange={(event) => setEmergencyContact((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="Emergency contact name"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
+                <input
+                  type="tel"
+                  value={emergencyContact.phone}
+                  onChange={(event) => setEmergencyContact((current) => ({ ...current, phone: event.target.value }))}
+                  placeholder="Emergency contact phone"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
               </div>
             </div>
           )}
@@ -350,7 +342,7 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
           )}
         </div>
 
-        {/* Schedule by Period */}
+        {/* Schedule by Hour */}
         <div className="space-y-8">
           {Object.entries(groupedSchedules).map(([period, periodSchedules]) => (
             <div key={period} className="bg-white rounded-lg shadow overflow-hidden">

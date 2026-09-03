@@ -26,10 +26,10 @@ interface DraftSchedule {
 }
 
 const PERIODS = [
-  { id: 'first', name: 'First Period' },
-  { id: 'second', name: 'Second Period' },
+  { id: 'first', name: 'First Hour' },
+  { id: 'second', name: 'Second Hour' },
   { id: 'lunch', name: 'Lunch' },
-  { id: 'third', name: 'Third Period' }
+  { id: 'third', name: 'Third Hour' }
 ]
 
 export default function ScheduleGrid({

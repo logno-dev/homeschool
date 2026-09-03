@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '../../components/AdminLayout'
+import SessionOptions from '../../components/SessionOptions'
 
 interface PaymentData {
   id: string
@@ -891,9 +892,7 @@ export default function PaymentsPage() {
                     required
                   >
                     <option value="">Select a session</option>
-                    {sessions.map(session => (
-                      <option key={session.id} value={session.id}>{session.name}</option>
-                    ))}
+                    <SessionOptions sessions={sessions as Array<{ id: string; name: string; startDate: string; endDate: string }>} />
                   </select>
                 </div>
                 <div>
@@ -1089,9 +1088,7 @@ export default function PaymentsPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">No specific session</option>
-                    {sessions.map(session => (
-                      <option key={session.id} value={session.id}>{session.name}</option>
-                    ))}
+                    <SessionOptions sessions={sessions as Array<{ id: string; name: string; startDate: string; endDate: string }>} />
                   </select>
                 </div>
 

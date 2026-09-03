@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import AdminLayout from '../../components/AdminLayout'
 import { useToast } from '../../components/ToastContainer'
 import type { Session, SessionClassroom, Family, Guardian, Child } from '../../../lib/schema'
+import SessionOptions from '../../components/SessionOptions'
 
 interface ScheduleRow {
   scheduleId: string
@@ -39,10 +40,10 @@ interface ReportData {
 }
 
 const PERIODS = [
-  { id: 'first', name: 'First Period' },
-  { id: 'second', name: 'Second Period' },
+  { id: 'first', name: 'First Hour' },
+  { id: 'second', name: 'Second Hour' },
   { id: 'lunch', name: 'Lunch' },
-  { id: 'third', name: 'Third Period' }
+  { id: 'third', name: 'Third Hour' }
 ]
 
 export default function AdminReportsPage() {
@@ -138,9 +139,7 @@ export default function AdminReportsPage() {
                 className="border border-gray-300 rounded-md px-3 py-2 text-sm"
               >
                 <option value="">Select session</option>
-                {sessions.map((session) => (
-                  <option key={session.id} value={session.id}>{session.name}</option>
-                ))}
+                 <SessionOptions sessions={sessions} />
               </select>
             </div>
           </div>
@@ -156,7 +155,7 @@ export default function AdminReportsPage() {
                 {
                   id: 'classroom-schedule',
                   title: 'Classroom Schedules',
-                  description: 'One printable sheet per classroom with class listings by period.',
+                  description: 'One printable sheet per classroom with class listings by hour.',
                   previewPath: `/admin/reports/classrooms/${selectedSessionId}/print`,
                   printPath: `/admin/reports/classrooms/${selectedSessionId}/print?print=1`
                 },

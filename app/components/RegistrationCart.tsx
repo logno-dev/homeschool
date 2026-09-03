@@ -8,10 +8,10 @@ import { PaymentForm } from './PaymentForm'
 
 
 const PERIODS = [
-  { id: 'first', name: 'First Period' },
-  { id: 'second', name: 'Second Period' },
+  { id: 'first', name: 'First Hour' },
+  { id: 'second', name: 'Second Hour' },
   { id: 'lunch', name: 'Lunch' },
-  { id: 'third', name: 'Third Period' }
+  { id: 'third', name: 'Third Hour' }
 ]
 
 
@@ -27,7 +27,7 @@ interface RegistrationCartProps {
   costBreakdown?: string | null
   modifyRegistration?: boolean
   preserveAdminOverride?: boolean
-  initialEmergencyContacts?: Record<string, EmergencyContact>
+  initialEmergencyContact?: EmergencyContact
 }
 
 interface EmergencyContact {
@@ -35,7 +35,7 @@ interface EmergencyContact {
   phone: string
 }
 
-export default function RegistrationCart({ sessionId, children, costBreakdown, modifyRegistration = false, preserveAdminOverride = false, initialEmergencyContacts = {} }: RegistrationCartProps) {
+export default function RegistrationCart({ sessionId, children, costBreakdown, modifyRegistration = false, preserveAdminOverride = false, initialEmergencyContact = { name: '', phone: '' } }: RegistrationCartProps) {
   const { 
     pendingRegistrations, 
     pendingVolunteerAssignments, 
@@ -72,7 +72,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
     isOverdue: boolean
   } | null>(null)
   const [overrideReason, setOverrideReason] = useState('')
-  const [emergencyContacts, setEmergencyContacts] = useState<Record<string, EmergencyContact>>(initialEmergencyContacts)
+  const [emergencyContact, setEmergencyContact] = useState<EmergencyContact>(initialEmergencyContact)
   const [overrideContext, setOverrideContext] = useState<'volunteer' | 'grade_range' | 'mixed'>('volunteer')
   const [gradeRangeConflicts, setGradeRangeConflicts] = useState<string[]>([])
   const [canRequestOverride, setCanRequestOverride] = useState(false)
@@ -111,12 +111,8 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
     }
 
     const registeredChildIds = Array.from(new Set(pendingRegistrations.map((registration) => registration.childId)))
-    const missingContact = registeredChildIds.find((childId) => {
-      const contact = emergencyContacts[childId]
-      return !contact?.name.trim() || !contact?.phone.trim()
-    })
-    if (missingContact) {
-      showError('Emergency contact required', `Please provide an emergency contact and phone number for ${getChildName(missingContact)}.`)
+    if (registeredChildIds.length > 0 && (!emergencyContact.name.trim() || !emergencyContact.phone.trim())) {
+      showError('Emergency contact required', 'Please provide one emergency contact name and phone number for your family.')
       return
     }
 
@@ -136,7 +132,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
           sessionId,
           registrations: pendingRegistrations,
           volunteerAssignments: pendingVolunteerAssignments,
-          emergencyContacts,
+           emergencyContact,
           requestAdminOverride: requestAdminOverride || preserveAdminOverride,
           modifyRegistration,
           overrideReason: requestAdminOverride ? overrideReason.trim() : undefined
@@ -394,7 +390,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
                     </span>
                   </div>
                   <p className="text-xs opacity-80">
-                    Each period with students needs one volunteer hour. Teaching or period-specific volunteering covers that period, and non-period jobs act as wildcards for any uncovered period.
+                    Each hour with students needs one volunteer hour. Teaching or hour-specific volunteering covers that hour, and general volunteer jobs act as wildcards for any uncovered hour.
                   </p>
                   {requirements.periodsWithStudents.length > 0 && (
                     <div className="mt-2 text-xs opacity-75">
@@ -422,48 +418,32 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
             )
           })()}
 
-          {/* Session emergency contacts */}
+          {/* Family emergency contact */}
           {registeredChildren.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
-              <h3 className="font-semibold text-amber-900 mb-1">Emergency Contacts for This Session</h3>
-              <p className="mb-4 text-sm text-amber-800">Please confirm current emergency contact information for each child. This information applies only to this session.</p>
-              <div className="space-y-4">
-                {registeredChildren.map((childId) => {
-                  const contact = emergencyContacts[childId] || { name: '', phone: '' }
-                  return (
-                    <div key={childId} className="rounded-md border border-amber-200 bg-white p-3">
-                      <p className="mb-2 text-sm font-medium text-gray-900">{getChildName(childId)}</p>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Emergency contact name *</label>
-                          <input
-                            type="text"
-                            value={contact.name}
-                            onChange={(event) => setEmergencyContacts((current) => ({
-                              ...current,
-                              [childId]: { ...contact, name: event.target.value }
-                            }))}
-                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
-                            placeholder="Name"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-700 mb-1">Emergency contact phone *</label>
-                          <input
-                            type="tel"
-                            value={contact.phone}
-                            onChange={(event) => setEmergencyContacts((current) => ({
-                              ...current,
-                              [childId]: { ...contact, phone: event.target.value }
-                            }))}
-                            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
-                            placeholder="Phone number"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
+              <h3 className="font-semibold text-amber-900 mb-1">Family Emergency Contact</h3>
+              <p className="mb-4 text-sm text-amber-800">Provide one emergency contact name and phone number for your family. This applies to all children in this session.</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Emergency contact name *</label>
+                  <input
+                    type="text"
+                    value={emergencyContact.name}
+                    onChange={(event) => setEmergencyContact((current) => ({ ...current, name: event.target.value }))}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                    placeholder="Name"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Emergency contact phone *</label>
+                  <input
+                    type="tel"
+                    value={emergencyContact.phone}
+                    onChange={(event) => setEmergencyContact((current) => ({ ...current, phone: event.target.value }))}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
+                    placeholder="Phone number"
+                  />
+                </div>
               </div>
             </div>
           )}

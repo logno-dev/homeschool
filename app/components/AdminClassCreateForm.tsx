@@ -2,14 +2,25 @@
 
 import { useState } from 'react'
 import type { Session } from '@/lib/schema'
-import { GRADE_ORDER, PRE_K_LABEL, getGradeIndex } from '@/lib/grades'
+import { BUILT_IN_GRADE_RANGES, CHILD_GRADE_OPTIONS, getGradeIndex } from '@/lib/grades'
+import SessionOptions from './SessionOptions'
 
 interface Teacher { id: string; firstName: string; lastName: string; email: string }
 interface Props { sessions: Session[]; teachers: Teacher[]; onCreated: () => void }
+interface ScheduleDraft { id: string; name: string; updatedAt: string }
+interface DraftEntry { classTeachingRequestId: string; classroomId: string; sessionClassroomId?: string | null; period: string }
+interface SessionClassroom { id: string; name: string }
 
-const gradeOptions = ['Pre-K', 'Pre-K-2', 'K-2', '3-5', '6-8', '9-12', 'All Ages']
+const HOURS = [
+  { id: 'first', label: 'First Hour' },
+  { id: 'second', label: 'Second Hour' },
+  { id: 'lunch', label: 'Lunch' },
+  { id: 'third', label: 'Third Hour' }
+]
+
+const gradeOptions = BUILT_IN_GRADE_RANGES
 const initialForm = {
-  sessionId: '', className: '', description: '', gradeRange: '', gradeRangeFrom: '', gradeRangeTo: '', maxStudents: '20', helpersNeeded: '0',
+  sessionId: '', className: '', description: '', gradeRange: '', gradeRangeFrom: '', gradeRangeTo: '', maxStudents: '20', helpersNeeded: '2',
   teacherId: '', teacherName: '', coTeacher: '', classroomNeeds: '', registrationFeeExempt: false, requiresFee: false, feeAmount: '', schedulingRequirements: ''
 }
 
@@ -18,9 +29,86 @@ export default function AdminClassCreateForm({ sessions, teachers, onCreated }: 
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [drafts, setDrafts] = useState<ScheduleDraft[]>([])
+  const [draftEntries, setDraftEntries] = useState<DraftEntry[]>([])
+  const [classrooms, setClassrooms] = useState<SessionClassroom[]>([])
+  const [selectedDraftId, setSelectedDraftId] = useState('')
+  const [selectedHour, setSelectedHour] = useState('')
+  const [selectedClassroomId, setSelectedClassroomId] = useState('')
+  const [loadingScheduleOptions, setLoadingScheduleOptions] = useState(false)
+
+  const loadScheduleOptions = async (sessionId: string) => {
+    setSelectedDraftId('')
+    setSelectedHour('')
+    setSelectedClassroomId('')
+    setDraftEntries([])
+    setDrafts([])
+    setClassrooms([])
+    if (!sessionId) return
+
+    setLoadingScheduleOptions(true)
+    try {
+      const [draftsResponse, scheduleResponse] = await Promise.all([
+        fetch(`/api/admin/schedule/${sessionId}/drafts`),
+        fetch(`/api/admin/schedule/${sessionId}`)
+      ])
+      const draftsPayload = await draftsResponse.json()
+      const schedulePayload = await scheduleResponse.json()
+      let availableDrafts = draftsPayload.drafts || []
+
+      if (availableDrafts.length === 0) {
+        const createResponse = await fetch(`/api/admin/schedule/${sessionId}/drafts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'Working Draft', description: 'Default working draft' })
+        })
+        if (createResponse.ok) {
+          const createdPayload = await createResponse.json()
+          availableDrafts = [createdPayload.draft]
+        }
+      }
+
+      setDrafts(availableDrafts)
+      setClassrooms(schedulePayload.classrooms || [])
+    } catch (error) {
+      console.error('Error loading schedule options:', error)
+      setMessage('Unable to load schedule options')
+    } finally {
+      setLoadingScheduleOptions(false)
+    }
+  }
+
+  const loadDraftEntries = async (draftId: string) => {
+    setSelectedDraftId(draftId)
+    setSelectedHour('')
+    setSelectedClassroomId('')
+    setDraftEntries([])
+    if (!draftId) return
+    const response = await fetch(`/api/admin/schedule/${form.sessionId}/drafts/${draftId}`)
+    if (response.ok) {
+      const payload = await response.json()
+      setDraftEntries(payload.entries || [])
+    }
+  }
+
+  const availableClassrooms = selectedHour
+    ? classrooms.filter((classroom) => !draftEntries.some((entry) =>
+      (entry.sessionClassroomId || entry.classroomId) === classroom.id && entry.period === selectedHour
+    ))
+    : []
+  const availableHours = HOURS.filter((hour) => classrooms.some((classroom) =>
+    !draftEntries.some((entry) =>
+      (entry.sessionClassroomId || entry.classroomId) === classroom.id && entry.period === hour.id
+    )
+  ))
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (!selectedDraftId || !selectedHour || !selectedClassroomId) {
+      setMessage('Select a schedule draft, hour, and available room')
+      return
+    }
+    setMessage('')
     setBusy(true)
     const customRange = form.gradeRange === 'custom'
     const submitData = { ...form, gradeRange: customRange ? `${form.gradeRangeFrom}-${form.gradeRangeTo}` : form.gradeRange, gradeRangeFrom: customRange ? getGradeIndex(form.gradeRangeFrom) : undefined, gradeRangeTo: customRange ? getGradeIndex(form.gradeRangeTo) : undefined }
@@ -28,7 +116,30 @@ export default function AdminClassCreateForm({ sessions, teachers, onCreated }: 
     const payload = await response.json()
     setBusy(false)
     if (!response.ok) { setMessage(payload.error || 'Unable to create class'); return }
+    const existingEntries = draftEntries.map((entry) => ({
+      classTeachingRequestId: entry.classTeachingRequestId,
+      classroomId: entry.sessionClassroomId || entry.classroomId,
+      period: entry.period
+    }))
+    const draftResponse = await fetch(`/api/admin/schedule/${form.sessionId}/drafts/${selectedDraftId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        entries: [...existingEntries, {
+          classTeachingRequestId: payload.request.id,
+          classroomId: selectedClassroomId,
+          period: selectedHour
+        }]
+      })
+    })
+    if (!draftResponse.ok) { setMessage('Class was created, but could not be added to the selected schedule draft'); return }
     setForm(initialForm)
+    setDrafts([])
+    setDraftEntries([])
+    setClassrooms([])
+    setSelectedDraftId('')
+    setSelectedHour('')
+    setSelectedClassroomId('')
     setOpen(false)
     setMessage('Class created')
     onCreated()
@@ -42,12 +153,17 @@ export default function AdminClassCreateForm({ sessions, teachers, onCreated }: 
       </div>
       {open && <form onSubmit={submit} className="mt-5 space-y-5 border-t pt-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-gray-700">Session<select required value={form.sessionId} onChange={(event) => setForm({ ...form, sessionId: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Select session...</option>{sessions.map((session) => <option key={session.id} value={session.id}>{session.name}</option>)}</select></label>
+          <label className="text-sm font-medium text-gray-700">Session<select required value={form.sessionId} onChange={(event) => { setForm({ ...form, sessionId: event.target.value }); loadScheduleOptions(event.target.value) }} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Select session...</option><SessionOptions sessions={sessions} /></select></label>
           <label className="text-sm font-medium text-gray-700">Class Name<input required value={form.className} onChange={(event) => setForm({ ...form, className: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <label className="text-sm font-medium text-gray-700">Schedule Draft<select required disabled={loadingScheduleOptions || !form.sessionId} value={selectedDraftId} onChange={(event) => loadDraftEntries(event.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">{loadingScheduleOptions ? 'Loading drafts...' : 'Select draft...'}</option>{drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.name}</option>)}</select></label>
+          <label className="text-sm font-medium text-gray-700">Hour<select required disabled={!selectedDraftId} value={selectedHour} onChange={(event) => { setSelectedHour(event.target.value); setSelectedClassroomId('') }} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Select hour...</option>{availableHours.map((hour) => <option key={hour.id} value={hour.id}>{hour.label}</option>)}</select></label>
+          <label className="text-sm font-medium text-gray-700">Room<select required disabled={!selectedHour} value={selectedClassroomId} onChange={(event) => setSelectedClassroomId(event.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Select available room...</option>{availableClassrooms.map((classroom) => <option key={classroom.id} value={classroom.id}>{classroom.name}</option>)}</select></label>
         </div>
         <label className="block text-sm font-medium text-gray-700">Description<textarea required value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={3} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>
         <div className="grid gap-4 sm:grid-cols-3">
-          <label className="text-sm font-medium text-gray-700">Grade Range<select required value={form.gradeRange} onChange={(event) => setForm({ ...form, gradeRange: event.target.value, gradeRangeFrom: '', gradeRangeTo: '' })} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Select grade range...</option>{gradeOptions.map((option) => <option key={option} value={option}>{option}</option>)}<option value="custom">Custom Grade Range</option></select>{form.gradeRange === 'custom' && <div className="mt-2 grid grid-cols-2 gap-2"><select required value={form.gradeRangeFrom} onChange={(event) => setForm({ ...form, gradeRangeFrom: event.target.value })} className="block w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"><option value="">From...</option>{[PRE_K_LABEL, ...GRADE_ORDER].map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select><select required value={form.gradeRangeTo} onChange={(event) => setForm({ ...form, gradeRangeTo: event.target.value })} className="block w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"><option value="">To...</option>{[PRE_K_LABEL, ...GRADE_ORDER].map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select></div>}</label>
+         <label className="text-sm font-medium text-gray-700">Grade Range<select required value={form.gradeRange} onChange={(event) => setForm({ ...form, gradeRange: event.target.value, gradeRangeFrom: '', gradeRangeTo: '' })} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Select grade range...</option>{gradeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}<option value="custom">Custom Grade Range</option></select>{form.gradeRange === 'custom' && <div className="mt-2 grid grid-cols-2 gap-2"><select required value={form.gradeRangeFrom} onChange={(event) => setForm({ ...form, gradeRangeFrom: event.target.value })} className="block w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"><option value="">From...</option>{CHILD_GRADE_OPTIONS.filter((grade) => grade !== 'Graduated').map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select><select required value={form.gradeRangeTo} onChange={(event) => setForm({ ...form, gradeRangeTo: event.target.value })} className="block w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-sm"><option value="">To...</option>{CHILD_GRADE_OPTIONS.filter((grade) => grade !== 'Graduated').map((grade) => <option key={grade} value={grade}>{grade}</option>)}</select></div>}</label>
           <label className="text-sm font-medium text-gray-700">Max Students<input required type="number" min="1" max="100" value={form.maxStudents} onChange={(event) => setForm({ ...form, maxStudents: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>
           <label className="text-sm font-medium text-gray-700">Helpers Needed<input type="number" min="0" max="10" value={form.helpersNeeded} onChange={(event) => setForm({ ...form, helpersNeeded: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>
         </div>

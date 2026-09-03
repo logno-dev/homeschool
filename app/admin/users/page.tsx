@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import AdminLayout from '@/app/components/AdminLayout'
 import UserManagementTable from '@/app/components/UserManagementTable'
 import { useToast } from '@/app/components/ToastContainer'
+import SessionOptions from '@/app/components/SessionOptions'
 
 interface EnrolledSession {
   id: string
@@ -52,6 +53,8 @@ interface PaginationInfo {
 interface SessionOption {
   id: string
   name: string
+  startDate: string
+  endDate: string
 }
 
 interface UserFilters {
@@ -163,8 +166,7 @@ export default function AdminUsersPage() {
       }
 
       const data = await response.json()
-      const sortedSessions = (data.sessions || []) as SessionOption[]
-      sortedSessions.sort((a, b) => a.name.localeCompare(b.name))
+       const sortedSessions = (data.sessions || []) as SessionOption[]
       setSessions(sortedSessions)
     } catch (error) {
       console.error('Error fetching sessions:', error)
@@ -340,9 +342,7 @@ export default function AdminUsersPage() {
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm bg-white"
                 >
                   <option value="all">All Sessions</option>
-                  {sessions.map((session) => (
-                    <option key={session.id} value={session.id}>{session.name}</option>
-                  ))}
+                   <SessionOptions sessions={sessions} />
                 </select>
               </div>
 

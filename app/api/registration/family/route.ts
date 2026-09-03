@@ -125,7 +125,7 @@ export async function POST(request: Request) {
       sessionId: string
       registrations: FamilyRegistration
       volunteerAssignments: VolunteerAssignment
-      emergencyContacts: Record<string, EmergencyContact>
+      emergencyContact: EmergencyContact
     } = body
 
     // Get the guardian's family information
@@ -144,10 +144,10 @@ export async function POST(request: Request) {
     if (!registrationAccess.isOpen) {
       return NextResponse.json({ error: registrationAccess.reason || 'Registration is not currently available' }, { status: 403 })
     }
-    const emergencyContacts = (body.emergencyContacts || {}) as Record<string, EmergencyContact>
+    const emergencyContact = body.emergencyContact as EmergencyContact | undefined
     const registeredChildIds = Array.from(new Set(Object.values(registrations).flatMap((periodRegistrations) => Object.keys(periodRegistrations))))
-    if (registeredChildIds.some((childId) => !emergencyContacts[childId]?.name?.trim() || !emergencyContacts[childId]?.phone?.trim())) {
-      return NextResponse.json({ error: 'Emergency contact name and phone are required for every registered child' }, { status: 400 })
+    if (registeredChildIds.length > 0 && (!emergencyContact?.name?.trim() || !emergencyContact?.phone?.trim())) {
+      return NextResponse.json({ error: 'Emergency contact name and phone are required for the family' }, { status: 400 })
     }
 
     // Validate all children belong to this family
@@ -251,8 +251,8 @@ export async function POST(request: Request) {
             childId,
             familyId,
             registeredBy: session.user.id,
-            emergencyContact: emergencyContacts[childId].name.trim(),
-            emergencyPhone: emergencyContacts[childId].phone.trim(),
+            emergencyContact: emergencyContact!.name.trim(),
+            emergencyPhone: emergencyContact!.phone.trim(),
             status: 'registered'
           })
 

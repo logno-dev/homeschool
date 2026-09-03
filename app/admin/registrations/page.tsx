@@ -7,6 +7,7 @@ import AdminLayout from '../../components/AdminLayout'
 import Modal from '../../components/Modal'
 import { useToast } from '../../components/ToastContainer'
 import type { Session } from '../../../lib/schema'
+import SessionOptions from '../../components/SessionOptions'
 
 interface RegistrationRow {
   id: string
@@ -102,10 +103,10 @@ interface RegistrationsResponse {
 }
 
 const PERIODS = [
-  { id: 'first', name: 'First Period' },
-  { id: 'second', name: 'Second Period' },
+  { id: 'first', name: 'First Hour' },
+  { id: 'second', name: 'Second Hour' },
   { id: 'lunch', name: 'Lunch' },
-  { id: 'third', name: 'Third Period' }
+  { id: 'third', name: 'Third Hour' }
 ]
 
 export default function AdminRegistrationsPage() {
@@ -355,7 +356,7 @@ export default function AdminRegistrationsPage() {
 
   const volunteerPeriodOptions = useMemo(() => {
     if (assignmentForm.volunteerType === 'volunteer_job' && selectedVolunteerJob?.jobType === 'non_period') {
-      return [{ id: 'non_period', name: 'Non-period' }]
+      return [{ id: 'non_period', name: 'General' }]
     }
     return PERIODS
   }, [assignmentForm.volunteerType, selectedVolunteerJob])
@@ -431,9 +432,7 @@ export default function AdminRegistrationsPage() {
               className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="">Select session</option>
-              {sessions.map((session) => (
-                <option key={session.id} value={session.id}>{session.name}</option>
-              ))}
+              <SessionOptions sessions={sessions} />
             </select>
           </div>
 
@@ -506,8 +505,8 @@ export default function AdminRegistrationsPage() {
           {nonPeriodJobs.length > 0 && (
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Non-Period Volunteer Jobs</h2>
-                <p className="text-sm text-gray-500">Volunteer opportunities not tied to a classroom period.</p>
+                <h2 className="text-lg font-semibold text-gray-900">General Volunteer Jobs</h2>
+                <p className="text-sm text-gray-500">Volunteer opportunities not tied to a classroom hour.</p>
               </div>
               <div className="divide-y divide-gray-200">
                 {nonPeriodJobs.map((job) => {
@@ -569,8 +568,8 @@ export default function AdminRegistrationsPage() {
           {periodJobs.length > 0 && (
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900">Period Volunteer Jobs</h2>
-                <p className="text-sm text-gray-500">Volunteer opportunities tied to a specific period but not a classroom.</p>
+                <h2 className="text-lg font-semibold text-gray-900">Hour-Based Volunteer Jobs</h2>
+                <p className="text-sm text-gray-500">Volunteer opportunities tied to a specific hour but not a classroom.</p>
               </div>
               <div className="divide-y divide-gray-200">
                 {periodJobs.map((job) => {
@@ -647,7 +646,7 @@ export default function AdminRegistrationsPage() {
                 <p>{selectedSchedule.teacher}</p>
               </div>
               <div>
-                <p className="font-medium text-gray-900">Period</p>
+                <p className="font-medium text-gray-900">Hour</p>
                 <p>{PERIODS.find((period) => period.id === selectedSchedule.period)?.name}</p>
               </div>
               <div>
@@ -909,7 +908,7 @@ export default function AdminRegistrationsPage() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Period</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Hour</label>
             <select
               value={assignmentForm.period}
               onChange={(e) => setAssignmentForm({ ...assignmentForm, period: e.target.value })}

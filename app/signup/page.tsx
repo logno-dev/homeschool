@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import { FormEvent, useEffect, useState } from 'react'
 import BrandLogo from '@/app/components/BrandLogo'
 import AcknowledgementFields from '@/app/components/AcknowledgementFields'
-import { GRADE_ORDER, GRADUATED_LABEL, PRE_K_LABEL } from '@/lib/grades'
+import { CHILD_GRADE_OPTIONS } from '@/lib/grades'
 
 type ChildDraft = { firstName: string; lastName: string; dateOfBirth: string; grade: string }
-const gradeOptions = [PRE_K_LABEL, ...GRADE_ORDER, GRADUATED_LABEL]
+const gradeOptions = CHILD_GRADE_OPTIONS
 const emptyChild = (): ChildDraft => ({ firstName: '', lastName: '', dateOfBirth: '', grade: '' })
 
 export default function SignUpPage() {

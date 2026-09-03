@@ -112,14 +112,14 @@ interface RegistrationGridProps {
   costBreakdown?: string | null
   modifyRegistration?: boolean
   preserveAdminOverride?: boolean
-  initialEmergencyContacts?: Record<string, { name: string; phone: string }>
+  initialEmergencyContact?: { name: string; phone: string }
 }
 
 const PERIODS = [
-  { id: 'first', name: 'First Period' },
-  { id: 'second', name: 'Second Period' },
+  { id: 'first', name: 'First Hour' },
+  { id: 'second', name: 'Second Hour' },
   { id: 'lunch', name: 'Lunch' },
-  { id: 'third', name: 'Third Period' }
+  { id: 'third', name: 'Third Hour' }
 ]
 
 export default function RegistrationGrid({
@@ -134,7 +134,7 @@ export default function RegistrationGrid({
   costBreakdown = null,
   modifyRegistration = false,
   preserveAdminOverride = false,
-  initialEmergencyContacts = {}
+  initialEmergencyContact
 }: RegistrationGridProps) {
   const { showSuccess, showError } = useToast()
   const { 
@@ -572,7 +572,7 @@ export default function RegistrationGrid({
               })}
               {classrooms.length === 0 && (
                 <div className="text-center py-8">
-                  <p className="text-gray-500">No classrooms available for this period.</p>
+                  <p className="text-gray-500">No classrooms available for this hour.</p>
                 </div>
               )}
             </div>
@@ -610,7 +610,7 @@ export default function RegistrationGrid({
                   )}
                   <p><strong>Grade Range:</strong> {selectedClass.classTeachingRequest.gradeRange}</p>
                   <p><strong>Room:</strong> {selectedClass.classroom.name}</p>
-                  <p><strong>Period:</strong> {PERIODS.find(p => p.id === selectedClass.schedule.period)?.name}</p>
+                  <p><strong>Hour:</strong> {PERIODS.find(p => p.id === selectedClass.schedule.period)?.name}</p>
                 </div>
                 <div>
                   <p><strong>Available Spots:</strong> {getEffectiveAvailableSpots(selectedClass)} / {selectedClass.classTeachingRequest.maxStudents}</p>
@@ -828,7 +828,7 @@ export default function RegistrationGrid({
               
                {selectableChildren.length === 0 && (
                 <p className="text-gray-500 text-center py-4">
-                  No available children for this period. All children are either already registered for another class this period or there are no children in your family.
+                  No available children for this hour. All children are either already registered for another class this hour or there are no children in your family.
                 </p>
               )}
             </div>
@@ -878,7 +878,7 @@ export default function RegistrationGrid({
                 return !currentAssignment || currentAssignment.guardianId !== guardian.id
               }).length === 0) && (
                 <p className="text-gray-500 text-center py-4">
-                  No available guardians for volunteering this period.
+                  No available guardians for volunteering this hour.
                 </p>
               )}
             </div>
@@ -887,26 +887,29 @@ export default function RegistrationGrid({
       </Modal>
 
       {/* Volunteer Jobs Grid */}
-      {volunteerJobsData && volunteerJobsData.length > 0 && (
-        <VolunteerJobsGrid 
-          volunteerJobs={volunteerJobsData}
-          guardians={guardians || []}
-          schedules={scheduleData || []}
-          jobAssignmentCounts={jobAssignmentCounts}
-        />
-      )}
-
-      {/* Non-Period Volunteer Jobs */}
-      {nonPeriodJobsData && nonPeriodJobsData.length > 0 && (
-        <NonPeriodVolunteerJobs 
-          volunteerJobs={nonPeriodJobsData}
-          guardians={guardians || []}
-          jobAssignmentCounts={jobAssignmentCounts}
-        />
+      {(volunteerJobsData?.length > 0 || nonPeriodJobsData?.length > 0) && (
+        <div className="mt-12 grid items-start gap-6 lg:grid-cols-2">
+          {/* General jobs appear first on desktop and mobile. */}
+          {nonPeriodJobsData && nonPeriodJobsData.length > 0 && (
+            <NonPeriodVolunteerJobs
+              volunteerJobs={nonPeriodJobsData}
+              guardians={guardians || []}
+              jobAssignmentCounts={jobAssignmentCounts}
+            />
+          )}
+          {volunteerJobsData && volunteerJobsData.length > 0 && (
+            <VolunteerJobsGrid
+              volunteerJobs={volunteerJobsData}
+              guardians={guardians || []}
+              schedules={scheduleData || []}
+              jobAssignmentCounts={jobAssignmentCounts}
+            />
+          )}
+        </div>
       )}
 
       {/* Registration Cart */}
-      <RegistrationCart sessionId={sessionId} children={children || []} costBreakdown={costBreakdown} modifyRegistration={modifyRegistration} preserveAdminOverride={preserveAdminOverride} initialEmergencyContacts={initialEmergencyContacts} />
+      <RegistrationCart sessionId={sessionId} children={children || []} costBreakdown={costBreakdown} modifyRegistration={modifyRegistration} preserveAdminOverride={preserveAdminOverride} initialEmergencyContact={initialEmergencyContact} />
     </>
   )
 }

@@ -447,7 +447,7 @@ export async function POST(request: Request) {
       sessionId: string
       registrations: PendingRegistration[]
       volunteerAssignments: PendingVolunteerAssignment[]
-      emergencyContacts: Record<string, EmergencyContact>
+      emergencyContact: EmergencyContact
       requestAdminOverride?: boolean
       modifyRegistration?: boolean
       overrideReason?: string
@@ -474,14 +474,10 @@ export async function POST(request: Request) {
     const isPendingOverride = existingFamilyStatus[0]?.status === 'admin_override'
 
     const registeredChildIds = Array.from(new Set((registrations || []).map((registration) => registration.childId)))
-    const missingEmergencyContact = registeredChildIds.find((childId) => {
-      const contact = body.emergencyContacts?.[childId] as EmergencyContact | undefined
-      return !contact?.name?.trim() || !contact?.phone?.trim()
-    })
-    if (missingEmergencyContact) {
-      return NextResponse.json({ error: 'Emergency contact name and phone are required for every registered child' }, { status: 400 })
+    const emergencyContact = body.emergencyContact as EmergencyContact | undefined
+    if (registeredChildIds.length > 0 && (!emergencyContact?.name?.trim() || !emergencyContact?.phone?.trim())) {
+      return NextResponse.json({ error: 'Emergency contact name and phone are required for the family' }, { status: 400 })
     }
-    const emergencyContacts = (body.emergencyContacts || {}) as Record<string, EmergencyContact>
 
     // Check registration window access
     const sessionData = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1)
@@ -580,8 +576,8 @@ export async function POST(request: Request) {
               childId: registration.childId,
               familyId,
               registeredBy: session.user.id,
-              emergencyContact: emergencyContacts[registration.childId].name.trim(),
-              emergencyPhone: emergencyContacts[registration.childId].phone.trim(),
+              emergencyContact: emergencyContact!.name.trim(),
+              emergencyPhone: emergencyContact!.phone.trim(),
               status: registrationStatus
             })
           }
@@ -823,8 +819,8 @@ export async function POST(request: Request) {
               .set({
                 status: 'registered',
                 holdExpiresAt: null,
-                emergencyContact: emergencyContacts[registration.childId].name.trim(),
-                emergencyPhone: emergencyContacts[registration.childId].phone.trim(),
+                emergencyContact: emergencyContact!.name.trim(),
+                emergencyPhone: emergencyContact!.phone.trim(),
                 updatedAt: new Date().toISOString()
               })
               .where(eq(classRegistrations.id, existingHold[0].id))
@@ -837,8 +833,8 @@ export async function POST(request: Request) {
               childId: registration.childId,
               familyId,
               registeredBy: session.user.id,
-              emergencyContact: emergencyContacts[registration.childId].name.trim(),
-              emergencyPhone: emergencyContacts[registration.childId].phone.trim(),
+              emergencyContact: emergencyContact!.name.trim(),
+              emergencyPhone: emergencyContact!.phone.trim(),
               status: registrationStatus
             })
           }
@@ -851,8 +847,8 @@ export async function POST(request: Request) {
             childId: registration.childId,
             familyId,
             registeredBy: session.user.id,
-            emergencyContact: emergencyContacts[registration.childId].name.trim(),
-            emergencyPhone: emergencyContacts[registration.childId].phone.trim(),
+            emergencyContact: emergencyContact!.name.trim(),
+            emergencyPhone: emergencyContact!.phone.trim(),
             status: registrationStatus
           })
         }

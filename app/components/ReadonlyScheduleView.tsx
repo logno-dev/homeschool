@@ -63,10 +63,10 @@ interface ReadonlyScheduleViewProps {
 }
 
 const PERIODS = [
-  { id: 'first', name: 'First Period' },
-  { id: 'second', name: 'Second Period' },
+  { id: 'first', name: 'First Hour' },
+  { id: 'second', name: 'Second Hour' },
   { id: 'lunch', name: 'Lunch' },
-  { id: 'third', name: 'Third Period' }
+  { id: 'third', name: 'Third Hour' }
 ]
 
 export default function ReadonlyScheduleView({ 
@@ -103,7 +103,7 @@ export default function ReadonlyScheduleView({
               <p><strong>Session Dates:</strong> {new Date(sessionInfo.startDate).toLocaleDateString()} - {new Date(sessionInfo.endDate).toLocaleDateString()}</p>
             </div>
             <div>
-              <p><strong>Registration Period:</strong> {new Date(sessionInfo.registrationStartDate).toLocaleDateString()} - {new Date(sessionInfo.registrationEndDate).toLocaleDateString()}</p>
+              <p><strong>Registration Window:</strong> {new Date(sessionInfo.registrationStartDate).toLocaleDateString()} - {new Date(sessionInfo.registrationEndDate).toLocaleDateString()}</p>
             </div>
           </div>
         </div>
@@ -122,7 +122,7 @@ export default function ReadonlyScheduleView({
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Period
+                  Hour
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Class Registrations

@@ -353,7 +353,9 @@ export default function FamilyProfileClient({ family, guardians, children: initi
                   required
                 >
                   <option value="">Select Grade</option>
-                  <option value="Pre-K">Pre-K</option>
+                  <option value="Nursery">Nursery (0-1)</option>
+                  <option value="Toddler">Toddler (2-3)</option>
+                  <option value="Preschool">Preschool (4-5)</option>
                   <option value="Kindergarten">Kindergarten</option>
                   <option value="1st Grade">1st Grade</option>
                   <option value="2nd Grade">2nd Grade</option>
@@ -481,7 +483,9 @@ export default function FamilyProfileClient({ family, guardians, children: initi
                 required
               >
                 <option value="">Select Grade</option>
-                <option value="Pre-K">Pre-K</option>
+                <option value="Nursery">Nursery (0-1)</option>
+                <option value="Toddler">Toddler (2-3)</option>
+                <option value="Preschool">Preschool (4-5)</option>
                 <option value="Kindergarten">Kindergarten</option>
                 <option value="1st Grade">1st Grade</option>
                 <option value="2nd Grade">2nd Grade</option>

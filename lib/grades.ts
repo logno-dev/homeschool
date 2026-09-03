@@ -1,6 +1,21 @@
 export const GRADE_ORDER = ['K', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'] as const
-export const PRE_K_LABEL = 'Pre-K'
+export const PRE_K_LABEL = 'Preschool'
 export const GRADUATED_LABEL = 'Graduated'
+export const EARLY_GRADE_OPTIONS = [
+  { value: 'Nursery', label: 'Nursery (0-1)' },
+  { value: 'Toddler', label: 'Toddler (2-3)' },
+  { value: 'Preschool', label: 'Preschool (4-5)' }
+] as const
+export const CHILD_GRADE_OPTIONS = [...EARLY_GRADE_OPTIONS.map((option) => option.value), ...GRADE_ORDER, GRADUATED_LABEL] as const
+export const BUILT_IN_GRADE_RANGES = [
+  ...EARLY_GRADE_OPTIONS,
+  { value: 'K-2', label: 'K-2' },
+  { value: '3-5', label: '3-5' },
+  { value: '6-8', label: '6-8' },
+  { value: '9-12', label: '9-12' },
+  { value: '6-12', label: '6-12' },
+  { value: 'All Ages', label: 'All Ages' }
+] as const
 
 const GRADE_INDEX = new Map(GRADE_ORDER.map((grade, index) => [grade.toLowerCase(), index]))
 
@@ -12,8 +27,10 @@ export function normalizeGradeLabel(value: string | null | undefined): string | 
     return GRADUATED_LABEL
   }
 
-  if (normalized === 'pre-k' || normalized === 'prek' || normalized === 'prekindergarten') {
-    return PRE_K_LABEL
+  if (normalized === 'nursery') return 'Nursery'
+  if (normalized === 'toddler') return 'Toddler'
+  if (normalized === 'pre-k' || normalized === 'prek' || normalized === 'prekindergarten' || normalized === 'preschool') {
+    return 'Preschool'
   }
 
   if (normalized === 'k' || normalized === 'kindergarten') {
@@ -34,10 +51,19 @@ export function normalizeGradeLabel(value: string | null | undefined): string | 
 export function getGradeIndex(value: string | null | undefined): number | null {
   const normalized = normalizeGradeLabel(value)
   if (normalized === GRADUATED_LABEL) return null
-  if (normalized === PRE_K_LABEL) return -1
+  if (normalized === 'Nursery') return -3
+  if (normalized === 'Toddler') return -2
+  if (normalized === 'Preschool') return -1
   if (!normalized) return null
   const index = GRADE_INDEX.get(normalized.toLowerCase())
   return typeof index === 'number' ? index : null
+}
+
+export function getGradeLabel(index: number | null | undefined): string {
+  if (index === -3) return 'Nursery'
+  if (index === -2) return 'Toddler'
+  if (index === -1) return 'Preschool'
+  return typeof index === 'number' ? GRADE_ORDER[index] || '' : ''
 }
 
 export function incrementGradeValue(value: string | null | undefined): string | null {
@@ -45,9 +71,9 @@ export function incrementGradeValue(value: string | null | undefined): string | 
   const trimmed = value.trim()
   const lower = trimmed.toLowerCase()
 
-  if (lower === 'pre-k' || lower === 'prek' || lower === 'prekindergarten') {
-    return null
-  }
+  if (lower === 'nursery') return 'Toddler'
+  if (lower === 'toddler') return 'Preschool'
+  if (lower === 'preschool' || lower === 'pre-k' || lower === 'prek' || lower === 'prekindergarten') return 'K'
 
   if (lower.includes('graduated')) {
     return GRADUATED_LABEL
@@ -75,7 +101,7 @@ export function getGradeRangeFromLabel(label: string | null | undefined) {
     return { from: null, to: null }
   }
 
-  const normalized = label.trim().toLowerCase()
+  const normalized = label.trim().toLowerCase().replace(/\s*\([^)]*\)\s*$/, '')
   if (normalized === 'all ages') {
     return { from: -1, to: GRADE_ORDER.length - 1 }
   }

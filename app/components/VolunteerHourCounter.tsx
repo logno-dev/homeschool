@@ -96,8 +96,8 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Volunteer Hour Requirements</h2>
           <p className="text-sm text-gray-600">
             {requiredHours > 0 
-              ? "Each family must volunteer for 1 hour in every period where they have students registered. Non-period volunteer jobs can cover any missing period."
-              : "Register students for classes to see your volunteer hour requirements. Each period with students requires 1 volunteer hour."
+              ? "Each family must volunteer for 1 hour in every hour where they have students registered. General volunteer jobs can cover any missing hour."
+              : "Register students for classes to see your volunteer hour requirements. Each hour with students requires 1 volunteer hour."
             }
           </p>
         </div>
@@ -193,7 +193,7 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
               <div className="space-y-1 text-gray-600">
                 {requiredPeriods.map(period => (
                   <div key={period} className="flex justify-between">
-                    <span className="capitalize">{period} Period:</span>
+                    <span className="capitalize">{period} Hour:</span>
                     <span>1 hour</span>
                   </div>
                 ))}
@@ -215,14 +215,14 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
                 {/* Teaching assignments */}
                 {teachingAssignmentsByPeriod.map((assignment, index) => (
                   <div key={`teaching-${index}`} className="flex justify-between">
-                    <span className="capitalize">{assignment.period} Period ({assignment.guardianName} Teaching {assignment.className}):</span>
+                    <span className="capitalize">{assignment.period} Hour ({assignment.guardianName} Teaching {assignment.className}):</span>
                     <span>1 hour</span>
                   </div>
                 ))}
                 {/* Volunteer assignments */}
                 {periodVolunteerAssignments.map((assignment, index) => (
                   <div key={index} className="flex justify-between">
-                    <span className="capitalize">{assignment.period} Period ({assignment.volunteerType}):</span>
+                    <span className="capitalize">{assignment.period} Hour ({assignment.volunteerType}):</span>
                     <span>1 hour</span>
                   </div>
                 ))}
@@ -241,20 +241,20 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
                   <div className="font-medium !text-red-600">Does not count toward requirements:</div>
                   {invalidTeachingAssignments.map((assignment, index) => (
                     <div key={`invalid-teaching-${index}`} className="flex justify-between !text-red-600">
-                      <span className="capitalize">{assignment.period} Period ({assignment.guardianName} Teaching {assignment.className})</span>
+                    <span className="capitalize">{assignment.period} Hour ({assignment.guardianName} Teaching {assignment.className})</span>
                       <span>(no students registered)</span>
                     </div>
                   ))}
                   {invalidPeriodAssignments.map((assignment, index) => (
                     <div key={`invalid-period-${index}`} className="flex justify-between !text-red-600">
-                      <span className="capitalize">{assignment.period} Period ({assignment.volunteerType})</span>
+                    <span className="capitalize">{assignment.period} Hour ({assignment.volunteerType})</span>
                       <span>(no students registered)</span>
                     </div>
                   ))}
                   {nonPeriodAssignments.slice(wildcardCoverage).map((assignment, index) => (
                     <div key={`extra-non-period-${index}`} className="flex justify-between !text-red-600">
                       <span>General Volunteer ({assignment.jobTitle})</span>
-                      <span>(no unmet periods remaining)</span>
+                <span>(no unmet hours remaining)</span>
                     </div>
                   ))}
                 </div>

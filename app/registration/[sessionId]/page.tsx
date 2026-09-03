@@ -117,11 +117,12 @@ export default async function RegistrationPage({ params, searchParams }: { param
     classroom: entry.classroom?.name || undefined,
     jobTitle: entry.volunteerJob?.title || undefined
   }))
-  const editableEmergencyContacts = Object.fromEntries(
-    registrationStatus.classRegistrations.map((entry) => [entry.registration.childId, {
+  const editableEmergencyContact = registrationStatus.classRegistrations.reduce(
+    (contact, entry) => contact.name || contact.phone ? contact : {
       name: entry.registration.emergencyContact || '',
       phone: entry.registration.emergencyPhone || ''
-    }])
+    },
+    { name: '', phone: '' }
   )
 
   return (
@@ -197,7 +198,7 @@ export default async function RegistrationPage({ params, searchParams }: { param
                     <p><strong>Session Dates:</strong> {new Date(classSessionInfo.startDate).toLocaleDateString()} - {new Date(classSessionInfo.endDate).toLocaleDateString()}</p>
                   </div>
                   <div>
-                    <p><strong>Registration Period:</strong> {new Date(classSessionInfo.registrationStartDate).toLocaleDateString()} - {new Date(classSessionInfo.registrationEndDate).toLocaleDateString()}</p>
+                    <p><strong>Registration Window:</strong> {new Date(classSessionInfo.registrationStartDate).toLocaleDateString()} - {new Date(classSessionInfo.registrationEndDate).toLocaleDateString()}</p>
                   </div>
                 </div>
               </div>
@@ -225,7 +226,7 @@ export default async function RegistrationPage({ params, searchParams }: { param
                  costBreakdown={feeConfig?.costBreakdown}
                  modifyRegistration={isModifying}
                  preserveAdminOverride={registrationStatus.registrationState === 'admin_override'}
-                 initialEmergencyContacts={isModifying ? editableEmergencyContacts : undefined}
+                  initialEmergencyContact={isModifying ? editableEmergencyContact : undefined}
               />
             </RegistrationProvider>
           </div>
@@ -278,7 +279,7 @@ export default async function RegistrationPage({ params, searchParams }: { param
                     <p><strong>Session Dates:</strong> {format(parseISO(classSessionInfo.startDate), 'MMM d, yyyy')} - {format(parseISO(classSessionInfo.endDate), 'MMM d, yyyy')}</p>
                   </div>
                   <div>
-                    <p><strong>Registration Period:</strong> {format(parseISO(classSessionInfo.registrationStartDate), 'MMM d, yyyy')} - {format(parseISO(classSessionInfo.registrationEndDate), 'MMM d, yyyy')}</p>
+                    <p><strong>Registration Window:</strong> {format(parseISO(classSessionInfo.registrationStartDate), 'MMM d, yyyy')} - {format(parseISO(classSessionInfo.registrationEndDate), 'MMM d, yyyy')}</p>
                   </div>
                   {classSessionInfo.teacherRegistrationStartDate && (
                     <div>
@@ -338,7 +339,7 @@ export default async function RegistrationPage({ params, searchParams }: { param
                     <p><strong>Session Dates:</strong> {format(parseISO(classSessionInfo.startDate), 'MMM d, yyyy')} - {format(parseISO(classSessionInfo.endDate), 'MMM d, yyyy')}</p>
                   </div>
                   <div>
-                    <p><strong>Registration Period:</strong> {format(parseISO(classSessionInfo.registrationStartDate), 'MMM d, yyyy')} - {format(parseISO(classSessionInfo.registrationEndDate), 'MMM d, yyyy')}</p>
+                    <p><strong>Registration Window:</strong> {format(parseISO(classSessionInfo.registrationStartDate), 'MMM d, yyyy')} - {format(parseISO(classSessionInfo.registrationEndDate), 'MMM d, yyyy')}</p>
                   </div>
                   {classSessionInfo.teacherRegistrationStartDate && (
                     <div>
@@ -371,7 +372,7 @@ export default async function RegistrationPage({ params, searchParams }: { param
                  costBreakdown={feeConfig?.costBreakdown}
                  modifyRegistration={isModifying}
                  preserveAdminOverride={registrationStatus.registrationState === 'admin_override'}
-                 initialEmergencyContacts={isModifying ? editableEmergencyContacts : undefined}
+                  initialEmergencyContact={isModifying ? editableEmergencyContact : undefined}
               />
             </RegistrationProvider>
           </div>
