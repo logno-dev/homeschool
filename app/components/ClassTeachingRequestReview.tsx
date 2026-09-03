@@ -211,8 +211,9 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                                 description: request.description,
                                 gradeRange: request.gradeRange,
                                 maxStudents: request.maxStudents,
-                                helpersNeeded: request.helpersNeeded,
-                                coTeacher: request.coTeacher,
+                                 helpersNeeded: request.helpersNeeded,
+                                 coTeacherId: request.coTeacherId || '',
+                                 coTeacher: request.coTeacher,
                                  classroomNeeds: request.classroomNeeds,
                                  registrationFeeExempt: request.registrationFeeExempt,
                                  requiresFee: request.requiresFee,
@@ -444,10 +445,22 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                     </label>
                     <input
                       type="text"
-                      value={editFormData.coTeacher || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, coTeacher: e.target.value })}
-                      className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    />
+                       value={editFormData.coTeacher || ''}
+                       disabled={Boolean(editFormData.coTeacherId)}
+                       onChange={(e) => setEditFormData({ ...editFormData, coTeacher: e.target.value })}
+                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                     />
+                     <select
+                       value={editFormData.coTeacherId || ''}
+                       onChange={(e) => {
+                         const teacher = teachers.find((option) => option.id === e.target.value)
+                         setEditFormData({ ...editFormData, coTeacherId: e.target.value, coTeacher: teacher ? `${teacher.firstName} ${teacher.lastName}` : '' })
+                       }}
+                       className="mt-2 w-full border border-gray-300 rounded-md px-3 py-2"
+                     >
+                       <option value="">Write in above</option>
+                       {teachers.filter((teacher) => teacher.id !== editTeacherId).map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}
+                     </select>
                   </div>
 
                   <div>

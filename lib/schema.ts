@@ -209,6 +209,7 @@ export const classTeachingRequests = sqliteTable('class_teaching_requests', {
   maxStudents: integer('max_students').notNull().default(20), // Maximum number of students allowed
   helpersNeeded: integer('helpers_needed').notNull().default(1), // Number of parent helpers needed (min 1 if no co-teacher)
   coTeacher: text('co_teacher'), // Optional co-teacher name
+  coTeacherId: text('co_teacher_id').references(() => guardians.id, { onDelete: 'set null' }),
   classroomNeeds: text('classroom_needs'), // e.g., "TV, projector, art supplies"
   registrationFeeExempt: integer('registration_fee_exempt', { mode: 'boolean' }).notNull().default(false),
   requiresFee: integer('requires_fee', { mode: 'boolean' }).notNull().default(false),

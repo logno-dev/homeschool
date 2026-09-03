@@ -659,6 +659,7 @@ export async function getClassTeachingRequestsWithSession(): Promise<(ClassTeach
       maxStudents: classTeachingRequests.maxStudents,
       helpersNeeded: classTeachingRequests.helpersNeeded,
       coTeacher: classTeachingRequests.coTeacher,
+      coTeacherId: classTeachingRequests.coTeacherId,
        classroomNeeds: classTeachingRequests.classroomNeeds,
        registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
        requiresFee: classTeachingRequests.requiresFee,
@@ -710,7 +711,8 @@ export async function getClassTeachingRequestsByGuardianWithSession(guardianId: 
       gradeRange: classTeachingRequests.gradeRange,
       gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
       gradeRangeTo: classTeachingRequests.gradeRangeTo,
-      coTeacher: classTeachingRequests.coTeacher,
+       coTeacher: classTeachingRequests.coTeacher,
+       coTeacherId: classTeachingRequests.coTeacherId,
        classroomNeeds: classTeachingRequests.classroomNeeds,
        registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
        requiresFee: classTeachingRequests.requiresFee,
@@ -772,6 +774,7 @@ export async function approveClassTeachingRequest(id: string, reviewerId: string
   if (updated) {
     const { syncTeacherGroupMembership } = await import('./user-groups')
     await syncTeacherGroupMembership(updated.guardianId)
+    if (updated.coTeacherId) await syncTeacherGroupMembership(updated.coTeacherId)
   }
   return updated
 }
@@ -786,6 +789,7 @@ export async function rejectClassTeachingRequest(id: string, reviewerId: string,
   if (updated) {
     const { syncTeacherGroupMembership } = await import('./user-groups')
     await syncTeacherGroupMembership(updated.guardianId)
+    if (updated.coTeacherId) await syncTeacherGroupMembership(updated.coTeacherId)
   }
   return updated
 }
@@ -1025,7 +1029,8 @@ export async function getScheduleWithDetails(sessionId: string): Promise<(Schedu
         gradeRange: classTeachingRequests.gradeRange,
         gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
         gradeRangeTo: classTeachingRequests.gradeRangeTo,
-        coTeacher: classTeachingRequests.coTeacher,
+         coTeacher: classTeachingRequests.coTeacher,
+         coTeacherId: classTeachingRequests.coTeacherId,
         classroomNeeds: classTeachingRequests.classroomNeeds,
         registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
         requiresFee: classTeachingRequests.requiresFee,
@@ -1098,6 +1103,7 @@ export async function getApprovedClassesForSession(sessionId: string): Promise<(
       gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
       gradeRangeTo: classTeachingRequests.gradeRangeTo,
       coTeacher: classTeachingRequests.coTeacher,
+      coTeacherId: classTeachingRequests.coTeacherId,
         classroomNeeds: classTeachingRequests.classroomNeeds,
         registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
         requiresFee: classTeachingRequests.requiresFee,

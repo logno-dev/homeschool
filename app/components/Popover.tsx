@@ -106,7 +106,6 @@ export default function Popover({
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current)
     }
-    
     setIsVisible(true)
     // Calculate position immediately
     requestAnimationFrame(() => {
@@ -224,7 +223,7 @@ export default function Popover({
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
-          <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-md pointer-events-auto">
+          <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-md pointer-events-none">
             {content}
           </div>
         </div>

@@ -32,6 +32,8 @@ const PERIODS = [
   { id: 'third', name: 'Third Hour' }
 ]
 
+const previewDescription = (description: string) => description.length > 100 ? `${description.slice(0, 100).trimEnd()}...` : description
+
 export default function ScheduleGrid({
   sessionId,
   initialScheduleData,
@@ -728,17 +730,17 @@ export default function ScheduleGrid({
       {/* Schedule Grid */}
       <div className="bg-white rounded-lg shadow border overflow-hidden">
         {/* Desktop Table View */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="min-w-full">
+         <div className="hidden md:block max-h-[calc(100vh-20rem)] overflow-auto">
+          <table className="min-w-[44rem] w-full table-fixed">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="sticky left-0 top-0 z-30 w-36 bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Classroom
                 </th>
                 {PERIODS.map((period) => (
                   <th
                     key={period.id}
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    className={`sticky top-0 z-20 ${period.id === 'lunch' ? 'w-20' : 'w-40'} bg-gray-50 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider`}
                   >
                     {period.name}
                   </th>
@@ -748,11 +750,8 @@ export default function ScheduleGrid({
             <tbody className="bg-white divide-y divide-gray-200">
               {scheduleData.classrooms.map((classroom) => (
                 <tr key={classroom.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="sticky left-0 z-10 w-36 max-w-36 bg-white px-3 py-2 whitespace-normal align-top">
                     <div className="text-sm font-medium text-gray-900">{classroom.name}</div>
-                    {classroom.description && (
-                      <div className="text-sm text-gray-500">{classroom.description}</div>
-                    )}
                   </td>
                    {PERIODS.map((period) => {
                      const scheduledClass = getClassInSlot(classroom.id, period.id)
@@ -763,7 +762,7 @@ export default function ScheduleGrid({
                      return (
                        <td
                          key={period.id}
-                         className="px-6 py-4 whitespace-nowrap"
+                          className={`h-20 ${period.id === 'lunch' ? 'w-20' : 'w-40'} px-2 py-2 whitespace-normal align-top`}
                          onDragOver={handleDragOver}
                          onDragEnter={(e) => handleDragEnter(e, slotKey)}
                          onDragLeave={handleDragLeave}
@@ -775,7 +774,7 @@ export default function ScheduleGrid({
                                draggable={scheduleStatus !== 'submitted'}
                                onDragStart={(e) => handleDragStart(e, scheduledClass, slotKey)}
                                onDragEnd={handleDragEnd}
-                               className={`rounded-md p-3 transition-colors ${
+                                className={`h-16 overflow-hidden rounded-md p-2 transition-colors ${
                                   scheduleStatus === 'submitted'
                                    ? 'cursor-not-allowed opacity-60 bg-green-50 border border-green-200'
                                    : isHovered && isValidDropZone
@@ -783,10 +782,10 @@ export default function ScheduleGrid({
                                      : 'bg-green-50 border border-green-200 hover:bg-green-100 cursor-move'
                                }`}
                              >
-                               <h4 className="font-medium text-green-900 text-sm">
-                                 {scheduledClass.className}
+                                <h4 className="truncate font-medium text-green-900 text-sm">
+                                  {scheduledClass.className}
                                </h4>
-                               <p className="text-xs text-green-700">
+                                  <p className="truncate text-xs text-green-700">
                                  Grade: {scheduledClass.gradeRange}
                                </p>
                                {scheduledClass.coTeacher && (
@@ -797,7 +796,7 @@ export default function ScheduleGrid({
                              </div>
                            </ClassDetailsPopover>
                          ) : (
-                           <div className={`border-2 border-dashed rounded-md p-3 h-20 flex items-center justify-center text-sm transition-colors ${
+                            <div className={`h-16 border-2 border-dashed rounded-md p-2 flex items-center justify-center text-sm transition-colors ${
                              isHovered && isValidDropZone
                                ? 'border-gray-400 bg-gray-100 text-gray-600' 
                                : 'border-gray-300 text-gray-400'
@@ -840,7 +839,7 @@ export default function ScheduleGrid({
                         <div>
                           <h4 className="font-medium text-gray-900">{classroom.name}</h4>
                           {classroom.description && (
-                            <p className="text-sm text-gray-500">{classroom.description}</p>
+                            <p className="break-words text-sm text-gray-500">{previewDescription(classroom.description)}</p>
                           )}
                         </div>
                       </div>

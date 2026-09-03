@@ -10,6 +10,7 @@ import {
 import { getGradeRangeFromLabel } from '@/lib/grades'
 import { db } from '@/lib/db'
 import { guardians } from '@/lib/schema'
+import { syncTeacherGroupMembership } from '@/lib/user-groups'
 import { eq } from 'drizzle-orm'
 
 export async function GET(
@@ -101,7 +102,18 @@ export async function PATCH(
       if (editData.gradeRangeTo !== undefined) updateData.gradeRangeTo = editData.gradeRangeTo
       if (editData.maxStudents !== undefined) updateData.maxStudents = parseInt(editData.maxStudents)
       if (editData.helpersNeeded !== undefined) updateData.helpersNeeded = parseInt(editData.helpersNeeded)
-      if (editData.coTeacher !== undefined) updateData.coTeacher = editData.coTeacher?.trim() || null
+      if (editData.coTeacherId !== undefined) {
+        const coTeacherId = String(editData.coTeacherId || '')
+        if (coTeacherId) {
+          const [coTeacher] = await db.select({ id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName }).from(guardians).where(eq(guardians.id, coTeacherId)).limit(1)
+          if (!coTeacher) return NextResponse.json({ error: 'Co-teacher not found' }, { status: 404 })
+          updateData.coTeacher = `${coTeacher.firstName} ${coTeacher.lastName}`.trim()
+        }
+        updateData.coTeacherId = coTeacherId || null
+        if (!coTeacherId) updateData.coTeacher = editData.coTeacher?.trim() || null
+      } else if (editData.coTeacher !== undefined) {
+        updateData.coTeacher = editData.coTeacher?.trim() || null
+      }
       if (editData.classroomNeeds !== undefined) updateData.classroomNeeds = editData.classroomNeeds?.trim() || null
       if (editData.registrationFeeExempt !== undefined) updateData.registrationFeeExempt = Boolean(editData.registrationFeeExempt)
       if (editData.requiresFee !== undefined) updateData.requiresFee = editData.requiresFee
@@ -137,7 +149,13 @@ export async function PATCH(
         }
       }
 
+      const previousRequest = await getClassTeachingRequestById(requestId)
       updatedRequest = await updateClassTeachingRequest(requestId, updateData)
+      if (updatedRequest) {
+        await syncTeacherGroupMembership(updatedRequest.guardianId)
+        if (updatedRequest.coTeacherId) await syncTeacherGroupMembership(updatedRequest.coTeacherId)
+        if (previousRequest?.coTeacherId && previousRequest.coTeacherId !== updatedRequest.coTeacherId) await syncTeacherGroupMembership(previousRequest.coTeacherId)
+      }
     }
 
     if (!updatedRequest) {

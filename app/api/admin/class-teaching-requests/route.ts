@@ -6,6 +6,7 @@ import { classTeachingRequests, guardians, sessions } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { getGradeRangeFromLabel } from '@/lib/grades'
+import { syncTeacherGroupMembership } from '@/lib/user-groups'
 
 export async function GET() {
   try {
@@ -50,6 +51,8 @@ export async function POST(request: Request) {
 
     const requestedTeacherId = String(body.teacherId || '')
     const requestedTeacherName = String(body.teacherName || '').trim()
+    const requestedCoTeacherId = String(body.coTeacherId || '')
+    const requestedCoTeacherName = String(body.coTeacher || '').trim()
     if (!requestedTeacherId && !requestedTeacherName) return NextResponse.json({ error: 'Enter a teacher placeholder when no assigned teacher is selected' }, { status: 400 })
     const [selectedTeacher] = requestedTeacherId
       ? await db.select({ id: guardians.id }).from(guardians).where(eq(guardians.id, requestedTeacherId)).limit(1)
@@ -57,6 +60,11 @@ export async function POST(request: Request) {
     const [fallbackTeacher] = await db.select({ id: guardians.id }).from(guardians).limit(1)
     const guardianId = selectedTeacher?.id || fallbackTeacher?.id
     if (!guardianId) return NextResponse.json({ error: 'At least one guardian is required to create a class' }, { status: 400 })
+    const [selectedCoTeacher] = requestedCoTeacherId
+      ? await db.select({ id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName }).from(guardians).where(eq(guardians.id, requestedCoTeacherId)).limit(1)
+      : []
+    if (requestedCoTeacherId && !selectedCoTeacher) return NextResponse.json({ error: 'Co-teacher not found' }, { status: 404 })
+    if (selectedCoTeacher?.id === selectedTeacher?.id) return NextResponse.json({ error: 'A teacher cannot also be the co-teacher' }, { status: 400 })
 
     const now = new Date().toISOString()
     const [created] = await db.insert(classTeachingRequests).values({
@@ -71,7 +79,8 @@ export async function POST(request: Request) {
       gradeRangeTo: resolvedGradeRange.to,
       maxStudents: Math.max(1, Number(body.maxStudents || 20)),
       helpersNeeded: Math.max(0, Number(body.helpersNeeded || 0)),
-      coTeacher: String(body.coTeacher || '').trim() || null,
+      coTeacher: selectedCoTeacher ? `${selectedCoTeacher.firstName} ${selectedCoTeacher.lastName}`.trim() : requestedCoTeacherName || null,
+      coTeacherId: selectedCoTeacher?.id || null,
       classroomNeeds: String(body.classroomNeeds || '').trim() || null,
       registrationFeeExempt: Boolean(body.registrationFeeExempt),
       requiresFee: Boolean(body.requiresFee),
@@ -84,6 +93,8 @@ export async function POST(request: Request) {
       createdAt: now,
       updatedAt: now
     }).returning()
+    if (requestedTeacherId) await syncTeacherGroupMembership(guardianId)
+    if (selectedCoTeacher?.id) await syncTeacherGroupMembership(selectedCoTeacher.id)
     return NextResponse.json({ request: created }, { status: 201 })
   } catch (error) {
     console.error('Error creating admin class:', error)

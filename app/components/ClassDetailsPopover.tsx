@@ -93,7 +93,7 @@ export default function ClassDetailsPopover({ classRequest, children, isDragging
         {classRequest.description && (
           <div>
             <h4 className="font-medium text-gray-900 text-sm mb-1">Description</h4>
-            <p className="text-sm text-gray-700">{classRequest.description}</p>
+            <p className="break-words whitespace-normal text-sm text-gray-700">{classRequest.description}</p>
           </div>
         )}
 

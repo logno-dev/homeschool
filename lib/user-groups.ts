@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import { classTeachingRequests, sessions, sessionRegistrationWindows, userGroupMemberships, userGroups } from '@/lib/schema'
@@ -42,7 +42,7 @@ export async function syncTeacherGroupMembership(userId: string) {
   const [approvedRequest] = await db
     .select({ id: classTeachingRequests.id })
     .from(classTeachingRequests)
-    .where(and(eq(classTeachingRequests.guardianId, userId), eq(classTeachingRequests.status, 'approved')))
+    .where(and(or(and(eq(classTeachingRequests.guardianId, userId), isNull(classTeachingRequests.teacherName)), eq(classTeachingRequests.coTeacherId, userId)), eq(classTeachingRequests.status, 'approved')))
     .limit(1)
 
   if (approvedRequest) {
