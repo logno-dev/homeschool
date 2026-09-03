@@ -224,6 +224,14 @@ export async function findFamilyBySharingCode(sharingCode: string): Promise<Fami
   return result[0] || null
 }
 
+export async function rotateFamilySharingCode(id: string, currentCode: string): Promise<Family | null> {
+  const [updated] = await db.update(families)
+    .set({ sharingCode: generateSharingCode(), updatedAt: new Date().toISOString() })
+    .where(and(eq(families.id, id), eq(families.sharingCode, currentCode)))
+    .returning()
+  return updated || null
+}
+
 export async function updateFamily(id: string, updates: Partial<Omit<Family, 'id' | 'createdAt'>>): Promise<Family | null> {
   const updateData = {
     ...updates,

@@ -2,6 +2,7 @@ import { getAuthenticatedUser, fetchFamilyData } from '@/lib/server-auth'
 import FamilyActions from '@/app/components/FamilyActions'
 import FamilyRegistrationOptions from '@/app/components/FamilyRegistrationOptions'
 import FamilyProfileClient from '../../components/FamilyProfileClient'
+import GuardianList from '../../components/GuardianList'
 import { getGlobalSetting } from '@/lib/database'
 import { getAppTimezone } from '@/lib/app-time'
 
@@ -35,26 +36,7 @@ export default async function FamilyProfilePage() {
             {/* Guardians */}
             <div className="bg-white shadow rounded-lg p-6">
               <h2 className="text-lg font-medium text-gray-900 mb-4">Guardians</h2>
-              <div className="space-y-3">
-                {guardians.map((guardian) => (
-                  <div key={guardian.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {guardian.firstName} {guardian.lastName}
-                        {guardian.isMainContact && (
-                          <span className="ml-2 inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                            Main Contact
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-sm text-gray-500">{guardian.email}</p>
-                      {guardian.phone && (
-                        <p className="text-sm text-gray-500">{guardian.phone}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+               <GuardianList guardians={guardians} currentUserId={session.user.id} />
             </div>
 
             {/* Children - handled by client component */}

@@ -26,6 +26,14 @@ export default function SignUpPage() {
 
   useEffect(() => { fetch('/api/auth/acknowledgements').then((response) => response.json()).then((payload) => setHandbook({ url: payload.handbookUrl || '', version: payload.handbookVersion || '' })).catch(() => setHandbook({ url: '', version: '' })) }, [])
 
+  useEffect(() => {
+    const sharingCode = new URLSearchParams(window.location.search).get('sharingCode')?.trim().toUpperCase()
+    if (sharingCode) {
+      setForm((current) => ({ ...current, familyCode: sharingCode }))
+      setFamilyMode('join')
+    }
+  }, [])
+
   const updateChild = (index: number, field: keyof ChildDraft, value: string) => setFamilyChildren((current) => current.map((child, childIndex) => childIndex === index ? { ...child, [field]: value } : child))
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setError('')

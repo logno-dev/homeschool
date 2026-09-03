@@ -34,8 +34,13 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
-      showSuccess('Sharing code copied to clipboard!')
+      showSuccess('Copied to clipboard!')
     })
+  }
+
+  const copyInviteLink = () => {
+    const inviteLink = `${window.location.origin}/signup?sharingCode=${encodeURIComponent(familyData.sharingCode)}`
+    copyToClipboard(inviteLink)
   }
 
   const startEditing = () => {
@@ -217,8 +222,15 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
                   Copy
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={copyInviteLink}
+                className="mt-3 w-full rounded-md border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+              >
+                Copy Signup Invite Link
+              </button>
               <p className="text-xs text-gray-500 mt-1">
-                Share this code with other guardians to let them join your family profile.
+                Share the code or invite link with other guardians to let them join your family profile.
               </p>
             </div>
           )}

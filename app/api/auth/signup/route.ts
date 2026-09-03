@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { eq, or } from 'drizzle-orm'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { createFamily, createUser } from '@/lib/database'
+import { createFamily, createUser, rotateFamilySharingCode } from '@/lib/database'
 import { authAccounts, children, families, guardians, users } from '@/lib/schema'
 import { createAuthAccountForUser, normalizeEmail } from '@/lib/auth-server'
 import { getGlobalSetting } from '@/lib/database'
@@ -75,8 +75,10 @@ export async function POST(request: NextRequest) {
     }
 
     let familyId: string
+    let consumedSharingCode = ''
     if (familyMode === 'join') {
-      const [family] = await db.select({ id: families.id }).from(families).where(eq(families.sharingCode, String(familyCode || '').trim().toUpperCase())).limit(1)
+      consumedSharingCode = String(familyCode || '').trim().toUpperCase()
+      const [family] = await db.select({ id: families.id }).from(families).where(eq(families.sharingCode, consumedSharingCode)).limit(1)
       if (!family) return NextResponse.json({ error: 'Family code not found' }, { status: 400 })
       familyId = family.id
     } else if (familyMode === 'create') {
@@ -86,6 +88,10 @@ export async function POST(request: NextRequest) {
       familyId = family.id
       for (const child of familyChildren) await db.insert(children).values({ id: randomUUID(), familyId, firstName: String(child.firstName).trim(), lastName: String(child.lastName).trim(), dateOfBirth: String(child.dateOfBirth), grade: String(child.grade).trim(), gradeYear: null, gradeLevel: null, allergies: null, medicalNotes: null })
     } else return NextResponse.json({ error: 'Choose whether to create or join a family' }, { status: 400 })
+
+    if (familyMode === 'join' && !await rotateFamilySharingCode(familyId, consumedSharingCode)) {
+      return NextResponse.json({ error: 'Family invite was already used. Request a new invite.' }, { status: 409 })
+    }
 
     const user = await createUser({
       id: randomUUID(),

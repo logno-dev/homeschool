@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
-import { findFamilyBySharingCode, createGuardian, getGuardianById } from '@/lib/database'
+import { findFamilyBySharingCode, createGuardian, getGuardianById, rotateFamilySharingCode } from '@/lib/database'
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,6 +45,10 @@ export async function POST(request: NextRequest) {
         { error: 'You are already associated with another family' },
         { status: 400 }
       )
+    }
+
+    if (!await rotateFamilySharingCode(family.id, sharingCode.toUpperCase())) {
+      return NextResponse.json({ error: 'Family invite was already used. Request a new invite.' }, { status: 409 })
     }
 
     // Create the guardian
