@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRegistration } from './RegistrationContext'
 import { useToast } from './ToastContainer'
+import { formatPhoneNumber, isValidPhoneNumber, PHONE_PATTERN } from '@/lib/phone'
 import Modal from './Modal'
 import { PaymentForm } from './PaymentForm'
 
@@ -113,6 +114,10 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
     const registeredChildIds = Array.from(new Set(pendingRegistrations.map((registration) => registration.childId)))
     if (registeredChildIds.length > 0 && (!emergencyContact.name.trim() || !emergencyContact.phone.trim())) {
       showError('Emergency contact required', 'Please provide one emergency contact name and phone number for your family.')
+      return
+    }
+    if (registeredChildIds.length > 0 && !isValidPhoneNumber(emergencyContact.phone)) {
+      showError('Invalid phone number', 'Use the format (555) 123-4567.')
       return
     }
 
@@ -437,9 +442,12 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Emergency contact phone *</label>
                   <input
-                    type="tel"
-                    value={emergencyContact.phone}
-                    onChange={(event) => setEmergencyContact((current) => ({ ...current, phone: event.target.value }))}
+                     type="tel"
+                     inputMode="tel"
+                     pattern={PHONE_PATTERN}
+                     maxLength={14}
+                     value={emergencyContact.phone}
+                     onChange={(event) => setEmergencyContact((current) => ({ ...current, phone: formatPhoneNumber(event.target.value) }))}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
                     placeholder="Phone number"
                   />

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import { useUserSession } from '@/lib/user-session'
+import { formatPhoneNumber, isValidPhoneNumber, PHONE_PATTERN } from '@/lib/phone'
 
 interface ClassTeachingRequest {
   id: string
@@ -206,6 +207,11 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
         setSubmitting(false)
         return
       }
+      if (registeredChildIds.length > 0 && !isValidPhoneNumber(emergencyContact.phone)) {
+        alert('Please use the phone format (555) 123-4567.')
+        setSubmitting(false)
+        return
+      }
 
       const registrationData = {
         sessionId,
@@ -322,8 +328,11 @@ export default function FamilyRegistrationPage({ params }: { params: Promise<{ s
                 />
                 <input
                   type="tel"
+                  inputMode="tel"
+                  pattern={PHONE_PATTERN}
+                  maxLength={14}
                   value={emergencyContact.phone}
-                  onChange={(event) => setEmergencyContact((current) => ({ ...current, phone: event.target.value }))}
+                  onChange={(event) => setEmergencyContact((current) => ({ ...current, phone: formatPhoneNumber(event.target.value) }))}
                   placeholder="Emergency contact phone"
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm"
                 />

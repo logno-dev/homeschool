@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useToast } from './ToastContainer'
+import { formatPhoneNumber, isValidPhoneNumber, PHONE_PATTERN } from '@/lib/phone'
 
 interface Family {
   id: string
@@ -41,7 +42,7 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
     setFormData({
       name: familyData.name,
       address: familyData.address,
-      phone: familyData.phone,
+       phone: formatPhoneNumber(familyData.phone),
       email: familyData.email
     })
     setIsEditing(true)
@@ -51,7 +52,7 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
     setFormData({
       name: familyData.name,
       address: familyData.address,
-      phone: familyData.phone,
+       phone: formatPhoneNumber(familyData.phone),
       email: familyData.email
     })
     setIsEditing(false)
@@ -59,6 +60,10 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
 
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault()
+    if (!isValidPhoneNumber(formData.phone)) {
+      showError('Invalid phone number', 'Use the format (555) 123-4567.')
+      return
+    }
     try {
       setIsSaving(true)
       const response = await fetch('/api/family/profile', {
@@ -141,9 +146,12 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
             <div>
               <label className="text-sm font-medium text-gray-500">Phone</label>
               <input
-                type="text"
-                value={formData.phone}
-                onChange={(event) => setFormData(prev => ({ ...prev, phone: event.target.value }))}
+                 type="tel"
+                 inputMode="tel"
+                 pattern={PHONE_PATTERN}
+                 maxLength={14}
+                 value={formData.phone}
+                 onChange={(event) => setFormData(prev => ({ ...prev, phone: formatPhoneNumber(event.target.value) }))}
                 className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
