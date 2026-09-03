@@ -22,6 +22,7 @@ interface FeeData {
 
 export default function FeesSummary() {
   const [fees, setFees] = useState<FeeData[]>([])
+  const [accountCredit, setAccountCredit] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedFee, setSelectedFee] = useState<FeeData | null>(null)
@@ -50,7 +51,8 @@ export default function FeesSummary() {
 
       const data = await response.json()
       console.log('Fees data:', data)
-      setFees(data.fees || [])
+       setFees(data.fees || [])
+       setAccountCredit(data.accountCredit || 0)
     } catch (err) {
       console.error('Fetch error:', err)
       setError(err instanceof Error ? err.message : 'Failed to load fees')
@@ -120,7 +122,7 @@ export default function FeesSummary() {
     )
   }
 
-  if (fees.length === 0) {
+   if (fees.length === 0 && accountCredit <= 0) {
     return (
       <div className="text-gray-500 text-sm">
         No fees calculated yet
@@ -128,13 +130,18 @@ export default function FeesSummary() {
     )
   }
 
-  const totalOwed = fees.reduce((sum, fee) => sum + (fee.totalFee - fee.paidAmount), 0)
+  const totalOwed = fees.reduce((sum, fee) => sum + Math.max(0, fee.totalFee - fee.paidAmount), 0)
   const nextDueDate = fees
     .filter(fee => fee.totalFee > fee.paidAmount)
     .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())[0]?.dueDate
 
   return (
     <div className="space-y-3">
+      {accountCredit > 0 && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+          Available account credit: <strong>{formatCurrency(accountCredit)}</strong>
+        </div>
+      )}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-sm font-medium text-gray-700">Total Outstanding:</span>
         <span className="text-lg font-bold text-gray-900">{formatCurrency(totalOwed)}</span>
@@ -162,8 +169,8 @@ export default function FeesSummary() {
                 )}
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:space-x-2">
-                <span className="font-medium">
-                  {formatCurrency(fee.remainingAmount)}
+                <span className="font-medium text-right sm:text-left">
+                  Amount {formatCurrency(fee.totalFee)} | Paid {formatCurrency(fee.paidAmount)} | Difference {formatCurrency(fee.remainingAmount)}
                 </span>
                 {fee.remainingAmount > 0 && (
                   <Button

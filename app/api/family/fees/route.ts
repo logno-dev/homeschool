@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { familySessionFees, sessions } from '@/lib/schema'
-import { eq } from 'drizzle-orm'
+import { familySessionFees, familyFeeCredits, sessions } from '@/lib/schema'
+import { and, eq, lt, or } from 'drizzle-orm'
 import { getGuardianById } from '@/lib/database'
 
 export async function GET(request: NextRequest) {
@@ -22,28 +22,42 @@ export async function GET(request: NextRequest) {
     const familyId = currentGuardian.familyId
     console.log('Family ID:', familyId)
 
-    // Get all family session fees with session details
-    const familyFees = await db
-      .select({
-        id: familySessionFees.id,
-        sessionId: familySessionFees.sessionId,
-        sessionName: sessions.name,
-        registrationFee: familySessionFees.registrationFee,
-        classFees: familySessionFees.classFees,
-        totalFee: familySessionFees.totalFee,
-        paidAmount: familySessionFees.paidAmount,
-        overpaymentAmount: familySessionFees.overpaymentAmount,
-        overpaymentStatus: familySessionFees.overpaymentStatus,
-        status: familySessionFees.status,
-        dueDate: familySessionFees.dueDate,
-        calculatedAt: familySessionFees.calculatedAt,
-        createdAt: familySessionFees.createdAt,
-        updatedAt: familySessionFees.updatedAt
-      })
-      .from(familySessionFees)
-      .innerJoin(sessions, eq(familySessionFees.sessionId, sessions.id))
-      .where(eq(familySessionFees.familyId, familyId))
-      .orderBy(familySessionFees.createdAt)
+    const [familyFees, creditRows] = await Promise.all([
+      db
+        .select({
+          id: familySessionFees.id,
+          sessionId: familySessionFees.sessionId,
+          sessionName: sessions.name,
+          registrationFee: familySessionFees.registrationFee,
+          classFees: familySessionFees.classFees,
+          totalFee: familySessionFees.totalFee,
+          paidAmount: familySessionFees.paidAmount,
+          overpaymentAmount: familySessionFees.overpaymentAmount,
+          overpaymentStatus: familySessionFees.overpaymentStatus,
+          status: familySessionFees.status,
+          dueDate: familySessionFees.dueDate,
+          calculatedAt: familySessionFees.calculatedAt,
+          createdAt: familySessionFees.createdAt,
+          updatedAt: familySessionFees.updatedAt
+        })
+        .from(familySessionFees)
+        .innerJoin(sessions, eq(familySessionFees.sessionId, sessions.id))
+        .where(and(
+          eq(familySessionFees.familyId, familyId),
+          or(
+            eq(sessions.isActive, true),
+            lt(familySessionFees.paidAmount, familySessionFees.totalFee)
+          )
+        ))
+        .orderBy(familySessionFees.createdAt),
+      db
+        .select({ amount: familyFeeCredits.amount })
+        .from(familyFeeCredits)
+        .where(and(
+          eq(familyFeeCredits.familyId, familyId),
+          eq(familyFeeCredits.status, 'available')
+        ))
+    ])
 
     console.log('Raw family fees:', familyFees.length, 'records')
 
@@ -60,7 +74,10 @@ export async function GET(request: NextRequest) {
     })
 
     console.log('Returning fees:', feesWithCalculations.length, 'records')
-    return NextResponse.json({ fees: feesWithCalculations })
+    return NextResponse.json({
+      fees: feesWithCalculations,
+      accountCredit: creditRows.reduce((total, credit) => total + credit.amount, 0)
+    })
   } catch (error) {
     console.error('Error fetching family fees:', error)
     return NextResponse.json({ 
