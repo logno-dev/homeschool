@@ -140,6 +140,7 @@ export default function RegistrationGrid({
   const { 
     addChildRegistration, 
     addVolunteerAssignment, 
+    removeChildRegistration,
     pendingRegistrations,
     setSessionId,
     isChildRegisteredInPeriod,
@@ -170,6 +171,7 @@ export default function RegistrationGrid({
   const [showChildSelectionModal, setShowChildSelectionModal] = useState(false)
   const [registrationMode, setRegistrationMode] = useState<'registered' | 'waitlisted'>('registered')
   const [showVolunteerSelectionModal, setShowVolunteerSelectionModal] = useState(false)
+  const [removedRegistrationKeys, setRemovedRegistrationKeys] = useState<Set<string>>(new Set())
 
   const classrooms = useMemo(() => {
     return scheduleData.reduce((acc, schedule) => {
@@ -292,6 +294,12 @@ export default function RegistrationGrid({
 
     const teacher = `${schedule.teacher.firstName} ${schedule.teacher.lastName}`
     try {
+      setRemovedRegistrationKeys((previous) => {
+        if (!previous.has(`${schedule.schedule.id}:${child.id}`)) return previous
+        const next = new Set(previous)
+        next.delete(`${schedule.schedule.id}:${child.id}`)
+        return next
+      })
       await addChildRegistration({
         scheduleId: schedule.schedule.id,
         childId: child.id,
@@ -616,28 +624,56 @@ export default function RegistrationGrid({
               {selectedClass.roster.length > 0 || pendingRoster.length > 0 ? (
                 <div className="bg-gray-50 rounded-lg p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {selectedClass.roster.map((student) => {
-                      const status = student.status || 'registered'
-                      const isReserved = status === 'hold' || status === 'pending'
-                      return (
-                        <div key={student.id} className="flex items-center space-x-2 text-sm">
-                          <div className={`w-2 h-2 rounded-full ${isReserved ? 'bg-amber-500' : 'bg-green-500'}`}></div>
-                          <span>{student.firstName} {student.lastName} (Grade {student.grade})</span>
-                          {isReserved && (
-                            <span className="text-xs text-amber-700">Reserved</span>
-                          )}
-                        </div>
-                      )
-                    })}
-                    {pendingRoster.map((student) => (
-                      <div key={`pending-${student.id}`} className="flex items-center space-x-2 text-sm">
+                     {selectedClass.roster.map((student) => {
+                       const status = student.status || 'registered'
+                       const isReserved = status === 'hold' || status === 'pending'
+                       const currentRegistration = modifyRegistration
+                         ? pendingRegistrations.find((registration) =>
+                           registration.childId === student.id && registration.scheduleId === selectedClass.schedule.id
+                         )
+                         : null
+                       const registrationKey = `${selectedClass.schedule.id}:${student.id}`
+                       const willBeRemoved = modifyRegistration && removedRegistrationKeys.has(registrationKey)
+                       return (
+                         <div key={student.id} className="flex items-center space-x-2 text-sm">
+                           <div className={`w-2 h-2 rounded-full ${isReserved ? 'bg-amber-500' : 'bg-green-500'}`}></div>
+                           <span>{student.firstName} {student.lastName} (Grade {student.grade})</span>
+                            {willBeRemoved ? (
+                              <span className="text-xs text-red-700">Will be removed</span>
+                            ) : isReserved ? (
+                              <span className="text-xs text-amber-700">Reserved</span>
+                            ) : null}
+                           {modifyRegistration && currentRegistration && (
+                             <button
+                               type="button"
+                               onClick={() => {
+                                 setRemovedRegistrationKeys((previous) => new Set(previous).add(registrationKey))
+                                 removeChildRegistration(student.id, selectedClass.schedule.period, selectedClass.schedule.id)
+                               }}
+                               className="ml-auto text-xs font-medium text-red-600 hover:text-red-800"
+                             >
+                               Remove
+                             </button>
+                           )}
+                         </div>
+                       )
+                     })}
+                     {pendingRoster.map((student) => (
+                       <div key={`pending-${student.id}`} className="flex items-center space-x-2 text-sm">
                         <div className={`w-2 h-2 rounded-full ${student.status === 'waitlisted' ? 'bg-yellow-500' : 'bg-blue-500'}`}></div>
-                        <span>{student.firstName} {student.lastName} (Grade {student.grade})</span>
-                        <span className="text-xs text-yellow-700">
-                          {student.status === 'waitlisted' ? 'Waitlist' : 'Pending'}
-                        </span>
-                      </div>
-                    ))}
+                         <span>{student.firstName} {student.lastName} (Grade {student.grade})</span>
+                         <span className="text-xs text-yellow-700">
+                           {student.status === 'waitlisted' ? 'Waitlist' : 'Pending'}
+                         </span>
+                         <button
+                           type="button"
+                           onClick={() => removeChildRegistration(student.id, selectedClass.schedule.period, selectedClass.schedule.id)}
+                           className="ml-auto text-xs font-medium text-red-600 hover:text-red-800"
+                         >
+                           Remove
+                         </button>
+                       </div>
+                     ))}
                   </div>
                 </div>
               ) : (
