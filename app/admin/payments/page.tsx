@@ -69,6 +69,7 @@ export default function PaymentsPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [payments, setPayments] = useState<PaymentData[]>([])
+  const [outstandingBalance, setOutstandingBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'family' | 'classFees' | 'reimbursements'>('family')
@@ -131,7 +132,8 @@ export default function PaymentsPage() {
         throw new Error('Failed to fetch payments')
       }
       const data = await response.json()
-      setPayments(data)
+       setPayments(data.payments || data)
+       setOutstandingBalance(data.outstandingBalance || 0)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -651,7 +653,7 @@ export default function PaymentsPage() {
               <div className="bg-white rounded-lg shadow p-6">
                 <div className="text-sm font-medium text-gray-500">Outstanding Balance</div>
                 <div className="text-2xl font-bold text-red-600">
-                  {formatCurrency(filteredAndSortedPayments.reduce((sum, p) => sum + p.remainingBalance, 0))}
+                   {formatCurrency(outstandingBalance)}
                 </div>
               </div>
               <div className="bg-white rounded-lg shadow p-6">

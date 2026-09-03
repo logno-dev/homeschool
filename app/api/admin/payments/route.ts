@@ -17,29 +17,32 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    // Query to get all payment data with family and session information
-    const paymentsData = await db
-      .select({
-        id: feePayments.id,
-        familyId: feePayments.familyId,
-        familyName: families.name,
-        sessionId: feePayments.sessionId,
-        sessionName: sessions.name,
-        amount: feePayments.amount,
-        paymentDate: feePayments.paymentDate,
-        paymentMethod: feePayments.paymentMethod,
-        notes: feePayments.notes,
-        // Get family session fee data if available
-        familySessionFeeId: feePayments.familySessionFeeId,
-        totalFee: sql<number>`COALESCE(${familySessionFees.totalFee}, 0)`,
-        paidAmount: sql<number>`COALESCE(${familySessionFees.paidAmount}, 0)`,
-        status: sql<string>`COALESCE(${familySessionFees.status}, 'unknown')`,
-      })
-      .from(feePayments)
-      .leftJoin(families, eq(feePayments.familyId, families.id))
-      .leftJoin(sessions, eq(feePayments.sessionId, sessions.id))
-      .leftJoin(familySessionFees, eq(feePayments.familySessionFeeId, familySessionFees.id))
-      .orderBy(desc(feePayments.paymentDate))
+    const [paymentsData, feeBalances] = await Promise.all([
+      db
+        .select({
+          id: feePayments.id,
+          familyId: feePayments.familyId,
+          familyName: families.name,
+          sessionId: feePayments.sessionId,
+          sessionName: sessions.name,
+          amount: feePayments.amount,
+          paymentDate: feePayments.paymentDate,
+          paymentMethod: feePayments.paymentMethod,
+          notes: feePayments.notes,
+          familySessionFeeId: feePayments.familySessionFeeId,
+          totalFee: sql<number>`COALESCE(${familySessionFees.totalFee}, 0)`,
+          paidAmount: sql<number>`COALESCE(${familySessionFees.paidAmount}, 0)`,
+          status: sql<string>`COALESCE(${familySessionFees.status}, 'unknown')`,
+        })
+        .from(feePayments)
+        .leftJoin(families, eq(feePayments.familyId, families.id))
+        .leftJoin(sessions, eq(feePayments.sessionId, sessions.id))
+        .leftJoin(familySessionFees, eq(feePayments.familySessionFeeId, familySessionFees.id))
+        .orderBy(desc(feePayments.paymentDate)),
+      db
+        .select({ totalFee: familySessionFees.totalFee, paidAmount: familySessionFees.paidAmount })
+        .from(familySessionFees)
+    ])
 
     // Transform the data to include calculated remaining balance
     const transformedPayments = paymentsData.map(payment => ({
@@ -56,7 +59,12 @@ export async function GET(request: NextRequest) {
       remainingBalance: Math.max(0, payment.totalFee - payment.paidAmount)
     }))
 
-    return NextResponse.json(transformedPayments)
+    const outstandingBalance = feeBalances.reduce(
+      (sum, fee) => sum + Math.max(0, fee.totalFee - fee.paidAmount),
+      0
+    )
+
+    return NextResponse.json({ payments: transformedPayments, outstandingBalance })
   } catch (error) {
     console.error('Error fetching payments:', error)
     return NextResponse.json(
