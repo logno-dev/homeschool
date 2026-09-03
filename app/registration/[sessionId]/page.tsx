@@ -204,9 +204,10 @@ export default async function RegistrationPage({ params, searchParams }: { param
             )}
 
              <RegistrationProvider
-               teachingAssignments={scheduleBundle.teachingAssignments}
-               sessionId={sessionId}
-               initialRegistrations={isModifying ? editableRegistrations : scheduleBundle.initialRegistrations}
+                teachingAssignments={scheduleBundle.teachingAssignments}
+                sessionId={sessionId}
+                modifyMode={isModifying}
+                initialRegistrations={isModifying ? editableRegistrations : scheduleBundle.initialRegistrations}
                initialVolunteerAssignments={isModifying ? editableVolunteerAssignments : scheduleBundle.initialVolunteerAssignments}
             >
               {/* Volunteer Hour Counter */}
@@ -249,10 +250,6 @@ export default async function RegistrationPage({ params, searchParams }: { param
                        {registrationStatus.registrationState === 'admin_override' && (
                          <p className="mt-1 font-medium">Note: Your registration is pending admin approval due to volunteer hour requirements.</p>
                        )}
-                       <div className="mt-3 flex flex-wrap gap-2">
-                         <Link href={`/schedule?sessionId=${sessionId}`} className="inline-flex rounded-md border border-green-300 bg-white px-3 py-2 font-medium text-green-700 hover:bg-green-50">View Schedule</Link>
-                         <Link href={`/registration/${sessionId}?modify=1`} className="inline-flex rounded-md bg-green-600 px-3 py-2 font-medium text-white hover:bg-green-700">Modify Registration</Link>
-                       </div>
                     </div>
                   </div>
                 </div>

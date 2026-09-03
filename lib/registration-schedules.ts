@@ -162,20 +162,29 @@ export async function getRegistrationSchedules(sessionId: string) {
 
   const registrationCountMap: Record<string, number> = {}
   const rosterMap: Record<string, Array<{ id: string; firstName: string; lastName: string; grade: string; status: string }>> = {}
+  const rosterByScheduleAndChild = new Map<string, { id: string; firstName: string; lastName: string; grade: string; status: string }>()
+  const statusPriority: Record<string, number> = { hold: 1, pending: 2, registered: 3 }
 
   registrationData.forEach((item) => {
     const scheduleId = item.scheduleId
     if (scheduleId) {
-      registrationCountMap[scheduleId] = (registrationCountMap[scheduleId] || 0) + 1
-
-      if (!rosterMap[scheduleId]) {
-        rosterMap[scheduleId] = []
-      }
-      rosterMap[scheduleId].push({
+      const rosterEntry = {
         ...item.child,
         status: item.status
-      })
+      }
+      const key = `${scheduleId}:${item.child.id}`
+      const existing = rosterByScheduleAndChild.get(key)
+      if (!existing || (statusPriority[item.status] || 0) > (statusPriority[existing.status] || 0)) {
+        rosterByScheduleAndChild.set(key, rosterEntry)
+      }
     }
+  })
+
+  rosterByScheduleAndChild.forEach((student, key) => {
+    const scheduleId = key.slice(0, key.lastIndexOf(':'))
+    registrationCountMap[scheduleId] = (registrationCountMap[scheduleId] || 0) + 1
+    if (!rosterMap[scheduleId]) rosterMap[scheduleId] = []
+    rosterMap[scheduleId].push(student)
   })
 
   const volunteersMap: Record<string, Array<{ guardian: { id: string; firstName: string; lastName: string }; volunteerType: string }>> = {}

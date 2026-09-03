@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getActiveSessions } from '@/lib/database'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { getRegistrationAccess } from '@/lib/user-groups'
+import { getRegistrationStatus } from '@/lib/registration-status'
 import { db } from '@/lib/db'
 import { sessionFeeConfigs } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
@@ -14,6 +15,7 @@ export default async function RegistrationPage() {
   const sessions = await Promise.all(activeSessions.map(async (session) => ({
     session,
     access: await getRegistrationAccess(session.id, auth.user.id),
+    registrationStatus: await getRegistrationStatus(session.id, auth.user.id),
     feeConfig: (await db.select({ costBreakdown: sessionFeeConfigs.costBreakdown }).from(sessionFeeConfigs).where(eq(sessionFeeConfigs.sessionId, session.id)).limit(1))[0] || null
   })))
 
@@ -29,8 +31,10 @@ export default async function RegistrationPage() {
 
             {sessions.length > 0 ? (
               <div className="space-y-4">
-                {sessions.map(({ session, access, feeConfig }) => (
-                  <div
+                 {sessions.map(({ session, access, registrationStatus, feeConfig }) => {
+                   const hasRegistration = Boolean(registrationStatus?.hasRegistrations)
+                   return (
+                   <div
                     key={session.id}
                     className="border border-gray-200 rounded-lg p-6 hover:border-orange-300 transition-colors"
                   >
@@ -47,15 +51,33 @@ export default async function RegistrationPage() {
                         )}
                           <p className="text-gray-600">{access.isOpen ? 'Registration is currently open for this session.' : access.reason || 'Registration is not currently available for your user groups.'}</p>
                       </div>
-                       <Link
-                         href={access.isOpen ? `/registration/${session.id}` : `/schedule?sessionId=${session.id}`}
-                        className="inline-flex w-full sm:w-auto items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-orange-600 text-white hover:bg-orange-700 active:bg-orange-800 focus:ring-orange-500 px-4 py-2 text-sm min-h-[36px]"
-                       >
-                         {access.isOpen ? 'Register Now' : 'View Schedule'}
-                      </Link>
-                    </div>
-                  </div>
-                ))}
+                       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                         <Link
+                           href={`/schedule?sessionId=${session.id}`}
+                           className="inline-flex w-full sm:w-auto items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 focus:ring-orange-500 px-4 py-2 text-sm min-h-[36px]"
+                         >
+                           View Schedule
+                         </Link>
+                         {hasRegistration ? (
+                           <Link
+                             href={`/registration/${session.id}?modify=1`}
+                             className="inline-flex w-full sm:w-auto items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-orange-600 text-white hover:bg-orange-700 active:bg-orange-800 focus:ring-orange-500 px-4 py-2 text-sm min-h-[36px]"
+                           >
+                             Modify Registration
+                           </Link>
+                         ) : access.isOpen ? (
+                           <Link
+                             href={`/registration/${session.id}`}
+                             className="inline-flex w-full sm:w-auto items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-orange-600 text-white hover:bg-orange-700 active:bg-orange-800 focus:ring-orange-500 px-4 py-2 text-sm min-h-[36px]"
+                           >
+                             Register Now
+                           </Link>
+                         ) : null}
+                       </div>
+                     </div>
+                   </div>
+                   )
+                 })}
               </div>
             ) : (
               <div className="text-center py-12">
