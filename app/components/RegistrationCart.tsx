@@ -52,16 +52,21 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
   const { showSuccess, showError } = useToast()
   const [showCart, setShowCart] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [showOverpaymentModal, setShowOverpaymentModal] = useState(false)
+  const [resolvingOverpayment, setResolvingOverpayment] = useState(false)
   const [showAdminOverrideModal, setShowAdminOverrideModal] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [pendingPaymentFee, setPendingPaymentFee] = useState<{
     id: string
+    sessionId: string
     sessionName: string
     registrationFee: number
     classFees: number
     totalFee: number
     paidAmount: number
     remainingAmount: number
+    overpaymentAmount: number
+    overpaymentStatus: string
     dueDate: string
     isOverdue: boolean
   } | null>(null)
@@ -222,13 +227,23 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
       const payload = await response.json()
       const fee = (payload.fees || []).find((entry: { sessionId: string }) => entry.sessionId === sessionId)
 
-      if (!fee || fee.remainingAmount <= 0) {
-        window.location.reload()
-        return
-      }
+       if (!fee) {
+         window.location.reload()
+         return
+       }
 
-      setPendingPaymentFee(fee)
-      setShowPaymentModal(true)
+       setPendingPaymentFee(fee)
+       if (fee.overpaymentAmount > 0 && fee.overpaymentStatus === 'pending') {
+         setShowOverpaymentModal(true)
+         return
+       }
+
+       if (fee.remainingAmount <= 0) {
+         window.location.reload()
+         return
+       }
+
+       setShowPaymentModal(true)
     } catch (error) {
       console.error('Failed to load payment data:', error)
       window.location.reload()
@@ -244,6 +259,29 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
     showError('Payment deferred', 'Your selections may not be guaranteed if payment is not completed promptly.')
     setShowPaymentModal(false)
     window.location.reload()
+  }
+
+  const resolveOverpayment = async (disposition: 'credit' | 'scholarship') => {
+    if (!pendingPaymentFee) return
+
+    setResolvingOverpayment(true)
+    try {
+      const response = await fetch(`/api/family/fees/${pendingPaymentFee.sessionId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disposition })
+      })
+      const payload = await response.json()
+      if (!response.ok) {
+        throw new Error(payload.error || 'Unable to resolve overpayment')
+      }
+      setShowOverpaymentModal(false)
+      window.location.reload()
+    } catch (error) {
+      showError('Unable to resolve overpayment', error instanceof Error ? error.message : 'Please try again.')
+    } finally {
+      setResolvingOverpayment(false)
+    }
   }
 
   const handleAdminOverrideRequest = async () => {
@@ -266,6 +304,43 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
 
   return (
     <>
+      {showOverpaymentModal && pendingPaymentFee && (
+        <Modal
+          isOpen={showOverpaymentModal}
+          onClose={() => {
+            setShowOverpaymentModal(false)
+            window.location.reload()
+          }}
+          title="Choose What to Do With Your Overpayment"
+          size="md"
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              Your updated registration total is ${pendingPaymentFee.totalFee.toFixed(2)}, but you have already paid ${pendingPaymentFee.paidAmount.toFixed(2)}. This leaves an overpayment of <strong>${pendingPaymentFee.overpaymentAmount.toFixed(2)}</strong>.
+            </div>
+            <p className="text-sm text-gray-700">Choose whether to keep this amount as credit for a future registration or donate it to the scholarship fund.</p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => resolveOverpayment('credit')}
+                disabled={resolvingOverpayment}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Keep as Account Credit
+              </button>
+              <button
+                type="button"
+                onClick={() => resolveOverpayment('scholarship')}
+                disabled={resolvingOverpayment}
+                className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Donate to Scholarship Fund
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* Floating Cart Button */}
       <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
         <button
