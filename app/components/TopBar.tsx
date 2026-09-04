@@ -3,7 +3,7 @@
 import { useAuth } from '@/lib/auth-client'
 import { getReturnToUrl } from '@/lib/client-env'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { isUserAdmin, userSession } from '@/lib/user-session'
 import BrandLogo from './BrandLogo'
 import Link from 'next/link'
@@ -14,6 +14,7 @@ export default function TopBar() {
   const [showMenu, setShowMenu] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showAdminLinks, setShowAdminLinks] = useState(false)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
 
   const userName = user
     ? [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
@@ -37,6 +38,15 @@ export default function TopBar() {
       isActive = false
     }
   }, [user])
+
+  useEffect(() => {
+    if (!showMore) return
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (!moreMenuRef.current?.contains(event.target as Node)) setShowMore(false)
+    }
+    document.addEventListener('mousedown', handleOutsideClick)
+    return () => document.removeEventListener('mousedown', handleOutsideClick)
+  }, [showMore])
 
   // Don't show the top bar on auth pages or if no session
   if (!user || pathname === '/signin' || pathname === '/register' || pathname === '/forgot-password' || pathname === '/reset-password') {
@@ -97,7 +107,7 @@ export default function TopBar() {
                   </Link>
                 )
               })}
-              <div className="relative">
+              <div ref={moreMenuRef} className="relative">
                 <button
                   onClick={() => setShowMore((prev) => !prev)}
                   className="px-3 py-2 text-sm font-medium rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
@@ -111,6 +121,7 @@ export default function TopBar() {
                         <Link
                           key={item.href}
                           href={item.href}
+                          onClick={() => setShowMore(false)}
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         >
                           {item.label}
