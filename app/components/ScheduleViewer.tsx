@@ -1,7 +1,9 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ReadonlyScheduleView from './ReadonlyScheduleView'
+import Modal from './Modal'
+import { Grid2X2, List } from 'lucide-react'
 
 interface ScheduleEntry {
   schedule: {
@@ -10,6 +12,7 @@ interface ScheduleEntry {
   }
   classTeachingRequest: {
     className: string
+    description: string
     gradeRange: string
   }
   classroom: {
@@ -56,6 +59,23 @@ export default function ScheduleViewer({
   volunteerAssignments
 }: ScheduleViewerProps) {
   const [activeTab, setActiveTab] = useState<'full' | 'family'>('full')
+  const [viewMode, setViewMode] = useState<'cards' | 'grid'>('cards')
+  const [isWideScreen, setIsWideScreen] = useState(false)
+  const [selectedGridEntry, setSelectedGridEntry] = useState<ScheduleEntry | null>(null)
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 768px)')
+    setIsWideScreen(mediaQuery.matches)
+    setViewMode(mediaQuery.matches ? 'grid' : 'cards')
+    const handleChange = (event: MediaQueryListEvent) => {
+      setIsWideScreen(event.matches)
+      if (!event.matches) setViewMode('cards')
+    }
+    mediaQuery.addEventListener('change', handleChange)
+    return () => mediaQuery.removeEventListener('change', handleChange)
+  }, [])
+
+  const showingGrid = isWideScreen && viewMode === 'grid'
 
   const schedulesByPeriod = useMemo(() => {
     return PERIODS.reduce((acc, period) => {
@@ -71,6 +91,14 @@ export default function ScheduleViewer({
       return acc
     }, {} as Record<string, ScheduleEntry[]>)
   }, [schedules])
+
+  const classrooms = useMemo(() => Array.from(new Map(schedules.map((entry) => [entry.classroom.id, entry.classroom])).values()).sort((a, b) => {
+    const orderA = typeof a.orderIndex === 'number' ? a.orderIndex : 0
+    const orderB = typeof b.orderIndex === 'number' ? b.orderIndex : 0
+    return orderA !== orderB ? orderA - orderB : a.name.localeCompare(b.name)
+  }), [schedules])
+
+  const schedulesByCell = useMemo(() => new Map(schedules.map((entry) => [`${entry.classroom.id}-${entry.schedule.period}`, entry])), [schedules])
 
   return (
     <div className="space-y-8">
@@ -109,7 +137,15 @@ export default function ScheduleViewer({
       </div>
 
       {activeTab === 'full' ? (
-        <div className="space-y-8">
+        <>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-slate-900">Full Schedule</h2>
+          <div className="hidden rounded-lg border border-slate-200 bg-slate-50 p-1 md:flex" aria-label="Schedule view">
+            <button type="button" onClick={() => setViewMode('cards')} aria-label="Show schedule as cards" title="Cards" className={`rounded-md p-2 ${viewMode === 'cards' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><List className="h-4 w-4" aria-hidden="true" /></button>
+            <button type="button" onClick={() => setViewMode('grid')} aria-label="Show schedule as a grid" title="Grid" className={`rounded-md p-2 ${viewMode === 'grid' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}><Grid2X2 className="h-4 w-4" aria-hidden="true" /></button>
+          </div>
+        </div>
+        <div className={showingGrid ? 'hidden' : 'space-y-8'}>
           {PERIODS.map((period) => (
             <section key={period.id} className="space-y-4">
               <div className="flex items-center justify-between">
@@ -166,6 +202,30 @@ export default function ScheduleViewer({
             </section>
           ))}
         </div>
+      {showingGrid && (
+         <div className="hidden overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm md:block">
+          <table className="min-w-[58rem] w-full table-fixed">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="w-36 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Classroom</th>
+                {PERIODS.map((period) => <th key={period.id} className={`px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 ${period.id === 'lunch' ? 'w-20' : 'w-40'}`}>{period.name}</th>)}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {classrooms.map((classroom) => (
+                <tr key={classroom.id}>
+                  <td className="px-4 py-3 align-top text-sm font-semibold text-slate-900">{classroom.name}</td>
+                  {PERIODS.map((period) => {
+                    const entry = schedulesByCell.get(`${classroom.id}-${period.id}`)
+                    return <td key={period.id} className="px-2 py-2 align-top">{entry ? <button type="button" onClick={() => setSelectedGridEntry(entry)} className="min-h-20 w-full rounded-lg border border-blue-100 bg-blue-50 p-3 text-left hover:border-blue-300 hover:bg-blue-100"><p className="truncate text-sm font-semibold text-slate-900">{entry.classTeachingRequest.className}</p><p className="truncate text-xs text-slate-600">{`${entry.teacher.firstName} ${entry.teacher.lastName}`.trim()}</p><p className="mt-2 text-xs text-slate-500">Grade {entry.classTeachingRequest.gradeRange} • {entry.roster.length} registered</p></button> : <div className="min-h-20 rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-300">Open</div>}</td>
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+        </>
       ) : (
         <ReadonlyScheduleView
           sessionId={sessionId}
@@ -173,6 +233,25 @@ export default function ScheduleViewer({
           volunteerAssignments={volunteerAssignments}
         />
       )}
+      <Modal isOpen={Boolean(selectedGridEntry)} onClose={() => setSelectedGridEntry(null)} title={selectedGridEntry?.classTeachingRequest.className || 'Class details'} size="lg">
+        {selectedGridEntry && (
+          <div className="space-y-5">
+            <div>
+              <p className="text-sm text-slate-500">{selectedGridEntry.classroom.name} • {PERIODS.find((period) => period.id === selectedGridEntry.schedule.period)?.name}</p>
+              <p className="mt-1 text-sm text-slate-700"><strong>Teacher:</strong> {`${selectedGridEntry.teacher.firstName} ${selectedGridEntry.teacher.lastName}`.trim()}</p>
+              <p className="mt-1 text-sm text-slate-700"><strong>Grade range:</strong> {selectedGridEntry.classTeachingRequest.gradeRange}</p>
+            </div>
+            <div>
+              <h4 className="font-semibold text-slate-900">Class Description</h4>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{selectedGridEntry.classTeachingRequest.description}</p>
+            </div>
+            <div>
+              <h4 className="font-semibold text-slate-900">Roster ({selectedGridEntry.roster.length})</h4>
+              {selectedGridEntry.roster.length === 0 ? <p className="mt-2 text-sm text-slate-500">No students registered yet.</p> : <div className="mt-2 space-y-2">{[...selectedGridEntry.roster].sort((a, b) => a.lastName.localeCompare(b.lastName)).map((student) => <div key={student.id} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700"><span>{student.lastName}, {student.firstName} (Grade {student.grade})</span>{(student.status === 'hold' || student.status === 'pending') && <span className="text-xs text-amber-600">Reserved</span>}</div>)}</div>}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

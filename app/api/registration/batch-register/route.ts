@@ -465,6 +465,10 @@ export async function POST(request: Request) {
     }
 
     const familyId = guardian[0].familyId
+    const familyGuardianIds = (await db.select({ id: guardians.id }).from(guardians).where(eq(guardians.familyId, familyId))).map((member) => member.id)
+    if ((volunteerAssignmentsList || []).some((assignment) => !familyGuardianIds.includes(assignment.guardianId))) {
+      return NextResponse.json({ error: 'Volunteer assignments must belong to your family' }, { status: 400 })
+    }
     const existingFamilyStatus = modifyRegistration
       ? await db.select().from(familyRegistrationStatus).where(and(
         eq(familyRegistrationStatus.familyId, familyId),
