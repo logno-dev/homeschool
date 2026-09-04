@@ -98,10 +98,9 @@ export default async function ClassroomAttendancePrintPage({ params, searchParam
       const date = new Date(start)
       date.setDate(start.getDate() + index * 7)
       return date.toLocaleDateString('en-US', {
-        weekday: 'short',
         month: 'numeric',
         day: 'numeric'
-      })
+      }).replace('/', '-')
     })
   })()
 

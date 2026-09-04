@@ -9,7 +9,7 @@ import { isUserAdmin, userSession } from '@/lib/user-session'
 
 interface AdminLayoutProps {
   userName: string
-  activeTab: 'users' | 'sessions' | 'class-requests' | 'classrooms' | 'volunteer-jobs' | 'registration-overrides' | 'events' | 'payments' | 'registrations' | 'settings' | 'reports' | 'scholarships' | 'faqs' | 'groups' | 'newsletters'
+  activeTab: 'dashboard' | 'users' | 'sessions' | 'class-requests' | 'classrooms' | 'volunteer-jobs' | 'registration-overrides' | 'events' | 'payments' | 'registrations' | 'settings' | 'reports' | 'scholarships' | 'faqs' | 'groups' | 'newsletters'
   children: React.ReactNode
 }
 
@@ -33,6 +33,7 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
   }, [])
 
   const navigationItems = [
+    { name: 'Dashboard', href: '/admin', key: 'dashboard', icon: <span className="text-lg">D</span> },
     {
       name: 'User Management',
       href: '/admin/users',
@@ -185,7 +186,7 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
       )
     }
   ]
-  const visibleNavigationItems = isUserAdmin() || adminModules === null ? navigationItems : navigationItems.filter((item) => adminModules.includes(item.key))
+  const visibleNavigationItems = isUserAdmin() || adminModules === null ? navigationItems : navigationItems.filter((item) => item.key === 'dashboard' || adminModules.includes(item.key))
 
   return (
     <div className="h-[calc(100dvh-4rem)] min-h-0 overflow-hidden bg-gray-50 flex">

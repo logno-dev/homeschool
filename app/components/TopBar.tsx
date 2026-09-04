@@ -72,12 +72,12 @@ export default function TopBar() {
   return (
     <>
     {isEmulating && (
-      <div className="bg-amber-100 border-b border-amber-200 px-4 py-2 text-sm text-amber-900 flex items-center justify-between gap-3">
+      <div className="print:hidden bg-amber-100 border-b border-amber-200 px-4 py-2 text-sm text-amber-900 flex items-center justify-between gap-3">
         <span>Emulating this user. Your admin session is preserved in its original tab.</span>
         <button onClick={exitEmulation} className="font-semibold underline whitespace-nowrap">Exit emulation</button>
       </div>
     )}
-    <nav className="sticky top-0 z-50 bg-white shadow">
+    <nav className="print:hidden sticky top-0 z-50 bg-white shadow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           <div className="flex items-center gap-4 min-w-0">
