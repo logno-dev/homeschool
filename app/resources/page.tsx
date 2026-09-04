@@ -16,8 +16,10 @@ export default async function ResourcesPage() {
     getFaqsByVisibility('private'),
     getFaqsByVisibility('public')
   ])
-  const supervisionFormUrl = await getGlobalSetting('supervision_form_url')
-  const supervisionFormFilename = await getGlobalSetting('supervision_form_filename')
+  const [supervisionFormUrl, supervisionFormFilename] = await Promise.all([
+    getGlobalSetting('supervision_form_url'),
+    getGlobalSetting('supervision_form_filename')
+  ])
 
   const externalLinks: Array<ExternalLink> = [
     {

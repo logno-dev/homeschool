@@ -5,18 +5,22 @@ import { getRegistrationAccess } from '@/lib/user-groups'
 import { getRegistrationStatus } from '@/lib/registration-status'
 import { db } from '@/lib/db'
 import { sessionFeeConfigs } from '@/lib/schema'
-import { eq } from 'drizzle-orm'
+import { inArray } from 'drizzle-orm'
 
 export const dynamic = 'force-dynamic'
 
 export default async function RegistrationPage() {
   const auth = await getAuthenticatedUser()
   const activeSessions = await getActiveSessions()
+  const feeConfigs = await db.select({ sessionId: sessionFeeConfigs.sessionId, costBreakdown: sessionFeeConfigs.costBreakdown })
+    .from(sessionFeeConfigs)
+    .where(inArray(sessionFeeConfigs.sessionId, activeSessions.map((session) => session.id)))
+  const feeConfigBySession = new Map(feeConfigs.map((config) => [config.sessionId, config]))
   const sessions = await Promise.all(activeSessions.map(async (session) => ({
     session,
     access: await getRegistrationAccess(session.id, auth.user.id),
     registrationStatus: await getRegistrationStatus(session.id, auth.user.id),
-    feeConfig: (await db.select({ costBreakdown: sessionFeeConfigs.costBreakdown }).from(sessionFeeConfigs).where(eq(sessionFeeConfigs.sessionId, session.id)).limit(1))[0] || null
+    feeConfig: feeConfigBySession.get(session.id) || null
   })))
 
   return (

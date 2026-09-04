@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { isUserAdmin, userSession } from '@/lib/user-session'
 import BrandLogo from './BrandLogo'
+import Link from 'next/link'
 
 export default function TopBar() {
   const { user, signOut, isEmulating, exitEmulation } = useAuth()
@@ -79,21 +80,21 @@ export default function TopBar() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <a href="/" className="shrink-0">
+            <Link href="/" className="shrink-0">
               <BrandLogo variant="horizontal" width={150} alt="DVCLC home" />
-            </a>
+            </Link>
             <div className="hidden sm:flex items-center gap-2">
               {mainNav.map((item) => {
                 const active = pathname.startsWith(item.href)
                 return (
-                  <a
+                  <Link
                     key={item.href}
                     href={item.href}
                     className={`px-3 py-2 text-sm font-medium rounded-md ${active ? 'bg-gray-900 text-white' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                       }`}
                   >
                     {item.label}
-                  </a>
+                  </Link>
                 )
               })}
               <div className="relative">
@@ -107,13 +108,13 @@ export default function TopBar() {
                   <div className="absolute left-0 mt-2 w-56 rounded-md border border-gray-200 bg-white shadow-lg z-50">
                     <div className="py-2">
                       {moreNav.map((item) => (
-                        <a
+                        <Link
                           key={item.href}
                           href={item.href}
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         >
                           {item.label}
-                        </a>
+                        </Link>
                       ))}
                     </div>
                   </div>
@@ -148,23 +149,23 @@ export default function TopBar() {
         <div className="sm:hidden border-t border-gray-200 px-4 pb-4">
           <div className="grid gap-2 pt-3">
             {mainNav.map((item) => (
-              <a
+              <Link
                 key={item.href}
                 href={item.href}
                 className="px-3 py-2 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-100"
               >
                 {item.label}
-              </a>
+              </Link>
             ))}
             <div className="border-t border-gray-200 pt-2 mt-2">
               {moreNav.map((item) => (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   className="block px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
                 >
                   {item.label}
-                </a>
+                </Link>
               ))}
             </div>
           </div>

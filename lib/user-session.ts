@@ -24,6 +24,7 @@ class UserSessionManager {
   private cachedData: UserSessionData | null = null
 
   private constructor() {}
+  private refreshPromise: Promise<UserSessionData | null> | null = null
 
   static getInstance(): UserSessionManager {
     if (!UserSessionManager.instance) {
@@ -100,20 +101,26 @@ class UserSessionManager {
   // Force refresh of user data
   async refreshUserData(): Promise<UserSessionData | null> {
     if (typeof window === 'undefined') return null
+    if (this.refreshPromise) return this.refreshPromise
 
-    try {
-      const response = await fetch('/api/user/session-data')
-      if (!response.ok) {
-        throw new Error('Failed to fetch user data')
+    this.refreshPromise = (async () => {
+      try {
+        const response = await fetch('/api/user/session-data')
+        if (!response.ok) {
+          throw new Error('Failed to fetch user data')
+        }
+
+        const userData = await response.json()
+        this.setUserData(userData)
+        return this.getUserData()
+      } catch (error) {
+        console.error('Failed to refresh user data:', error)
+        return null
+      } finally {
+        this.refreshPromise = null
       }
-
-      const userData = await response.json()
-      this.setUserData(userData)
-      return this.getUserData()
-    } catch (error) {
-      console.error('Failed to refresh user data:', error)
-      return null
-    }
+    })()
+    return this.refreshPromise
   }
 }
 

@@ -38,14 +38,14 @@ export async function POST(request: Request) {
 
 export async function DELETE(
   request: Request,
-  { params }: { params: Promise<{ guardianId: string }> }
+  { params }: { params: Promise<unknown> }
 ) {
   try {
     const auth = await getAuthenticatedUserSession()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const currentGuardian = await getGuardianById(auth.session.user.id)
-    const { guardianId } = await params
+    const { guardianId } = await params as { guardianId: string }
     const targetGuardian = await getGuardianById(guardianId)
     if (!currentGuardian || !targetGuardian || currentGuardian.familyId !== targetGuardian.familyId) {
       return NextResponse.json({ error: 'Guardian not found' }, { status: 404 })

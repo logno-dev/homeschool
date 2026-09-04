@@ -2,6 +2,7 @@ import { getAuthenticatedUser, checkAdminRole } from '@/lib/server-auth'
 import { fetchCalendarEvents, getNextUpcomingEvent } from '@/lib/events'
 import FeesSummary from '@/app/components/FeesSummary'
 import NextEvent from '@/app/components/NextEvent'
+import Link from 'next/link'
 
 export default async function Dashboard() {
   // Server-side authentication and role checking
@@ -62,18 +63,18 @@ export default async function Dashboard() {
               Stay on top of registration windows, volunteer commitments, and payments. Use the shortcuts below to jump into today’s most common tasks.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
-              <a
+              <Link
                 href="/registration"
                 className="bg-white/90 !text-slate-900 px-5 py-2.5 rounded-md text-sm font-semibold hover:bg-white border border-white/60 shadow-sm"
               >
                 Open Registration
-              </a>
-              <a
+              </Link>
+              <Link
                 href="/family/payments"
                 className="border border-slate-400 text-slate-100 px-5 py-2.5 rounded-md text-sm font-semibold hover:border-white"
               >
                 View Payments
-              </a>
+              </Link>
             </div>
           </div>
           <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-slate-600/30 blur-2xl" />
@@ -86,12 +87,12 @@ export default async function Dashboard() {
               <div key={action.title} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
                 <h3 className="text-lg font-semibold text-slate-900">{action.title}</h3>
                 <p className="mt-2 text-sm text-slate-600">{action.description}</p>
-                <a
+                <Link
                   href={action.href}
                   className={`mt-4 inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white rounded-md ${action.tone}`}
                 >
                   Go to {action.title}
-                </a>
+                </Link>
               </div>
             ))}
           </div>
@@ -112,13 +113,13 @@ export default async function Dashboard() {
             <div key={action.title} className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-slate-900">{action.title}</h3>
               <p className="mt-2 text-sm text-slate-600">{action.description}</p>
-              <a
+              <Link
                 href={action.href}
                 className="mt-4 inline-flex items-center text-sm font-semibold text-slate-900 hover:text-slate-700"
               >
                 Visit {action.title}
                 <span className="ml-2">→</span>
-              </a>
+              </Link>
             </div>
           ))}
           {isAdmin && (
@@ -128,12 +129,12 @@ export default async function Dashboard() {
               <p className="mt-2 text-sm text-slate-600">
                 Review registrations, manage volunteers, and oversee reporting.
               </p>
-              <a
+              <Link
                 href="/admin"
                 className="mt-4 inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-purple-600 rounded-md hover:bg-purple-700"
               >
                 Open Admin Panel
-              </a>
+              </Link>
             </div>
           )}
         </section>
