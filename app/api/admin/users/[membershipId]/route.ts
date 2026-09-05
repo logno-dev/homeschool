@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { authAccounts, authSessions, userGroupMemberships, userGroups, users } from '@/lib/schema'
+import { authAccounts, authSessions, userGroupMemberships, userGroups, users, userDocuments } from '@/lib/schema'
 import { createSessionForUser } from '@/lib/auth-server'
 
 export async function GET(
@@ -23,11 +23,13 @@ export async function GET(
       .innerJoin(userGroups, eq(userGroupMemberships.groupId, userGroups.id))
       .where(eq(userGroupMemberships.userId, membershipId))
     const groups = await db.select().from(userGroups)
+    const documents = await db.select({ id: userDocuments.id, filename: userDocuments.filename, documentType: userDocuments.documentType, blobUrl: userDocuments.blobUrl, size: userDocuments.size, createdAt: userDocuments.createdAt }).from(userDocuments).where(eq(userDocuments.userId, membershipId)).orderBy(userDocuments.createdAt)
 
     return NextResponse.json({
       user: { ...user, email: account?.email || user.email, status: account?.isActive ? 'active' : 'inactive' },
       groups,
       memberships: memberships.map(({ group }) => group.id)
+      , documents
     })
   } catch (error) {
     console.error('Error loading user details:', error)

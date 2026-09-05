@@ -483,6 +483,18 @@ export const users = sqliteTable('users', {
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const userDocuments = sqliteTable('user_documents', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  familyId: text('family_id').references(() => families.id, { onDelete: 'set null' }),
+  filename: text('filename').notNull(),
+  documentType: text('document_type').notNull(),
+  blobUrl: text('blob_url').notNull(),
+  pathname: text('pathname').notNull(),
+  size: integer('size').notNull(),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
 export const userAcknowledgements = sqliteTable('user_acknowledgements', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

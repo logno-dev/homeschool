@@ -343,6 +343,7 @@ async function handleConfirmation(request: NextRequest) {
         totalAmount: Number(fee.totalFee || 0),
         amountPaid: Number(fee.paidAmount || 0) + metadata.paymentAmountCents / 100,
         balanceDue: Math.max(0, Number(fee.totalFee || 0) - Number(fee.paidAmount || 0) - metadata.paymentAmountCents / 100)
+        , userId: guardian.id, familyId: guardian.familyId
       })
     }
   }

@@ -38,7 +38,9 @@ export async function POST(
       totalAmount: fee.totalFee,
       amountPaid: fee.paidAmount,
       balanceDue: Math.max(0, fee.totalFee - fee.paidAmount),
-      dueDate: fee.dueDate
+      dueDate: fee.dueDate,
+      userId: guardian.id,
+      familyId: guardian.familyId
     })
     return NextResponse.json({ success: true })
   } catch (error) {

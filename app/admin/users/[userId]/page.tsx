@@ -8,12 +8,13 @@ import IndividualEmailComposer from '@/app/admin/newsletters/IndividualEmailComp
 
 interface Group { id: string; name: string; slug: string; isSystem: boolean }
 interface UserDetails { id: string; email: string; firstName: string; lastName: string; role: string; status: string }
+interface UserDocument { id: string; filename: string; documentType: string; blobUrl: string; size: number; createdAt: string }
 
 export default function AdminUserDetailsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const params = useParams<{ userId: string }>()
-  const [details, setDetails] = useState<{ user: UserDetails; groups: Group[]; memberships: string[] } | null>(null)
+  const [details, setDetails] = useState<{ user: UserDetails; groups: Group[]; memberships: string[]; documents: UserDocument[] } | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [temporaryPassword, setTemporaryPassword] = useState('')
@@ -118,6 +119,8 @@ export default function AdminUserDetailsPage() {
             </div>
           </section>
           <IndividualEmailComposer users={[details.user]} aliases={senderAliases} initialUserId={details.user.id} />
+
+          <section className="mt-8 border-t pt-6"><h2 className="text-lg font-semibold text-gray-900">Documents</h2><p className="mt-1 text-sm text-gray-600">Invoices and billing statements generated for this user.</p>{details.documents.length ? <div className="mt-4 divide-y rounded-md border">{details.documents.map((document) => <div key={document.id} className="flex items-center justify-between gap-4 px-4 py-3"><div><a href={document.blobUrl} target="_blank" rel="noreferrer" className="font-medium text-blue-600 hover:text-blue-800">{document.filename}</a><p className="text-xs text-gray-500">{document.documentType.replace('_', ' ')} · {new Date(document.createdAt).toLocaleString()}</p></div><span className="text-xs text-gray-500">{Math.ceil(document.size / 1024)} KB</span></div>)}</div> : <p className="mt-4 text-sm text-gray-500">No generated documents.</p>}</section>
 
           <section className="mt-8 border-t pt-6">
             <h2 className="text-lg font-semibold text-gray-900">User Groups</h2>
