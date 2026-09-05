@@ -7,6 +7,7 @@ import AdminLayout from '../../components/AdminLayout'
 import { useToast } from '../../components/ToastContainer'
 import { APP_TIMEZONES, DEFAULT_APP_TIMEZONE } from '@/lib/timezones'
 import NotificationSettingsPanel from '@/app/components/NotificationSettingsPanel'
+import InvoiceDetailsPanel from '@/app/components/InvoiceDetailsPanel'
 
 interface SettingsState {
   incrementDate: string
@@ -22,6 +23,16 @@ interface SettingsState {
   emailSubjects: Record<string, string>
   supervisionFormUrl: string
   supervisionFormFilename: string
+  invoiceOrganizationName: string
+  invoiceOrganizationAddress: string
+  invoiceOrganizationCity: string
+  invoiceOrganizationState: string
+  invoiceOrganizationPostalCode: string
+  invoiceOrganizationPhone: string
+  invoiceOrganizationEmail: string
+  invoiceOrganizationWebsite: string
+  invoicePaymentInstructions: string
+  invoiceDonationStatement: string
 }
 
 interface Handbook {
@@ -39,7 +50,7 @@ export default function AdminSettingsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const { showSuccess, showError } = useToast()
-  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {}, emailTemplates: {}, emailSubjects: {}, supervisionFormUrl: '', supervisionFormFilename: '' })
+  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {}, emailTemplates: {}, emailSubjects: {}, supervisionFormUrl: '', supervisionFormFilename: '', invoiceOrganizationName: '', invoiceOrganizationAddress: '', invoiceOrganizationCity: '', invoiceOrganizationState: '', invoiceOrganizationPostalCode: '', invoiceOrganizationPhone: '', invoiceOrganizationEmail: '', invoiceOrganizationWebsite: '', invoicePaymentInstructions: '', invoiceDonationStatement: '' })
   const [handbooks, setHandbooks] = useState<Handbook[]>([])
   const [handbookVersion, setHandbookVersion] = useState('')
   const [handbookFile, setHandbookFile] = useState<File | null>(null)
@@ -50,7 +61,7 @@ export default function AdminSettingsPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [isUploadingSupervisionForm, setIsUploadingSupervisionForm] = useState(false)
   const [isPublishing, setIsPublishing] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'general' | 'notifications'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'notifications' | 'invoices'>('general')
 
   useEffect(() => {
     if (loading) return
@@ -79,7 +90,17 @@ export default function AdminSettingsPage() {
            , emailTemplates: result.emailTemplates || {}
            , emailSubjects: result.emailSubjects || {}
           , supervisionFormUrl: result.supervisionFormUrl || ''
-          , supervisionFormFilename: result.supervisionFormFilename || ''
+           , supervisionFormFilename: result.supervisionFormFilename || ''
+           , invoiceOrganizationName: result.invoiceOrganizationName || ''
+           , invoiceOrganizationAddress: result.invoiceOrganizationAddress || ''
+           , invoiceOrganizationCity: result.invoiceOrganizationCity || ''
+           , invoiceOrganizationState: result.invoiceOrganizationState || ''
+           , invoiceOrganizationPostalCode: result.invoiceOrganizationPostalCode || ''
+           , invoiceOrganizationPhone: result.invoiceOrganizationPhone || ''
+           , invoiceOrganizationEmail: result.invoiceOrganizationEmail || ''
+           , invoiceOrganizationWebsite: result.invoiceOrganizationWebsite || ''
+           , invoicePaymentInstructions: result.invoicePaymentInstructions || ''
+           , invoiceDonationStatement: result.invoiceDonationStatement || ''
         })
         const handbooksResponse = await fetch('/api/admin/handbooks')
         if (handbooksResponse.ok) {
@@ -113,6 +134,7 @@ export default function AdminSettingsPage() {
            , emailReplyTos: settings.emailReplyTos
            , emailTemplates: settings.emailTemplates
            , emailSubjects: settings.emailSubjects
+           , ...Object.fromEntries(Object.entries(settings).filter(([key]) => key.startsWith('invoice')))
         })
       })
       const result = await response.json()
@@ -227,7 +249,7 @@ export default function AdminSettingsPage() {
                 Configure system-wide policies like grade advancement.
               </p>
             </div>
-            <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1"><button type="button" onClick={() => setActiveTab('general')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'general' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>General</button><button type="button" onClick={() => setActiveTab('notifications')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'notifications' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Notifications</button></div>
+             <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1"><button type="button" onClick={() => setActiveTab('general')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'general' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>General</button><button type="button" onClick={() => setActiveTab('notifications')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'notifications' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Notifications</button><button type="button" onClick={() => setActiveTab('invoices')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'invoices' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Invoices and Receipts</button></div>
 
             {isLoading ? (
               <div className="text-center py-8">
@@ -236,6 +258,8 @@ export default function AdminSettingsPage() {
               </div>
             ) : activeTab === 'notifications' ? (
               <NotificationSettingsPanel settings={settings} setSettings={(updater) => setSettings((current) => ({ ...current, ...updater(current) }))} onSave={handleSave} isSaving={isSaving} />
+            ) : activeTab === 'invoices' ? (
+              <InvoiceDetailsPanel details={settings} setDetails={(updater) => setSettings((current) => ({ ...current, ...updater(current) }))} onSave={handleSave} isSaving={isSaving} />
             ) : (
               <div className="space-y-4">
                 <div>

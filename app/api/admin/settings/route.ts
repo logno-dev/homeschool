@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const [settings, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, supervisionFormUrl, supervisionFormFilename, appTimezone, senderAliases, ...senderSettings] = await Promise.all([
+  const [settings, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, supervisionFormUrl, supervisionFormFilename, appTimezone, senderAliases, invoiceOrganizationName, invoiceOrganizationAddress, invoiceOrganizationCity, invoiceOrganizationState, invoiceOrganizationPostalCode, invoiceOrganizationPhone, invoiceOrganizationEmail, invoiceOrganizationWebsite, invoicePaymentInstructions, invoiceDonationStatement, ...senderSettings] = await Promise.all([
       getGradeIncrementSettings(),
       getGlobalSetting('registration_notification_emails'),
       getGlobalSetting('class_request_notification_emails'),
@@ -25,6 +25,7 @@ export async function GET() {
       getGlobalSetting('supervision_form_filename'),
       getGlobalSetting('app_timezone'),
       getGlobalSetting('email_sender_aliases'),
+      ...['invoiceOrganizationName', 'invoiceOrganizationAddress', 'invoiceOrganizationCity', 'invoiceOrganizationState', 'invoiceOrganizationPostalCode', 'invoiceOrganizationPhone', 'invoiceOrganizationEmail', 'invoiceOrganizationWebsite', 'invoicePaymentInstructions', 'invoiceDonationStatement'].map((key) => getGlobalSetting(key)),
        ...EMAIL_TYPES.flatMap((type) => [getGlobalSetting(`email_sender_${type}`), getGlobalSetting(`email_reply_to_${type}`)])
     ])
     return NextResponse.json({
@@ -42,6 +43,7 @@ export async function GET() {
        emailReplyTos: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 2 + 1] || ''])),
        emailTemplates: Object.fromEntries(await Promise.all(NOTIFICATION_TYPES.map(async (type) => [type, await getGlobalSetting(`email_template_${type}`) || ''] as const))),
        emailSubjects: Object.fromEntries(await Promise.all(NOTIFICATION_TYPES.map(async (type) => [type, await getGlobalSetting(`email_subject_${type}`) || ''] as const)))
+       , invoiceOrganizationName: invoiceOrganizationName || '', invoiceOrganizationAddress: invoiceOrganizationAddress || '', invoiceOrganizationCity: invoiceOrganizationCity || '', invoiceOrganizationState: invoiceOrganizationState || '', invoiceOrganizationPostalCode: invoiceOrganizationPostalCode || '', invoiceOrganizationPhone: invoiceOrganizationPhone || '', invoiceOrganizationEmail: invoiceOrganizationEmail || '', invoiceOrganizationWebsite: invoiceOrganizationWebsite || '', invoicePaymentInstructions: invoicePaymentInstructions || '', invoiceDonationStatement: invoiceDonationStatement || ''
     })
   } catch (error) {
     console.error('Error loading admin settings:', error)
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const body = await request.json()
+     const body = await request.json()
     const { gradeIncrementDate, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone, emailSenderAliases, emailSenders, emailReplyTos, emailTemplates, emailSubjects, runIncrementNow } = body
 
     if (runIncrementNow) {
@@ -98,9 +100,12 @@ export async function POST(request: Request) {
     if (emailTemplates !== undefined && (typeof emailTemplates !== 'object' || emailTemplates === null || Object.entries(emailTemplates).some(([type, template]) => !NOTIFICATION_TYPES.includes(type as NotificationType) || typeof template !== 'string'))) {
       return NextResponse.json({ error: 'emailTemplates contains an invalid notification type or template' }, { status: 400 })
     }
-    if (emailSubjects !== undefined && (typeof emailSubjects !== 'object' || emailSubjects === null || Object.entries(emailSubjects).some(([type, subject]) => !NOTIFICATION_TYPES.includes(type as NotificationType) || typeof subject !== 'string'))) {
+     if (emailSubjects !== undefined && (typeof emailSubjects !== 'object' || emailSubjects === null || Object.entries(emailSubjects).some(([type, subject]) => !NOTIFICATION_TYPES.includes(type as NotificationType) || typeof subject !== 'string'))) {
       return NextResponse.json({ error: 'emailSubjects contains an invalid notification type or subject' }, { status: 400 })
-    }
+     }
+
+     const invoiceKeys = ['invoiceOrganizationName', 'invoiceOrganizationAddress', 'invoiceOrganizationCity', 'invoiceOrganizationState', 'invoiceOrganizationPostalCode', 'invoiceOrganizationPhone', 'invoiceOrganizationEmail', 'invoiceOrganizationWebsite', 'invoicePaymentInstructions', 'invoiceDonationStatement']
+     for (const key of invoiceKeys) if (body[key] !== undefined && typeof body[key] !== 'string') return NextResponse.json({ error: `${key} must be a string` }, { status: 400 })
 
     if (handbookUrl !== undefined && typeof handbookUrl !== 'string') {
       return NextResponse.json({ error: 'handbookUrl must be a PDF URL' }, { status: 400 })
@@ -157,7 +162,8 @@ export async function POST(request: Request) {
     if (emailSenders !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_sender_${type}`, emailSenders[type] || null)))
     if (emailReplyTos !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_reply_to_${type}`, emailReplyTos[type] || null)))
     if (emailTemplates !== undefined) await Promise.all(NOTIFICATION_TYPES.map((type) => setGlobalSetting(`email_template_${type}`, emailTemplates[type] || null)))
-    if (emailSubjects !== undefined) await Promise.all(NOTIFICATION_TYPES.map((type) => setGlobalSetting(`email_subject_${type}`, emailSubjects[type] || null)))
+     if (emailSubjects !== undefined) await Promise.all(NOTIFICATION_TYPES.map((type) => setGlobalSetting(`email_subject_${type}`, emailSubjects[type] || null)))
+     await Promise.all(invoiceKeys.filter((key) => body[key] !== undefined).map((key) => setGlobalSetting(key, body[key] || null)))
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error saving admin settings:', error)

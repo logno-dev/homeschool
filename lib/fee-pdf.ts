@@ -1,4 +1,4 @@
-type FeePdfInput = { title: string; familyName: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string }
+type FeePdfInput = { title: string; familyName: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; documentNumber?: string; issueDate?: string; organization?: string; organizationAddress?: string; organizationContact?: string; footer?: string }
 
 function pdfText(value: string) { return value.replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)') }
 function wrap(value: string, length = 78) {
@@ -12,7 +12,7 @@ function wrap(value: string, length = 78) {
 }
 
 export function createFeePdf(input: FeePdfInput): string {
-  const lines = [input.title, '', `Family: ${input.familyName}`, `Session: ${input.sessionName}`, '', `Total: $${input.totalAmount.toFixed(2)}`, `Amount paid: $${input.amountPaid.toFixed(2)}`, `Balance due: $${input.balanceDue.toFixed(2)}`, ...(input.dueDate ? [`Due date: ${input.dueDate}`] : [])].flatMap((line) => line ? wrap(line) : [''])
+  const lines = [input.title, input.organization || '', input.organizationAddress || '', input.organizationContact || '', `Issue date: ${input.issueDate || new Date().toLocaleDateString('en-US')}`, ...(input.documentNumber ? [`Document number: ${input.documentNumber}`] : []), '', `Bill to: ${input.familyName}`, `Session: ${input.sessionName}`, '', `Total: $${input.totalAmount.toFixed(2)}`, `Amount paid: $${input.amountPaid.toFixed(2)}`, `Balance due: $${input.balanceDue.toFixed(2)}`, ...(input.dueDate ? [`Due date: ${input.dueDate}`] : []), ...(input.footer ? ['', input.footer] : [])].flatMap((line) => line ? wrap(line) : [''])
   const commands = ['BT', '/F1 18 Tf', '72 740 Td', `(${pdfText(lines[0])}) Tj`, '/F1 11 Tf']
   for (const line of lines.slice(1)) commands.push('0 -20 Td', `(${pdfText(line)}) Tj`)
   commands.push('ET')
