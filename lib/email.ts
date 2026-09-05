@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { globalSettings } from '@/lib/schema'
 import { type EmailType } from '@/lib/email-types'
+import { createFeePdf } from '@/lib/fee-pdf'
 
 async function getEmailContent(type: EmailType, fallbackHtml: string, fallbackText: string, variables: Record<string, string>, rawHtmlVariables: string[] = []) {
   const [setting] = await db.select({ value: globalSettings.value }).from(globalSettings).where(eq(globalSettings.key, `email_template_${type}`)).limit(1)
@@ -83,6 +84,7 @@ async function sendEmail(input: {
   replyToAlias?: string
   cc?: string[]
   bcc?: string[]
+  attachments?: Array<{ filename: string; content: string }>
 }): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY
   const from = await getConfiguredSender(input.type, input.senderAlias)
@@ -107,6 +109,7 @@ async function sendEmail(input: {
       subject: input.subject,
       html: input.html,
       text: input.text
+      , ...(input.attachments?.length ? { attachments: input.attachments } : {})
     })
   })
 
@@ -279,14 +282,14 @@ export async function sendPaymentConfirmationEmail(input: PaymentNotificationEma
   const statement = input.billingStatement || statementHtml({ ...input, paid: true })
   const variables = { firstName: input.firstName, familyName: input.familyName, sessionName: input.sessionName, billingStatement: statement, totalAmount: `$${input.totalAmount.toFixed(2)}`, amountPaid: `$${input.amountPaid.toFixed(2)}`, balanceDue: `$${input.balanceDue.toFixed(2)}` }
   const content = await getEmailContent('payment_confirmation', `<div><p>Hello ${escapeHtml(input.firstName)},</p><p>Your payment has been received.</p>${statement}</div>`, `Hello ${input.firstName},\n\nYour payment has been received.\nTotal: $${input.totalAmount.toFixed(2)}\nPaid: $${input.amountPaid.toFixed(2)}\nBalance: $${input.balanceDue.toFixed(2)}`, variables, ['billingStatement'])
-  await sendEmail({ to: input.to, subject: await getEmailSubject('payment_confirmation', 'DVCLC payment confirmation', variables), html: content.html, text: content.text, type: 'payment_confirmation' })
+  await sendEmail({ to: input.to, subject: await getEmailSubject('payment_confirmation', 'DVCLC payment confirmation', variables), html: content.html, text: content.text, type: 'payment_confirmation', attachments: [{ filename: 'DVCLC-Billing-Statement.pdf', content: createFeePdf({ title: 'DVCLC Billing Statement', familyName: input.familyName, sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue }) }] })
 }
 
 export async function sendPaymentInvoiceEmail(input: PaymentNotificationEmailInput) {
   const invoice = input.invoice || statementHtml({ ...input, paid: false })
   const variables = { firstName: input.firstName, familyName: input.familyName, sessionName: input.sessionName, invoice, totalAmount: `$${input.totalAmount.toFixed(2)}`, amountPaid: `$${input.amountPaid.toFixed(2)}`, balanceDue: `$${input.balanceDue.toFixed(2)}`, dueDate: input.dueDate || '' }
   const content = await getEmailContent('payment_invoice', `<div><p>Hello ${escapeHtml(input.firstName)},</p><p>Your registration invoice is ready.</p>${invoice}</div>`, `Hello ${input.firstName},\n\nYour registration invoice is ready.\nBalance due: $${input.balanceDue.toFixed(2)}`, variables, ['invoice'])
-  await sendEmail({ to: input.to, subject: await getEmailSubject('payment_invoice', 'DVCLC registration invoice', variables), html: content.html, text: content.text, type: 'payment_invoice' })
+  await sendEmail({ to: input.to, subject: await getEmailSubject('payment_invoice', 'DVCLC registration invoice', variables), html: content.html, text: content.text, type: 'payment_invoice', attachments: [{ filename: 'DVCLC-Invoice.pdf', content: createFeePdf({ title: 'DVCLC Invoice', familyName: input.familyName, sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue, dueDate: input.dueDate }) }] })
 }
 
 export async function sendDonationConfirmationEmail(input: DonationConfirmationEmailInput) {
