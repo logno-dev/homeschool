@@ -134,7 +134,9 @@ export async function POST(request: NextRequest) {
       firstName: guardian.firstName,
       familyName: guardian.lastName,
       donationAmount,
-      billingStatement: `<p>Donation amount: $${donationAmount.toFixed(2)}</p>`
+      billingStatement: `<p>Donation amount: $${donationAmount.toFixed(2)}</p>`,
+      userId: guardian.id,
+      familyId: guardian.familyId
     })
 
     return NextResponse.json({ success: true })

@@ -23,7 +23,12 @@ export async function GET(
       .innerJoin(userGroups, eq(userGroupMemberships.groupId, userGroups.id))
       .where(eq(userGroupMemberships.userId, membershipId))
     const groups = await db.select().from(userGroups)
-    const documents = await db.select({ id: userDocuments.id, filename: userDocuments.filename, documentType: userDocuments.documentType, blobUrl: userDocuments.blobUrl, size: userDocuments.size, createdAt: userDocuments.createdAt }).from(userDocuments).where(eq(userDocuments.userId, membershipId)).orderBy(userDocuments.createdAt)
+    let documents: Array<{ id: string; filename: string; documentType: string; blobUrl: string; size: number; createdAt: string }> = []
+    try {
+      documents = await db.select({ id: userDocuments.id, filename: userDocuments.filename, documentType: userDocuments.documentType, blobUrl: userDocuments.blobUrl, size: userDocuments.size, createdAt: userDocuments.createdAt }).from(userDocuments).where(eq(userDocuments.userId, membershipId)).orderBy(userDocuments.createdAt)
+    } catch (error) {
+      console.error('Unable to load user documents. Apply the user_documents migration:', error)
+    }
 
     return NextResponse.json({
       user: { ...user, email: account?.email || user.email, status: account?.isActive ? 'active' : 'inactive' },
