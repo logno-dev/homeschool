@@ -9,10 +9,12 @@ interface PaymentRecord {
   paymentMethod: string
   notes: string | null
   sessionName: string
-  sessionId: string
+  sessionId: string | null
   totalFee: number
   registrationFee: number
   classFees: number
+  paymentType: 'fee' | 'donation'
+  document: { filename: string; blobUrl: string } | null
 }
 
 export default function PaymentHistory() {
@@ -117,7 +119,7 @@ export default function PaymentHistory() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex-1">
                 <div className="flex items-center space-x-2 mb-1">
-                  <span className="font-medium text-gray-900">{payment.sessionName}</span>
+                  <span className="font-medium text-gray-900">{payment.paymentType === 'donation' ? 'Scholarship Fund Donation' : payment.sessionName}</span>
                   <span className="text-sm text-gray-500">•</span>
                   <span className="text-sm text-gray-600">{getPaymentMethodDisplay(payment.paymentMethod)}</span>
                 </div>
@@ -129,6 +131,7 @@ export default function PaymentHistory() {
                     {payment.notes}
                   </div>
                 )}
+                {payment.document && <a href={payment.document.blobUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm font-medium text-blue-600 hover:text-blue-800">View {payment.paymentType === 'donation' ? 'receipt' : 'billing statement'} PDF</a>}
               </div>
               <div className="text-left sm:text-right">
                 <div className="text-lg font-bold text-green-600">

@@ -5,9 +5,11 @@ import {
   feePayments, 
   familySessionFees, 
   families, 
-  sessions 
+  sessions,
+  userDocuments,
+  users
 } from '@/lib/schema'
-import { eq, desc, sql } from 'drizzle-orm'
+import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 
 export async function GET(request: NextRequest) {
@@ -64,7 +66,22 @@ export async function GET(request: NextRequest) {
       0
     )
 
-    return NextResponse.json({ payments: transformedPayments, outstandingBalance })
+    let billingDocuments: Array<{ id: string; filename: string; documentType: string; blobUrl: string; size: number; createdAt: string; userId: string; userName: string; familyName: string | null }> = []
+    try {
+      billingDocuments = await db.select({
+        id: userDocuments.id, filename: userDocuments.filename, documentType: userDocuments.documentType,
+        blobUrl: userDocuments.blobUrl, size: userDocuments.size, createdAt: userDocuments.createdAt,
+        userId: userDocuments.userId, userName: sql<string>`${users.firstName} || ' ' || ${users.lastName}`,
+        familyName: families.name
+      }).from(userDocuments)
+        .innerJoin(users, eq(userDocuments.userId, users.id))
+        .leftJoin(families, eq(userDocuments.familyId, families.id))
+        .where(inArray(userDocuments.documentType, ['billing_statement', 'invoice', 'donation_receipt']))
+        .orderBy(desc(userDocuments.createdAt))
+    } catch (error) {
+      console.error('Unable to load billing documents. Apply the user_documents migration:', error)
+    }
+    return NextResponse.json({ payments: transformedPayments, outstandingBalance, billingDocuments })
   } catch (error) {
     console.error('Error fetching payments:', error)
     return NextResponse.json(

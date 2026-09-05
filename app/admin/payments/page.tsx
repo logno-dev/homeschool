@@ -52,6 +52,7 @@ interface FeeOverpayment {
   sessionName: string
   amount: number
 }
+interface BillingDocument { id: string; filename: string; documentType: string; blobUrl: string; size: number; createdAt: string; userId: string; userName: string; familyName: string | null }
 
 interface ClassFeeSummary {
   classTeachingRequestId: string
@@ -73,7 +74,8 @@ export default function PaymentsPage() {
   const [outstandingBalance, setOutstandingBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'family' | 'classFees' | 'reimbursements'>('family')
+  const [activeTab, setActiveTab] = useState<'family' | 'classFees' | 'reimbursements' | 'documents'>('family')
+  const [billingDocuments, setBillingDocuments] = useState<BillingDocument[]>([])
   const [classFeeSummaries, setClassFeeSummaries] = useState<ClassFeeSummary[]>([])
   const [reimbursements, setReimbursements] = useState<TeacherReimbursement[]>([])
   const [overpayments, setOverpayments] = useState<FeeOverpayment[]>([])
@@ -135,6 +137,7 @@ export default function PaymentsPage() {
       const data = await response.json()
        setPayments(data.payments || data)
        setOutstandingBalance(data.outstandingBalance || 0)
+       setBillingDocuments(data.billingDocuments || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred')
     } finally {
@@ -527,6 +530,7 @@ export default function PaymentsPage() {
             >
               Teacher Reimbursements
             </button>
+            <button type="button" onClick={() => setActiveTab('documents')} className={`px-4 py-2 rounded-md text-sm font-medium border ${activeTab === 'documents' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>Billing Documents</button>
           </div>
         </div>
 
@@ -788,6 +792,14 @@ export default function PaymentsPage() {
               )}
             </div>
           </>
+        )}
+
+        {activeTab === 'documents' && (
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-lg font-semibold text-gray-900">Billing Documents</h2>
+            <p className="mt-1 text-sm text-gray-600">Invoices, paid billing statements, and donation receipts generated for families.</p>
+            {billingDocuments.length ? <div className="mt-4 overflow-x-auto"><table className="min-w-full divide-y divide-gray-200"><thead><tr><th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Document</th><th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Family / User</th><th className="px-3 py-2 text-left text-xs font-medium uppercase text-gray-500">Created</th><th className="px-3 py-2 text-right text-xs font-medium uppercase text-gray-500">Size</th></tr></thead><tbody className="divide-y divide-gray-200">{billingDocuments.map((document) => <tr key={document.id}><td className="px-3 py-3"><a href={document.blobUrl} target="_blank" rel="noreferrer" className="font-medium text-blue-600 hover:text-blue-800">{document.filename}</a><div className="text-xs text-gray-500">{document.documentType.replace('_', ' ')}</div></td><td className="px-3 py-3 text-sm text-gray-700">{document.familyName || 'No family'}<div className="text-xs text-gray-500">{document.userName}</div></td><td className="px-3 py-3 text-sm text-gray-600">{new Date(document.createdAt).toLocaleString()}</td><td className="px-3 py-3 text-right text-sm text-gray-600">{Math.ceil(document.size / 1024)} KB</td></tr>)}</tbody></table></div> : <p className="mt-6 text-center text-sm text-gray-500">No billing documents have been generated yet.</p>}
+          </div>
         )}
 
         {activeTab === 'classFees' && (
