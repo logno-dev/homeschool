@@ -11,7 +11,8 @@ import {
   children,
   familyRegistrationStatus,
   sessions,
-  sessionVolunteerJobs
+  sessionVolunteerJobs,
+  familySessionFees
 } from '@/lib/schema'
 import { eq, and, inArray, or, gt, not } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
@@ -20,7 +21,7 @@ import { isGradeWithinRange } from '@/lib/grades'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
 import { getRegistrationAccess } from '@/lib/user-groups'
 import { getGlobalSetting } from '@/lib/database'
-import { sendRegistrationOverrideNotificationEmail } from '@/lib/email'
+import { sendRegistrationOverrideNotificationEmail, sendRegistrationConfirmationEmail } from '@/lib/email'
 
 interface PendingRegistration {
   scheduleId: string
@@ -1026,6 +1027,26 @@ export async function POST(request: Request) {
     } catch (feeError) {
       console.error('Error calculating fees:', feeError)
       // Don't fail the registration if fee calculation fails, just log it
+    }
+
+    try {
+      const [fee] = await db.select().from(familySessionFees).where(and(
+        eq(familySessionFees.sessionId, sessionId),
+        eq(familySessionFees.familyId, familyId)
+      )).limit(1)
+      if (fee) {
+        await sendRegistrationConfirmationEmail({
+          to: guardian[0].email,
+          firstName: guardian[0].firstName,
+          sessionName: sessionInfo.name,
+          classNames: (registrations || []).map((registration) => registration.className).join(', '),
+          totalAmount: fee.totalFee,
+          amountPaid: fee.paidAmount,
+          balanceDue: Math.max(0, fee.totalFee - fee.paidAmount)
+        })
+      }
+    } catch (emailError) {
+      console.error('Error sending registration confirmation:', emailError)
     }
 
     publishRegistrationUpdate(sessionId)

@@ -8,11 +8,14 @@ import {
   volunteerAssignments,
   schedules,
   classTeachingRequests,
-  children
+  children,
+  familySessionFees,
+  sessions
 } from '@/lib/schema'
 import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
+import { sendRegistrationConfirmationEmail } from '@/lib/email'
 
 export async function PATCH(
   request: NextRequest,
@@ -127,6 +130,45 @@ export async function PATCH(
         await createOrUpdateFamilySessionFee(overrideRequest.sessionId, overrideRequest.familyId)
       } catch (feeError) {
         console.error('Error calculating fees after override approval:', feeError)
+      }
+
+      try {
+        const [details] = await db.select({
+          email: guardians.email,
+          firstName: guardians.firstName,
+          sessionName: sessions.name,
+          totalFee: familySessionFees.totalFee,
+          paidAmount: familySessionFees.paidAmount
+        }).from(guardians)
+          .innerJoin(sessions, eq(sessions.id, overrideRequest.sessionId))
+          .leftJoin(familySessionFees, and(
+            eq(familySessionFees.familyId, overrideRequest.familyId),
+            eq(familySessionFees.sessionId, overrideRequest.sessionId)
+          ))
+          .where(eq(guardians.familyId, overrideRequest.familyId))
+          .limit(1)
+        const registrations = await db.select({ className: classTeachingRequests.className })
+          .from(classRegistrations)
+          .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
+          .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
+          .where(and(
+            eq(classRegistrations.familyId, overrideRequest.familyId),
+            eq(classRegistrations.sessionId, overrideRequest.sessionId),
+            eq(classRegistrations.status, 'registered')
+          ))
+        if (details) {
+          await sendRegistrationConfirmationEmail({
+            to: details.email,
+            firstName: details.firstName,
+            sessionName: details.sessionName,
+            classNames: registrations.map((registration) => registration.className).join(', '),
+            totalAmount: details.totalFee || 0,
+            amountPaid: details.paidAmount || 0,
+            balanceDue: Math.max(0, (details.totalFee || 0) - (details.paidAmount || 0))
+          })
+        }
+      } catch (emailError) {
+        console.error('Error sending override registration confirmation:', emailError)
       }
 
       return NextResponse.json({

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { scholarshipFundTransactions } from '@/lib/schema'
 import { randomUUID } from 'crypto'
 import { getGuardianById } from '@/lib/database'
+import { sendDonationConfirmationEmail } from '@/lib/email'
 import {
   capturePayPalOrder,
   getCaptureAmountCents,
@@ -126,6 +127,14 @@ export async function POST(request: NextRequest) {
       familyId: guardian.familyId,
       createdBy: guardian.id,
       notes: `Scholarship fund donation - Order ID: ${orderId}`
+    })
+
+    await sendDonationConfirmationEmail({
+      to: guardian.email,
+      firstName: guardian.firstName,
+      familyName: guardian.lastName,
+      donationAmount,
+      billingStatement: `<p>Donation amount: $${donationAmount.toFixed(2)}</p>`
     })
 
     return NextResponse.json({ success: true })

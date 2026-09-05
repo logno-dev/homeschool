@@ -257,7 +257,12 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
     window.location.reload()
   }
 
-  const handlePaymentDefer = () => {
+  const handlePaymentDefer = async () => {
+    if (pendingPaymentFee?.sessionId) {
+      await fetch(`/api/family/fees/${pendingPaymentFee.sessionId}/invoice`, { method: 'POST' }).catch((error) => {
+        console.error('Failed to send deferred payment invoice:', error)
+      })
+    }
     showError('Payment deferred', 'Your selections may not be guaranteed if payment is not completed promptly.')
     setShowPaymentModal(false)
     window.location.reload()

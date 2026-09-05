@@ -5,7 +5,8 @@ import { randomUUID } from 'crypto'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { getGuardianById } from '@/lib/database'
-import { familySessionFees, familyFeeCredits, feePayments, scholarshipFundTransactions } from '@/lib/schema'
+import { familySessionFees, familyFeeCredits, feePayments, scholarshipFundTransactions, sessions, families } from '@/lib/schema'
+import { sendPaymentConfirmationEmail } from '@/lib/email'
 import {
   capturePayPalOrder,
   getCaptureAmountCents,
@@ -323,6 +324,28 @@ async function handleConfirmation(request: NextRequest) {
     donationAmountCents: metadata.donationAmountCents
   })
   await recordFeePayment(familySessionFeeId, metadata, orderId, Number(creditAmount) || 0)
+
+  if (metadata.paymentAmountCents > 0) {
+    const [details] = await db
+      .select({ sessionName: sessions.name, familyName: families.name })
+      .from(familySessionFees)
+      .innerJoin(sessions, eq(familySessionFees.sessionId, sessions.id))
+      .innerJoin(families, eq(familySessionFees.familyId, families.id))
+      .where(eq(familySessionFees.id, familySessionFeeId))
+      .limit(1)
+    if (details) {
+      const fee = familyFee[0]
+      await sendPaymentConfirmationEmail({
+        to: guardian.email,
+        firstName: guardian.firstName,
+        familyName: details.familyName,
+        sessionName: details.sessionName,
+        totalAmount: Number(fee.totalFee || 0),
+        amountPaid: Number(fee.paidAmount || 0) + metadata.paymentAmountCents / 100,
+        balanceDue: Math.max(0, Number(fee.totalFee || 0) - Number(fee.paidAmount || 0) - metadata.paymentAmountCents / 100)
+      })
+    }
+  }
 
   return NextResponse.json({ success: true })
 }
