@@ -84,7 +84,7 @@ export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians, jobAs
           <p className="mt-2 text-gray-600">These volunteer opportunities are not tied to specific class hours. Click on any available position to sign up a parent/guardian.</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6">
           {volunteerJobs.map((job) => {
                   const assignments = getJobAssignments(job.id)
                   const assignmentKey = `${job.sessionVolunteerJobId}:non_period`

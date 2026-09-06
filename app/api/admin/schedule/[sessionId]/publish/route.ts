@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { updateScheduleStatus } from '@/lib/database'
+import { publishRegistrationUpdate } from '@/lib/registration-events'
 
 export async function POST(
   _request: NextRequest,
@@ -16,6 +17,7 @@ export async function POST(
 
     // Update schedule status to published
     await updateScheduleStatus(sessionId, 'published')
+    publishRegistrationUpdate(sessionId)
 
     return NextResponse.json({ 
       message: 'Schedule published successfully',

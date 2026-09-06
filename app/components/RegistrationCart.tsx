@@ -527,7 +527,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
           {/* Child Registrations */}
           {pendingRegistrations.length > 0 && (
             <div>
-              <h4 className="font-semibold text-gray-900 mb-3">Class Registrations</h4>
+               <h4 className="font-semibold text-gray-900 mb-3">Selected Classes</h4>
               <div className="space-y-3">
                 {pendingRegistrations.map((registration, index) => (
                   <div key={index} className="border rounded-lg p-3 bg-gray-50">
@@ -540,9 +540,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
                         <p className="text-sm text-gray-600">
                           {registration.teacher} • {registration.classroom}
                         </p>
-                        {registration.status === 'waitlisted' && (
-                          <p className="text-xs text-yellow-700 font-medium">Waitlist</p>
-                        )}
+                         <p className={`text-xs font-medium ${registration.status === 'waitlisted' ? 'text-yellow-700' : 'text-blue-700'}`}>{registration.status === 'waitlisted' ? 'Waitlisted - not enrolled unless a place opens' : 'Reserved for registration'}</p>
                         {registration.holdExpiresAt && (
                           <p className="text-xs text-amber-600 mt-1">
                             {formatHoldCountdown(registration.holdExpiresAt)}

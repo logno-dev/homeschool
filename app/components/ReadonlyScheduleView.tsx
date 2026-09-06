@@ -76,8 +76,11 @@ export default function ReadonlyScheduleView({
   sessionInfo
 }: ReadonlyScheduleViewProps) {
 
-  // Group registrations by period
-  const registrationsByPeriod = classRegistrations.reduce((acc, reg) => {
+  const activeClassRegistrations = classRegistrations.filter((reg) => reg.registration.status !== 'waitlisted' && reg.registration.status !== 'cancelled')
+  const waitlistedRegistrations = classRegistrations.filter((reg) => reg.registration.status === 'waitlisted')
+
+  // Group only rostered/reserved registrations by period.
+  const registrationsByPeriod = activeClassRegistrations.reduce((acc, reg) => {
     const period = reg.schedule.period
     if (!acc[period]) acc[period] = []
     acc[period].push(reg)
@@ -263,6 +266,8 @@ export default function ReadonlyScheduleView({
         </div>
       </div>
 
+      {waitlistedRegistrations.length > 0 && <section className="rounded-lg border border-yellow-200 bg-yellow-50 p-6"><h3 className="text-lg font-semibold text-yellow-900">Waitlisted Students</h3><p className="mt-1 text-sm text-yellow-800">These students are not currently enrolled. They may be placed if a position becomes available.</p><ul className="mt-3 space-y-2 text-sm text-yellow-900">{waitlistedRegistrations.map((reg) => <li key={reg.registration.id}>{reg.child.firstName} {reg.child.lastName} - {reg.classTeachingRequest.className}</li>)}</ul></section>}
+
       {/* Summary */}
       <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">Registration Summary</h3>
@@ -270,11 +275,11 @@ export default function ReadonlyScheduleView({
           <div>
             <h4 className="font-medium text-gray-900 mb-2">Class Registrations</h4>
             <p className="text-sm text-gray-600">
-              {classRegistrations.length} child{classRegistrations.length === 1 ? '' : 'ren'} registered for classes
+              {activeClassRegistrations.length} child{activeClassRegistrations.length === 1 ? '' : 'ren'} registered for classes
             </p>
-            {classRegistrations.length > 0 && (
+            {activeClassRegistrations.length > 0 && (
               <ul className="mt-2 text-sm text-gray-600">
-                {classRegistrations.map((reg) => (
+                {activeClassRegistrations.map((reg) => (
                   <li key={reg.registration.id}>
                     • {reg.child.firstName} {reg.child.lastName} - {reg.classTeachingRequest.className}
                   </li>

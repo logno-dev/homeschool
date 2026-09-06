@@ -203,10 +203,20 @@ export default function RegistrationGrid({
   }, [scheduleData])
 
   const normalizedTeachingAssignments = useMemo(() => teachingAssignments, [teachingAssignments])
+  const periodJobs = [...volunteerJobsData, ...nonPeriodJobsData].filter((job, index, jobs) => job.jobType === 'period_based' && jobs.findIndex((candidate) => (candidate.sessionVolunteerJobId || candidate.id) === (job.sessionVolunteerJobId || job.id)) === index)
+  const generalJobs = [...volunteerJobsData, ...nonPeriodJobsData].filter((job, index, jobs) => job.jobType === 'non_period' && jobs.findIndex((candidate) => (candidate.sessionVolunteerJobId || candidate.id) === (job.sessionVolunteerJobId || job.id)) === index)
 
   // Helper function to calculate effective available spots including pending registrations
   const getEffectiveAvailableSpots = (schedule: EnhancedSchedule) => {
-    return schedule.availableSpots
+    // The schedule payload may predate a hold created in this browser. Do not
+    // subtract a hold twice once the next schedule refresh includes its child.
+    const reflectedChildren = new Set(schedule.roster.map((student) => student.id))
+    const localUnreflectedCount = pendingRegistrations.filter((registration) =>
+      registration.scheduleId === schedule.schedule.id &&
+      registration.status !== 'waitlisted' &&
+      !reflectedChildren.has(registration.childId)
+    ).length
+    return Math.max(0, schedule.availableSpots - localUnreflectedCount)
   }
 
   const handleClassClick = (schedule: EnhancedSchedule) => {
@@ -216,7 +226,7 @@ export default function RegistrationGrid({
 
   const refreshScheduleData = async () => {
     try {
-      const response = await fetch(`/api/registration/schedules/${sessionId}`)
+      const response = await fetch(`/api/registration/schedules/${sessionId}`, { cache: 'no-store' })
       if (!response.ok) {
         console.warn('Registration schedule refresh failed', {
           sessionId,
@@ -287,7 +297,7 @@ export default function RegistrationGrid({
 
   const handleChildRegistration = async (child: Child, schedule: EnhancedSchedule) => {
     // Check if adding this child would exceed available spots
-    if (registrationMode === 'registered' && schedule.availableSpots <= 0) {
+    if (registrationMode === 'registered' && getEffectiveAvailableSpots(schedule) <= 0) {
       showError('Class is full!', `Cannot add ${child.firstName} ${child.lastName} to ${schedule.classTeachingRequest.className} - all spots are taken.`)
       return
     }
@@ -364,7 +374,7 @@ export default function RegistrationGrid({
     const roster: PendingRosterChild[] = []
 
     pendingRegistrations
-      .filter((registration) => registration.scheduleId === selectedClass.schedule.id)
+      .filter((registration) => registration.scheduleId === selectedClass.schedule.id && registration.status !== 'waitlisted')
       .forEach((registration) => {
         const child = children.find((entry) => entry.id === registration.childId)
         if (!child || registeredIds.has(child.id)) return
@@ -379,6 +389,14 @@ export default function RegistrationGrid({
       })
 
     return roster
+  }, [pendingRegistrations, selectedClass, children])
+
+  const pendingWaitlist = useMemo(() => {
+    if (!selectedClass) return []
+    return pendingRegistrations
+      .filter((registration) => registration.scheduleId === selectedClass.schedule.id && registration.status === 'waitlisted')
+      .map((registration) => children.find((child) => child.id === registration.childId))
+      .filter((child): child is Child => Boolean(child))
   }, [pendingRegistrations, selectedClass, children])
 
   const selectableChildren = useMemo(() => {
@@ -707,10 +725,19 @@ export default function RegistrationGrid({
                      ))}
                   </div>
                 </div>
-              ) : (
+             ) : (
                 <p className="text-gray-500 text-sm">No students registered yet.</p>
               )}
             </div>
+
+            {pendingWaitlist.length > 0 && (
+              <div>
+                <h4 className="text-md font-semibold text-yellow-800 mb-3">Waitlist ({pendingWaitlist.length})</h4>
+                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 space-y-2">
+                  {pendingWaitlist.map((child) => <div key={child.id} className="text-sm text-yellow-900">{child.firstName} {child.lastName} <span className="text-yellow-700">(waitlisted)</span></div>)}
+                </div>
+              </div>
+            )}
 
             {/* Current Volunteers */}
             {selectedClass.volunteers.length > 0 && (
@@ -901,23 +928,27 @@ export default function RegistrationGrid({
       </Modal>
 
       {/* Volunteer Jobs Grid */}
-      {(volunteerJobsData?.length > 0 || nonPeriodJobsData?.length > 0) && (
-        <div className="mt-12 grid items-start gap-6 lg:grid-cols-2">
+      {(periodJobs.length > 0 || generalJobs.length > 0) && (
+        <div className="mt-12 flex w-full min-w-0 flex-col items-stretch gap-6 lg:flex-row lg:items-start">
           {/* General jobs appear first on desktop and mobile. */}
-          {nonPeriodJobsData && nonPeriodJobsData.length > 0 && (
+          {generalJobs.length > 0 && (
+            <div className="min-w-0 lg:w-1/4 lg:flex-none">
             <NonPeriodVolunteerJobs
-              volunteerJobs={nonPeriodJobsData}
+              volunteerJobs={generalJobs}
               guardians={guardians || []}
               jobAssignmentCounts={jobAssignmentCounts}
             />
+            </div>
           )}
-          {volunteerJobsData && volunteerJobsData.length > 0 && (
+          {periodJobs.length > 0 && (
+            <div className="min-w-0 flex-1 lg:w-0">
             <VolunteerJobsGrid
-              volunteerJobs={volunteerJobsData}
+              volunteerJobs={periodJobs}
               guardians={guardians || []}
               schedules={scheduleData || []}
               jobAssignmentCounts={jobAssignmentCounts}
             />
+            </div>
           )}
         </div>
       )}

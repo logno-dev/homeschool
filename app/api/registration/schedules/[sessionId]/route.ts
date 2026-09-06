@@ -15,7 +15,7 @@ export async function GET(
     const { sessionId } = await params
     const scheduleData = await getRegistrationSchedules(sessionId)
 
-    return NextResponse.json(scheduleData)
+    return NextResponse.json(scheduleData, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {
     console.error('Error fetching published schedules:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
