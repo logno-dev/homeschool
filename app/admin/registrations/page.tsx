@@ -12,6 +12,7 @@ import SessionOptions from '../../components/SessionOptions'
 interface RegistrationRow {
   id: string
   status: string
+  createdAt: string
   child: {
     id: string
     firstName: string
@@ -211,7 +212,7 @@ export default function AdminRegistrationsPage() {
   }, [registrationRows, selectedSchedule])
 
   const registeredStudents = registrationsForSchedule.filter((registration) => registration.status === 'registered')
-  const waitlistedStudents = registrationsForSchedule.filter((registration) => registration.status === 'waitlisted')
+  const waitlistedStudents = registrationsForSchedule.filter((registration) => registration.status === 'waitlisted').sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
   const heldStudents = registrationsForSchedule.filter((registration) => registration.status === 'hold')
 
   const volunteersForSchedule = useMemo(() => {

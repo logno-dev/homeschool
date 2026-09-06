@@ -46,6 +46,19 @@ interface PendingVolunteerAssignment {
   guardianName: string
 }
 
+async function withRegistrationRetry<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await operation()
+    } catch (error) {
+      const message = error instanceof Error ? error.message.toLowerCase() : ''
+      const isLockConflict = message.includes('busy') || message.includes('locked') || message.includes('conflict')
+      if (!isLockConflict || attempt >= 2) throw error
+      await new Promise((resolve) => setTimeout(resolve, 75 * (attempt + 1)))
+    }
+  }
+}
+
 interface EmergencyContact {
   name: string
   phone: string
@@ -172,15 +185,8 @@ async function validateRegistration(
             (row.status === 'hold' && row.holdExpiresAt && row.holdExpiresAt > now && row.familyId !== familyId))
         )).length
 
-        if (totalRegistrations >= classTeachingRequest.maxStudents) {
-          conflicts.push({
-            type: 'class_full',
-            scheduleId: registration.scheduleId,
-            period: registration.period,
-            className: registration.className,
-            message: `Class "${registration.className}" is full (${totalRegistrations}/${classTeachingRequest.maxStudents})`
-          })
-        }
+        // A full class is not a submission conflict. It becomes a waitlist entry
+        // during the authoritative write below.
       }
     }
 
@@ -190,9 +196,9 @@ async function validateRegistration(
         .select({
           status: classRegistrations.status,
           scheduleId: classRegistrations.scheduleId,
-          familyId: classRegistrations.familyId,
-          holdExpiresAt: classRegistrations.holdExpiresAt
-        })
+               familyId: classRegistrations.familyId,
+               holdExpiresAt: classRegistrations.holdExpiresAt
+             })
         .from(classRegistrations)
         .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
         .where(and(
@@ -478,7 +484,7 @@ export async function POST(request: Request) {
       : []
     const isPendingOverride = existingFamilyStatus[0]?.status === 'admin_override'
 
-    const registeredChildIds = Array.from(new Set((registrations || []).map((registration) => registration.childId)))
+    const registeredChildIds = Array.from(new Set((registrations || []).filter((registration) => registration.status !== 'waitlisted').map((registration) => registration.childId)))
     const emergencyContact = body.emergencyContact as EmergencyContact | undefined
     if (registeredChildIds.length > 0 && (!emergencyContact?.name?.trim() || !emergencyContact?.phone?.trim())) {
       return NextResponse.json({ error: 'Emergency contact name and phone are required for the family' }, { status: 400 })
@@ -554,7 +560,7 @@ export async function POST(request: Request) {
     }
 
     if (modifyRegistration) {
-      await db.transaction(async (tx) => {
+      await withRegistrationRetry(() => db.transaction(async (tx) => {
         await tx.delete(classRegistrations).where(and(
           eq(classRegistrations.familyId, familyId),
           eq(classRegistrations.sessionId, sessionId)
@@ -563,13 +569,13 @@ export async function POST(request: Request) {
           eq(volunteerAssignments.familyId, familyId),
           eq(volunteerAssignments.sessionId, sessionId)
         ))
-      })
+       }))
     }
 
     // Path 3: Handle admin override request
     if ((!validation.volunteerRequirementsMet || hasOnlyGradeRangeConflicts || isPendingOverride) && !existingOverride && requestAdminOverride) {
       // Process the registration immediately but with "pending" status to hold slots
-      await db.transaction(async (tx) => {
+        await withRegistrationRetry(() => db.transaction(async (tx) => {
         // Insert class registrations with pending status
         if (registrations && registrations.length > 0) {
           for (const registration of registrations) {
@@ -581,8 +587,8 @@ export async function POST(request: Request) {
               childId: registration.childId,
               familyId,
               registeredBy: session.user.id,
-              emergencyContact: emergencyContact!.name.trim(),
-              emergencyPhone: emergencyContact!.phone.trim(),
+              emergencyContact: emergencyContact?.name?.trim() || null,
+              emergencyPhone: emergencyContact?.phone?.trim() || null,
               status: registrationStatus
             })
           }
@@ -642,7 +648,7 @@ export async function POST(request: Request) {
             adminOverrideReason: overrideReasonParts.join(' | ')
           })
         }
-      })
+      }))
 
       const notificationRecipients = (await getGlobalSetting('registration_override_notification_emails'))?.split(',').map((recipient) => recipient.trim()).filter(Boolean) || []
       if (notificationRecipients.length) {
@@ -721,6 +727,7 @@ export async function POST(request: Request) {
     // Process registrations without large transaction to avoid Turso timeouts
     console.log('Starting registration processing...')
     let registeredCount = 0
+    let waitlistedCount = 0
     let volunteerCount = 0
 
     // Process child registrations first
@@ -728,18 +735,19 @@ export async function POST(request: Request) {
       console.log(`Processing registration for child ${registration.childId}...`)
       
       // Use smaller transaction for each registration
-      await db.transaction(async (tx) => {
+       await withRegistrationRetry(() => db.transaction(async (tx) => {
         // Check if child is already registered for a class in this period
         console.log('Checking existing registration...')
-        if (registration.status !== 'waitlisted') {
+        let registrationStatus: 'registered' | 'waitlisted' = registration.status === 'waitlisted' ? 'waitlisted' : 'registered'
+        if (registrationStatus !== 'waitlisted') {
           const existingRegistration = await tx
             .select({
               id: classRegistrations.id,
               status: classRegistrations.status,
               scheduleId: classRegistrations.scheduleId,
               familyId: classRegistrations.familyId,
-              holdExpiresAt: classRegistrations.holdExpiresAt
-            })
+               holdExpiresAt: classRegistrations.holdExpiresAt
+             })
             .from(classRegistrations)
             .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
             .where(and(
@@ -797,13 +805,10 @@ export async function POST(request: Request) {
             (row.status === 'hold' && row.holdExpiresAt && row.holdExpiresAt > holdReferenceTime && row.familyId !== familyId)
           ).length
 
-          if (totalRegistrations >= classTeachingRequest.maxStudents) {
-            throw new Error(`Class is full: ${registration.className}`)
-          }
+          if (totalRegistrations >= classTeachingRequest.maxStudents) registrationStatus = 'waitlisted'
         }
 
         // Register the child
-        const registrationStatus = registration.status === 'waitlisted' ? 'waitlisted' : 'registered'
         if (registrationStatus === 'registered') {
           const existingHold = await tx
             .select({ id: classRegistrations.id })
@@ -824,8 +829,8 @@ export async function POST(request: Request) {
               .set({
                 status: 'registered',
                 holdExpiresAt: null,
-                emergencyContact: emergencyContact!.name.trim(),
-                emergencyPhone: emergencyContact!.phone.trim(),
+             emergencyContact: emergencyContact?.name?.trim() || null,
+             emergencyPhone: emergencyContact?.phone?.trim() || null,
                 updatedAt: new Date().toISOString()
               })
               .where(eq(classRegistrations.id, existingHold[0].id))
@@ -838,8 +843,8 @@ export async function POST(request: Request) {
               childId: registration.childId,
               familyId,
               registeredBy: session.user.id,
-              emergencyContact: emergencyContact!.name.trim(),
-              emergencyPhone: emergencyContact!.phone.trim(),
+              emergencyContact: emergencyContact?.name?.trim() || null,
+              emergencyPhone: emergencyContact?.phone?.trim() || null,
               status: registrationStatus
             })
           }
@@ -852,14 +857,15 @@ export async function POST(request: Request) {
             childId: registration.childId,
             familyId,
             registeredBy: session.user.id,
-            emergencyContact: emergencyContact!.name.trim(),
-            emergencyPhone: emergencyContact!.phone.trim(),
+            emergencyContact: emergencyContact?.name?.trim() || null,
+            emergencyPhone: emergencyContact?.phone?.trim() || null,
             status: registrationStatus
           })
         }
 
-        registeredCount++
-      })
+        if (registrationStatus === 'registered') registeredCount++
+        else waitlistedCount++
+      }))
     }
 
     // Process volunteer assignments
@@ -1042,8 +1048,8 @@ export async function POST(request: Request) {
           classNames: (registrations || []).map((registration) => registration.className).join(', '),
           totalAmount: fee.totalFee,
           amountPaid: fee.paidAmount,
-          balanceDue: Math.max(0, fee.totalFee - fee.paidAmount)
-        })
+           balanceDue: Math.max(0, fee.totalFee - fee.paidAmount)
+         })
       }
     } catch (emailError) {
       console.error('Error sending registration confirmation:', emailError)
@@ -1054,6 +1060,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ 
       success: true, 
       registeredCount,
+      waitlistedCount,
       volunteerCount,
       message: 'Batch registration successful'
     })

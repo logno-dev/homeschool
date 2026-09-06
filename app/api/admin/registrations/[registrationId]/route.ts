@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { classRegistrations, schedules, classTeachingRequests } from '@/lib/schema'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or, inArray, gt } from 'drizzle-orm'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
 
 export async function PATCH(
@@ -51,14 +51,18 @@ export async function PATCH(
 
       const { classTeachingRequest } = scheduleData[0]
       const currentCount = await db
-        .select()
+        .select({ id: classRegistrations.id, status: classRegistrations.status, holdExpiresAt: classRegistrations.holdExpiresAt })
         .from(classRegistrations)
         .where(and(
           eq(classRegistrations.scheduleId, targetScheduleId),
-          eq(classRegistrations.status, 'registered')
+          or(
+            inArray(classRegistrations.status, ['registered', 'pending']),
+            and(eq(classRegistrations.status, 'hold'), gt(classRegistrations.holdExpiresAt, new Date().toISOString()))
+          )
         ))
 
-      if (currentCount.length >= classTeachingRequest.maxStudents) {
+      const occupiedCount = currentCount.filter((entry) => entry.id !== registrationId).length
+      if (occupiedCount >= classTeachingRequest.maxStudents && (status === 'registered' || Boolean(scheduleId))) {
         return NextResponse.json({ error: 'Target class is full' }, { status: 400 })
       }
     }

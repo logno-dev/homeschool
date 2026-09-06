@@ -32,8 +32,9 @@ export async function GET(request: Request) {
     const [registrationRows, scheduleRows, volunteerRows, volunteerJobRows, guardianRows, childRows, classroomRows] = await Promise.all([
       db
         .select({
-          id: classRegistrations.id,
-          status: classRegistrations.status,
+           id: classRegistrations.id,
+           status: classRegistrations.status,
+           createdAt: classRegistrations.createdAt,
           child: {
             id: children.id,
             firstName: children.firstName,

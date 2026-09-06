@@ -254,9 +254,23 @@ export default function RegistrationGrid({
       source.close()
     }
 
-    const interval = setInterval(() => {
-      refreshScheduleData()
-    }, 30000)
+    let knownVersion: string | null = null
+    const checkVersion = async () => {
+      try {
+        const response = await fetch(`/api/registration/version/${sessionId}`, { cache: 'no-store' })
+        if (!response.ok) return
+        const payload = await response.json() as { updatedAt?: string }
+        if (!knownVersion) { knownVersion = payload.updatedAt || null; return }
+        if (payload.updatedAt && payload.updatedAt !== knownVersion) {
+          knownVersion = payload.updatedAt
+          await refreshScheduleData()
+        }
+      } catch (error) {
+        console.error('Failed to check registration version:', error)
+      }
+    }
+    void checkVersion()
+    const interval = setInterval(checkVersion, 10000)
 
     return () => {
       clearInterval(interval)

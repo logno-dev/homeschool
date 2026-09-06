@@ -111,7 +111,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
       return
     }
 
-    const registeredChildIds = Array.from(new Set(pendingRegistrations.map((registration) => registration.childId)))
+    const registeredChildIds = Array.from(new Set(pendingRegistrations.filter((registration) => registration.status !== 'waitlisted').map((registration) => registration.childId)))
     if (registeredChildIds.length > 0 && (!emergencyContact.name.trim() || !emergencyContact.phone.trim())) {
       showError('Emergency contact required', 'Please provide one emergency contact name and phone number for your family.')
       return
@@ -196,9 +196,9 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
       } else {
         showSuccess(
           'Registration Complete!', 
-          `Successfully registered ${result.registeredCount} child${result.registeredCount === 1 ? '' : 'ren'} and ${result.volunteerCount} volunteer${result.volunteerCount === 1 ? '' : 's'}.`
+          `${result.registeredCount ? `Successfully registered ${result.registeredCount} child${result.registeredCount === 1 ? '' : 'ren'}.` : ''}${result.waitlistedCount ? ` ${result.waitlistedCount} child${result.waitlistedCount === 1 ? ' was' : 'ren were'} added to the waitlist.` : ''} ${result.volunteerCount} volunteer${result.volunteerCount === 1 ? '' : 's'}.`
         )
-        await loadPaymentPrompt()
+        if (result.registeredCount > 0) await loadPaymentPrompt()
       }
       
       // Clear the cart and close modal
