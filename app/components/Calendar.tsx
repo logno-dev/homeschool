@@ -22,10 +22,10 @@ export default function Calendar({ events }: CalendarProps) {
   }
 
   const getEventsForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0]
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
     return events.filter(event => {
-      const eventStart = event.startDate
-      const eventEnd = event.endDate || event.startDate
+      const eventStart = event.startDate.slice(0, 10)
+      const eventEnd = (event.endDate || event.startDate).slice(0, 10)
       return dateStr >= eventStart && dateStr <= eventEnd
     })
   }
@@ -57,8 +57,8 @@ export default function Calendar({ events }: CalendarProps) {
   }
 
   const formatEventDate = (event: CalendarEvent) => {
-    const startDate = new Date(event.startDate)
-    const endDate = event.endDate ? new Date(event.endDate) : null
+    const startDate = new Date(`${event.startDate.slice(0, 10)}T12:00:00`)
+    const endDate = event.endDate ? new Date(`${event.endDate.slice(0, 10)}T12:00:00`) : null
     
     if (endDate && endDate.getTime() !== startDate.getTime()) {
       return `${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`

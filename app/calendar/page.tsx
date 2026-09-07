@@ -3,8 +3,8 @@ import { fetchCalendarEvents } from '@/lib/events'
 import Calendar from '../components/Calendar'
 
 export default async function CalendarPage() {
-  await getAuthenticatedUser()
-  const events = await fetchCalendarEvents()
+  const session = await getAuthenticatedUser()
+  const events = await fetchCalendarEvents(session.user.id)
 
   return (
     <div className="min-h-screen bg-gray-50">

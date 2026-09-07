@@ -1,7 +1,8 @@
 import { desc, eq } from 'drizzle-orm'
 import { db, client } from '@/lib/db'
-import { events, sessions } from '@/lib/schema'
+import { events, sessions, sessionRegistrationWindows, userGroups } from '@/lib/schema'
 import { getAppTimezone, parseAppDate } from '@/lib/app-time'
+import { getUserGroups } from '@/lib/user-groups'
 
 export interface CalendarEvent {
   id: string
@@ -22,7 +23,7 @@ export interface CalendarEvent {
   updatedAt?: string | null
 }
 
-export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
+export async function fetchCalendarEvents(viewerUserId?: string): Promise<CalendarEvent[]> {
   try {
     const tableCheck = await client.execute(
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('events', 'sessions')"
@@ -69,14 +70,17 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
       })
       .from(sessions)
 
+    const viewerGroupIds = viewerUserId ? new Set((await getUserGroups(viewerUserId)).map(({ group }) => group.id)) : new Set<string>()
+    const registrationWindows = viewerUserId ? await db.select({ window: sessionRegistrationWindows, group: userGroups }).from(sessionRegistrationWindows).innerJoin(userGroups, eq(sessionRegistrationWindows.groupId, userGroups.id)) : []
+
     const sessionEvents: CalendarEvent[] = sessionDates.flatMap((session) => {
       const generatedEvents: CalendarEvent[] = [
       {
-        id: `session-${session.id}`,
-        title: `${session.name} Session`,
-        description: `${session.name} session period`,
+        id: `session-start-${session.id}`,
+        title: `${session.name} Starts`,
+        description: `${session.name} session starts`,
         startDate: session.startDate,
-        endDate: session.endDate,
+        endDate: null,
         startTime: null,
         endTime: null,
         isAllDay: true,
@@ -90,11 +94,32 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
         updatedAt: null
       },
       {
-        id: `registration-${session.id}`,
-        title: `${session.name} Registration`,
-        description: `Registration period for ${session.name}`,
-        startDate: session.registrationStartDate,
-        endDate: session.registrationEndDate,
+        id: `session-end-${session.id}`,
+        title: `${session.name} Ends`,
+        description: `${session.name} session ends`,
+        startDate: session.endDate,
+        endDate: null,
+        startTime: null,
+        endTime: null,
+        isAllDay: true,
+        eventType: 'session',
+        sessionId: session.id,
+        location: null,
+        color: session.isActive ? '#10b981' : '#6b7280',
+        isPublic: true,
+        createdBy: null,
+        createdAt: null,
+        updatedAt: null
+      }
+    ]
+
+    registrationWindows.filter(({ window }) => window.sessionId === session.id && viewerGroupIds.has(window.groupId)).forEach(({ window, group }) => {
+      generatedEvents.push({
+        id: `registration-${window.id}`,
+        title: `${session.name} Registration (${group.name})`,
+        description: `Registration period for the ${group.name} group`,
+        startDate: window.startDate,
+        endDate: window.endDate,
         startTime: null,
         endTime: null,
         isAllDay: true,
@@ -106,29 +131,8 @@ export async function fetchCalendarEvents(): Promise<CalendarEvent[]> {
         createdBy: null,
         createdAt: null,
         updatedAt: null
-      }
-    ]
-
-    if (session.teacherRegistrationStartDate) {
-      generatedEvents.push({
-        id: `teacher-registration-${session.id}`,
-        title: `${session.name} Teacher Registration`,
-        description: `Early registration period for teachers for ${session.name}`,
-        startDate: session.teacherRegistrationStartDate,
-        endDate: session.registrationStartDate,
-        startTime: null,
-        endTime: null,
-        isAllDay: true,
-        eventType: 'registration',
-        sessionId: session.id,
-        location: null,
-        color: '#8b5cf6',
-        isPublic: true,
-        createdBy: null,
-        createdAt: null,
-        updatedAt: null
       })
-    }
+    })
 
       return generatedEvents
     })

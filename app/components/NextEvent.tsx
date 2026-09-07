@@ -25,7 +25,7 @@ export default function NextEvent({ nextEvent }: NextEventProps) {
   }
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(`${dateStr}T12:00:00`) : new Date(dateStr);
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
       month: 'short',

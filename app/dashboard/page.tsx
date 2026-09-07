@@ -8,7 +8,7 @@ export default async function Dashboard() {
   // Server-side authentication and role checking
   const session = await getAuthenticatedUser()
   const isAdmin = await checkAdminRole(session)
-  const events = await fetchCalendarEvents()
+  const events = await fetchCalendarEvents(session.user.id)
   const nextEvent = await getNextUpcomingEvent(events)
   const userName = [session.user.firstName, session.user.lastName].filter(Boolean).join(' ') || session.user.email
 

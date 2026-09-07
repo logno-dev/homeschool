@@ -15,7 +15,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const combinedEvents = await fetchCalendarEvents()
+    const combinedEvents = await fetchCalendarEvents(session.user.id)
 
     return NextResponse.json(combinedEvents)
   } catch (error) {
