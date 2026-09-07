@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       gradeRange,
       gradeRangeFrom: resolvedGradeRange.from,
       gradeRangeTo: resolvedGradeRange.to,
-      maxStudents: Math.max(1, Number(body.maxStudents || 20)),
+      maxStudents: Math.max(1, Number(body.maxStudents || 15)),
       helpersNeeded: Math.max(0, Number(body.helpersNeeded || 0)),
       coTeacher: selectedCoTeacher ? `${selectedCoTeacher.firstName} ${selectedCoTeacher.lastName}`.trim() : requestedCoTeacherName || null,
       coTeacherId: selectedCoTeacher?.id || null,

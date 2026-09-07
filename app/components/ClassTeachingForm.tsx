@@ -27,7 +27,7 @@ export default function ClassTeachingForm({
     gradeRange: '',
     gradeRangeFrom: '',
     gradeRangeTo: '',
-    maxStudents: '20',
+    maxStudents: '15',
     helpersNeeded: '2',
     coTeacher: '',
     classroomNeeds: '',
@@ -55,7 +55,7 @@ export default function ClassTeachingForm({
         gradeRange: isCustomRange ? '' : initialRequest.gradeRange,
         gradeRangeFrom: isCustomRange ? fromLabel : '',
         gradeRangeTo: isCustomRange ? toLabel : '',
-        maxStudents: String(initialRequest.maxStudents ?? 20),
+        maxStudents: String(initialRequest.maxStudents ?? 15),
         helpersNeeded: String(initialRequest.helpersNeeded ?? 1),
         coTeacher: initialRequest.coTeacher || '',
         classroomNeeds: initialRequest.classroomNeeds || '',
@@ -293,7 +293,7 @@ export default function ClassTeachingForm({
                 value={formData.maxStudents}
                 onChange={(e) => setFormData({ ...formData, maxStudents: e.target.value })}
                 className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="e.g., 20"
+                placeholder="e.g., 15"
               />
             </div>
 

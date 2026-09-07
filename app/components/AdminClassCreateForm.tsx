@@ -20,7 +20,7 @@ const HOURS = [
 
 const gradeOptions = BUILT_IN_GRADE_RANGES
 const initialForm = {
-  sessionId: '', className: '', description: '', gradeRange: '', gradeRangeFrom: '', gradeRangeTo: '', maxStudents: '20', helpersNeeded: '2',
+  sessionId: '', className: '', description: '', gradeRange: '', gradeRangeFrom: '', gradeRangeTo: '', maxStudents: '15', helpersNeeded: '2',
   teacherId: '', teacherName: 'Staff Instructor', coTeacherId: '', coTeacher: '', classroomNeeds: '', registrationFeeExempt: false, requiresFee: false, feeAmount: '', schedulingRequirements: ''
 }
 
