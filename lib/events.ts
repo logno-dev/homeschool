@@ -115,11 +115,29 @@ export async function fetchCalendarEvents(viewerUserId?: string): Promise<Calend
 
     registrationWindows.filter(({ window }) => window.sessionId === session.id && viewerGroupIds.has(window.groupId)).forEach(({ window, group }) => {
       generatedEvents.push({
-        id: `registration-${window.id}`,
-        title: `${session.name} Registration (${group.name})`,
-        description: `Registration period for the ${group.name} group`,
+        id: `registration-open-${window.id}`,
+        title: `${session.name} Registration Opens (${group.name})`,
+        description: `Registration opens for the ${group.name} group`,
         startDate: window.startDate,
-        endDate: window.endDate,
+        endDate: null,
+        startTime: null,
+        endTime: null,
+        isAllDay: true,
+        eventType: 'registration',
+        sessionId: session.id,
+        location: null,
+        color: '#f59e0b',
+        isPublic: true,
+        createdBy: null,
+        createdAt: null,
+        updatedAt: null
+      })
+      generatedEvents.push({
+        id: `registration-close-${window.id}`,
+        title: `${session.name} Registration Closes (${group.name})`,
+        description: `Registration closes for the ${group.name} group`,
+        startDate: window.endDate,
+        endDate: null,
         startTime: null,
         endTime: null,
         isAllDay: true,
