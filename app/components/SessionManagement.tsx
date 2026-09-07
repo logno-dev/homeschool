@@ -68,10 +68,11 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
     try {
       const response = await fetch(`/api/admin/sessions/${session.id}/registration-windows`)
       const payload = await response.json()
+      const formatWindowForInput = (value: string, endOfDay: boolean) => value.includes('T') ? value.slice(0, 16) : `${value}T${endOfDay ? '23:59' : '00:00'}`
       setRegistrationWindows((payload.windows || []).map((window: { groupId: string; startDate: string; endDate: string }) => ({
         groupId: window.groupId,
-        startDate: window.startDate,
-        endDate: window.endDate
+         startDate: formatWindowForInput(window.startDate, false),
+         endDate: formatWindowForInput(window.endDate, true)
       })))
     } catch {
       setRegistrationWindows([])
@@ -338,8 +339,8 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
                   return (
                     <div key={group.id} className="grid gap-3 sm:grid-cols-3 sm:items-end">
                       <p className="text-sm font-medium text-gray-900">{group.name}</p>
-                      <label className="text-xs font-medium text-gray-700">Starts<input type="date" value={window.startDate} onChange={(event) => updateWindow('startDate', event.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-2 text-sm" /></label>
-                      <label className="text-xs font-medium text-gray-700">Ends<input type="date" value={window.endDate} onChange={(event) => updateWindow('endDate', event.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-2 text-sm" /></label>
+                      <label className="text-xs font-medium text-gray-700">Opens (site timezone)<input type="datetime-local" value={window.startDate} onChange={(event) => updateWindow('startDate', event.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-2 text-sm" /></label>
+                      <label className="text-xs font-medium text-gray-700">Closes (site timezone)<input type="datetime-local" value={window.endDate} onChange={(event) => updateWindow('endDate', event.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 px-2 py-2 text-sm" /></label>
                     </div>
                   )
                 })}

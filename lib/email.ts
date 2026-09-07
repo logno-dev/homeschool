@@ -98,7 +98,7 @@ async function sendEmail(input: {
   const replyTo = await getConfiguredReplyTo(input.type, input.replyToAlias)
 
   if (!apiKey || !from) {
-    throw new Error('RESEND_API_KEY, RESEND_EMAIL_DOMAIN, and email sender aliases must be configured')
+    throw new Error('RESEND_API_KEY and RESEND_EMAIL_DOMAIN must be configured in the active deployment environment')
   }
 
   const response = await fetch('https://api.resend.com/emails', {
@@ -164,7 +164,7 @@ export async function sendNewsletterBatch(input: {
   const apiKey = process.env.RESEND_API_KEY
   const from = await getConfiguredSender('newsletter', input.senderAlias)
   const replyTo = await getConfiguredReplyTo('newsletter', input.replyToAlias)
-  if (!apiKey || !from) throw new Error('RESEND_API_KEY, RESEND_EMAIL_DOMAIN, and email sender aliases must be configured')
+  if (!apiKey || !from) throw new Error('RESEND_API_KEY and RESEND_EMAIL_DOMAIN must be configured in the active deployment environment')
 
   const response = await fetch('https://api.resend.com/emails/batch', {
     method: 'POST',

@@ -4,6 +4,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { sessionRegistrationWindows, sessions, userGroups } from '@/lib/schema'
+import { getAppTimezone, parseAppDate } from '@/lib/app-time'
 
 export async function GET(
   request: NextRequest,
@@ -34,7 +35,8 @@ export async function PUT(
     const groupIds = windows.map((window: { groupId: string }) => window.groupId).filter(Boolean)
     const groups = groupIds.length ? await db.select({ id: userGroups.id }).from(userGroups).where(inArray(userGroups.id, groupIds)) : []
     if (groups.length !== new Set(groupIds).size) return NextResponse.json({ error: 'Every registration window must use a valid group' }, { status: 400 })
-    if (windows.some((window: { startDate: string; endDate: string }) => !window.startDate || !window.endDate || new Date(window.startDate) > new Date(window.endDate))) {
+    const timezone = await getAppTimezone()
+    if (windows.some((window: { startDate: string; endDate: string }) => !window.startDate || !window.endDate || parseAppDate(window.startDate, timezone) > parseAppDate(window.endDate, timezone))) {
       return NextResponse.json({ error: 'Registration windows must have valid start and end dates' }, { status: 400 })
     }
 

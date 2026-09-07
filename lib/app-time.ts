@@ -22,6 +22,12 @@ function timezoneOffset(date: Date, timezone: string) {
 }
 
 export function parseAppDate(value: string, timezone: string, endOfDay = false) {
+  const localDateTime = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/)
+  if (localDateTime) {
+    const [, year, month, day, hour, minute, second = '0'] = localDateTime
+    const localMillis = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second))
+    return new Date(localMillis - timezoneOffset(new Date(localMillis), timezone))
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(value)
   const [year, month, day] = value.split('-').map(Number)
   const localMillis = Date.UTC(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0)
