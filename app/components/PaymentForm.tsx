@@ -304,9 +304,9 @@ export function PaymentForm({ familySessionFeeId, amount, availableCredit = 0, o
         )}
       </div>
 
-      {environment && (
+      {environment === 'sandbox' && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
-          PayPal mode: <span className="font-semibold">{environment === 'sandbox' ? 'Sandbox (Testing)' : 'Live'}</span>
+          PayPal mode: <span className="font-semibold">Sandbox (Testing)</span>
         </div>
       )}
 
