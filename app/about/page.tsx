@@ -2,8 +2,16 @@ import Image from 'next/image'
 import Link from 'next/link'
 import BrandLogo from '@/app/components/BrandLogo'
 import { getFaqsByVisibility } from '@/lib/database'
+import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'About Our Homeschool Co-op',
+  description:
+    'Learn how Desert Valley Creative Learning Collaborative supports Coachella Valley homeschool families through classes, community, and parent-led learning.',
+  alternates: { canonical: '/about' },
+}
 
 const groupCards = [
   {
