@@ -7,7 +7,7 @@ import { randomUUID } from 'crypto'
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ applicationId: string }> }) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('scholarships')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }

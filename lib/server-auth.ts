@@ -79,14 +79,18 @@ export async function requireAdminAccess(module?: AdminModule) {
   return session
 }
 
-export async function getAuthenticatedAdmin(module?: AdminModule) {
+// Arrays grant access when any listed module needs this specific operation.
+// Keep mutation callers scoped to the module that owns the operation.
+export async function getAuthenticatedAdmin(module?: AdminModule | readonly AdminModule[]) {
   const session = await getCurrentAuthSession()
   if (!session?.user?.id) {
     return { error: 'Unauthorized', status: 401 as const }
   }
 
   const role = await getAppRole(session)
-  const hasDelegatedAccess = module ? await getAdminModuleAccess(session.user.id, module) : false
+  const requestedModules = typeof module === 'string' ? [module] : module || []
+  const delegatedModules = requestedModules.length ? await getAdminModuleAccess(session.user.id) : new Set<AdminModule>()
+  const hasDelegatedAccess = requestedModules.some(key => delegatedModules.has(key))
   if (role !== 'admin' && !hasDelegatedAccess) {
     return { error: 'Forbidden', status: 403 as const }
   }

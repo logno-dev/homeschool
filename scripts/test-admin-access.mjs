@@ -15,7 +15,7 @@ function load(path, mocks = {}) {
   })
   const module = { exports: {} }
   vm.runInNewContext(outputText, {
-    module, exports: module.exports, console,
+    module, exports: module.exports, console, URL,
     require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name),
   }, { filename: path })
   return module.exports
@@ -25,11 +25,12 @@ const { ADMIN_MODULES } = load('lib/admin-access.ts')
 let role = 'user'
 let modules = new Set()
 const session = { user: { id: 'delegated-user', firstName: 'Test', email: 'test@example.com' } }
+let signedIn = true
 const navigation = { redirect: path => { throw new Error(`redirect:${path}`) }, useRouter: () => ({}) }
 const auth = load('lib/server-auth.ts', {
   'next/navigation': navigation,
   './database': { getUserById: async () => ({ role }) },
-  '@/lib/auth-server': { getCurrentAuthSession: async () => session },
+  '@/lib/auth-server': { getCurrentAuthSession: async () => signedIn ? session : null },
   '@/lib/user-groups': { getAdminModuleAccess: async () => modules },
   '@/lib/admin-access': { ADMIN_MODULES },
   react: { ...React, cache: fn => fn },
@@ -81,3 +82,103 @@ for (const privilegedRole of ['admin', 'moderator']) {
   await auth.requireAdminAccess('users')
 }
 console.log('Admin entry, delegated module guards, and initial sidebar visibility checks passed.')
+
+// Test the actual session-list route used by Registrations, including its write boundary.
+role = 'user'
+const sessionRows = [{ id: 'session-1', name: 'Fall', isActive: true }]
+let reads = 0
+let writes = 0
+const apiMocks = {
+  '@/lib/server-auth': auth,
+  '@/lib/schema': { sessions: {}, volunteerAssignments: {} },
+  '@/lib/database': { getGuardianById: async () => ({ familyId: 'family-1' }) },
+  '@/lib/registration-events': { publishRegistrationUpdate: () => {} },
+  '@/lib/db': { db: {
+    select: () => ({ from: async () => { reads++; return sessionRows } }),
+    insert: () => ({ values: value => ({ returning: async () => { writes++; return [value] } }) }),
+  } },
+}
+const sessionsApi = load('app/api/admin/sessions/route.ts', apiMocks)
+const assignmentsApi = load('app/api/admin/volunteer-assignments/route.ts', apiMocks)
+const request = body => new Request('http://localhost/api/admin/test', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+})
+for (const module of ['registrations', 'reports', 'registration-overrides', 'payments', 'events', 'class-requests', 'users', 'sessions']) {
+  modules = new Set([module])
+  const response = await sessionsApi.GET()
+  assert.equal(response.status, 200, `${module} can load the session picker`)
+  assert.deepEqual((await response.json()).sessions, sessionRows)
+  const create = await sessionsApi.POST(request({}))
+  assert.equal(create.status, module === 'sessions' ? 400 : 403, `${module} session-write boundary`)
+}
+
+modules = new Set(['registrations'])
+const assignment = { sessionId: 'session-1', guardianId: 'guardian-1', volunteerType: 'volunteer_job', volunteerJobId: 'job-1', period: 'first' }
+assert.equal((await assignmentsApi.POST(request(assignment))).status, 200)
+assert.equal(writes, 1, 'Delegated registration staff can create volunteer assignments')
+modules = new Set(['events'])
+assert.equal((await assignmentsApi.POST(request(assignment))).status, 403)
+assert.equal(writes, 1, 'Unrelated module access cannot write assignments')
+
+for (const assigned of [[], ['faqs'], ['newsletters']]) {
+  modules = new Set(assigned)
+  const previousReads = reads
+  assert.equal((await sessionsApi.GET()).status, 403)
+  assert.equal(reads, previousReads, 'Denied requests must not read session data')
+}
+
+modules = new Set(['registrations'])
+assert.equal((await auth.getAuthenticatedAdmin('settings')).status, 403)
+assert.equal((await auth.getAuthenticatedAdmin('users')).status, 403)
+assert.equal((await auth.getAuthenticatedAdmin('groups')).status, 403)
+assert.equal((await auth.getAuthenticatedAdmin()).status, 403)
+signedIn = false
+assert.equal((await sessionsApi.GET()).status, 401)
+assert.equal((await assignmentsApi.POST(request(assignment))).status, 401)
+signedIn = true
+role = 'admin'
+modules = new Set()
+assert.equal((await sessionsApi.GET()).status, 200)
+assert.ok(!('error' in await auth.getAuthenticatedAdmin()))
+console.log('Delegated session lookup, registration writes, unrelated-module denials, and unauthenticated API checks passed.')
+
+// Supporting lookup routes expose only the fields their consuming modules need.
+const lookupSchema = {
+  users: { id: 'id', firstName: 'firstName', lastName: 'lastName', email: 'email' },
+  userGroups: { id: 'id', name: 'name', slug: 'slug', isSystem: 'isSystem' },
+  userGroupMemberships: { groupId: 'groupId', userId: 'userId' },
+}
+const lookupRows = new Map([
+  [lookupSchema.users, [{ id: 'user-1', firstName: 'A', lastName: 'Parent', email: 'parent@example.com', privateNotes: 'not for messaging' }]],
+  [lookupSchema.userGroups, [{ id: 'group-1', name: 'Family', slug: 'family', isSystem: true, accessControls: '{"settings":true}' }]],
+  [lookupSchema.userGroupMemberships, [{ groupId: 'group-1', userId: 'user-1' }]],
+])
+const lookupMocks = {
+  '@/lib/server-auth': auth,
+  '@/lib/schema': lookupSchema,
+  '@/lib/db': { db: { select: fields => ({ from: table => {
+    const result = lookupRows.get(table).map(row => Object.fromEntries(Object.entries(fields).map(([key, column]) => [key, row[column]])))
+    return Object.assign(Promise.resolve(result), { orderBy: async () => result })
+  } }) } },
+}
+const groupOptions = load('app/api/admin/groups/options/route.ts', lookupMocks)
+const recipients = load('app/api/admin/messaging/recipients/route.ts', lookupMocks)
+role = 'user'
+modules = new Set(['sessions'])
+const optionsResponse = await groupOptions.GET()
+assert.equal(optionsResponse.status, 200)
+assert.deepEqual(await optionsResponse.json(), { groups: [{ id: 'group-1', name: 'Family', slug: 'family' }] })
+assert.equal((await recipients.GET()).status, 403)
+modules = new Set(['newsletters'])
+const recipientsResponse = await recipients.GET()
+assert.equal(recipientsResponse.status, 200)
+assert.deepEqual(await recipientsResponse.json(), {
+  users: [{ id: 'user-1', firstName: 'A', lastName: 'Parent', email: 'parent@example.com' }],
+  groups: [{ id: 'group-1', name: 'Family', isSystem: true, members: [{ id: 'user-1' }] }],
+})
+assert.equal((await auth.getAuthenticatedAdmin('users')).status, 403)
+assert.equal((await auth.getAuthenticatedAdmin('groups')).status, 403)
+modules = new Set(['registrations'])
+assert.equal((await recipients.GET()).status, 403)
+assert.equal((await groupOptions.GET()).status, 403)
+console.log('Messaging recipient and registration-group lookup scope checks passed.')

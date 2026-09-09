@@ -8,7 +8,7 @@ export async function POST(
   { params }: { params: Promise<{ sessionId: string }> }
 ) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('sessions')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }

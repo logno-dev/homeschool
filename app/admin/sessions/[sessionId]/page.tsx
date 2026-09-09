@@ -25,10 +25,12 @@ export default function AdminSessionDetailPage() {
 
   const load = async () => {
     const [sessionResponse, groupResponse, windowResponse] = await Promise.all([
-      fetch(`/api/admin/sessions/${params.sessionId}`), fetch('/api/admin/groups'), fetch(`/api/admin/sessions/${params.sessionId}/registration-windows`)
+      fetch(`/api/admin/sessions/${params.sessionId}`), fetch('/api/admin/groups/options'), fetch(`/api/admin/sessions/${params.sessionId}/registration-windows`)
     ])
     const sessionPayload = await sessionResponse.json()
     if (!sessionResponse.ok) throw new Error(sessionPayload.error || 'Session not found')
+    if (!groupResponse.ok) throw new Error('Unable to load registration groups')
+    if (!windowResponse.ok) throw new Error('Unable to load registration windows')
     const nextSession = sessionPayload.session as Session
     setSession(nextSession)
     setGroups((await groupResponse.json()).groups || [])

@@ -6,7 +6,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('volunteer-jobs')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
@@ -74,7 +74,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
   try {
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('volunteer-jobs')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }

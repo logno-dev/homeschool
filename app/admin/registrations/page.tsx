@@ -119,6 +119,8 @@ export default function AdminRegistrationsPage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string>('')
   const [data, setData] = useState<RegistrationsResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [sessionsLoading, setSessionsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleOption | null>(null)
   const [showClassModal, setShowClassModal] = useState(false)
   const [showMoveModal, setShowMoveModal] = useState(false)
@@ -144,7 +146,10 @@ export default function AdminRegistrationsPage() {
 
     const loadSessions = async () => {
       try {
+        setSessionsLoading(true)
+        setLoadError('')
         const response = await fetch('/api/admin/sessions')
+        if (!response.ok) throw new Error(response.status === 403 ? 'You do not have permission to load sessions.' : 'Unable to load sessions. Please try again.')
         if (response.ok) {
           const result = await response.json()
           const loadedSessions: Session[] = result.sessions || []
@@ -157,6 +162,9 @@ export default function AdminRegistrationsPage() {
         }
       } catch (error) {
         console.error('Error loading sessions:', error)
+        setLoadError(error instanceof Error ? error.message : 'Unable to load sessions.')
+      } finally {
+        setSessionsLoading(false)
       }
     }
 
@@ -172,6 +180,8 @@ export default function AdminRegistrationsPage() {
     const loadRegistrations = async () => {
       try {
         setIsLoading(true)
+        setLoadError('')
+        setData(null)
         const response = await fetch(`/api/admin/registrations?sessionId=${selectedSessionId}`)
         if (!response.ok) {
           throw new Error('Failed to load registrations')
@@ -180,6 +190,7 @@ export default function AdminRegistrationsPage() {
         setData(result)
       } catch (error) {
         console.error('Error loading registrations:', error)
+        setLoadError(error instanceof Error ? error.message : 'Unable to load registrations.')
       } finally {
         setIsLoading(false)
       }
@@ -426,6 +437,17 @@ export default function AdminRegistrationsPage() {
     }
   }
 
+  if (loadError) {
+    return (
+      <AdminLayout userName={userName} activeTab="registrations">
+        <div className="m-6 rounded-md border border-red-200 bg-red-50 p-4 text-red-800" role="alert">
+          <p>{loadError}</p>
+          <button type="button" onClick={() => window.location.reload()} className="mt-2 font-medium underline">Try again</button>
+        </div>
+      </AdminLayout>
+    )
+  }
+
   return (
     <AdminLayout userName={userName} activeTab="registrations">
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
@@ -442,7 +464,7 @@ export default function AdminRegistrationsPage() {
             </select>
           </div>
 
-          {isLoading ? (
+          {sessionsLoading || isLoading ? (
             <div className="text-center py-8">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
               <p className="mt-2 text-gray-600">Loading registrations...</p>

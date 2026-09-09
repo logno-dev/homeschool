@@ -13,6 +13,7 @@ export default function AdminSessionsPage() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [groups, setGroups] = useState<Array<{ id: string; name: string; slug: string }>>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     if (loading) return
@@ -26,10 +27,12 @@ export default function AdminSessionsPage() {
     const fetchSessions = async () => {
       try {
         const response = await fetch('/api/admin/sessions')
+        if (!response.ok) throw new Error('Unable to load sessions')
         if (response.ok) {
           const data = await response.json()
           setSessions(data.sessions || [])
-          const groupsResponse = await fetch('/api/admin/groups')
+           const groupsResponse = await fetch('/api/admin/groups/options')
+           if (!groupsResponse.ok) throw new Error('Unable to load registration groups')
           if (groupsResponse.ok) {
             const groupsData = await groupsResponse.json()
             setGroups(groupsData.groups || [])
@@ -37,6 +40,7 @@ export default function AdminSessionsPage() {
         }
       } catch (error) {
         console.error('Error fetching sessions:', error)
+        setLoadError(error instanceof Error ? error.message : 'Unable to load sessions')
       } finally {
         setIsLoading(false)
       }
@@ -69,7 +73,7 @@ export default function AdminSessionsPage() {
     >
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
-           <SessionManagement initialSessions={sessions} groups={groups} />
+           {loadError ? <p role="alert" className="rounded-md bg-red-50 p-4 text-red-800">{loadError}</p> : <SessionManagement initialSessions={sessions} groups={groups} />}
         </div>
       </main>
     </AdminLayout>

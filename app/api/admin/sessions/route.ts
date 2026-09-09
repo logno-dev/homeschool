@@ -11,7 +11,7 @@ function generateId(): string {
 
 export async function GET() {
   try {
-    const auth = await getAuthenticatedAdmin('sessions')
+    const auth = await getAuthenticatedAdmin(['sessions', 'registrations', 'reports', 'registration-overrides', 'payments', 'events', 'class-requests', 'users'])
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }

@@ -38,18 +38,19 @@ export default function AdminNewslettersPage() {
   const [busy, setBusy] = useState(false)
 
   const load = async () => {
-    const [messageResponse, groupResponse, configResponse, usersResponse] = await Promise.all([
-      fetch('/api/admin/newsletters'), fetch('/api/admin/groups'), fetch('/api/admin/messaging/config'), fetch('/api/admin/users?export=true')
+    const [messageResponse, recipientsResponse, configResponse] = await Promise.all([
+      fetch('/api/admin/newsletters'), fetch('/api/admin/messaging/recipients'), fetch('/api/admin/messaging/config')
     ])
     const messagePayload = await messageResponse.json()
-    const groupPayload = await groupResponse.json()
+    const recipientsPayload = await recipientsResponse.json()
     const configPayload = await configResponse.json()
-    const usersPayload = await usersResponse.json()
     if (!messageResponse.ok) throw new Error(messagePayload.error || 'Unable to load messages')
+    if (!recipientsResponse.ok) throw new Error(recipientsPayload.error || 'Unable to load recipients')
+    if (!configResponse.ok) throw new Error(configPayload.error || 'Unable to load messaging configuration')
     setMessages(messagePayload.newsletters || [])
-    setGroups(groupPayload.groups || [])
+    setGroups(recipientsPayload.groups || [])
     setAliases(configPayload.aliases || [])
-    setUsers(usersPayload.users || [])
+    setUsers(recipientsPayload.users || [])
   }
 
   useEffect(() => {

@@ -14,7 +14,7 @@ export async function GET(
 ) {
   try {
     const { draftId } = await params
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin(['sessions', 'class-requests'])
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
@@ -50,12 +50,11 @@ export async function PUT(
 ) {
   try {
     const { draftId } = await params
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin(['sessions', 'class-requests'])
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    const { session, role } = auth
-    const isAdmin = role === 'admin'
+    const { session } = auth
 
     const body = await request.json()
     const { entries, setActive } = body
@@ -66,14 +65,6 @@ export async function PUT(
       return NextResponse.json(
         { error: 'Draft not found' },
         { status: 404 }
-      )
-    }
-
-    // Only allow the creator or admins to modify
-    if (draft.createdBy !== session.user.id && !isAdmin) {
-      return NextResponse.json(
-        { error: 'Permission denied' },
-        { status: 403 }
       )
     }
 
@@ -103,12 +94,10 @@ export async function DELETE(
 ) {
   try {
     const { draftId } = await params
-    const auth = await getAuthenticatedAdmin()
+    const auth = await getAuthenticatedAdmin('sessions')
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    const { session, role } = auth
-    const isAdmin = role === 'admin'
 
     // Verify draft exists and user has permission
     const draft = await getScheduleDraftById(draftId)
@@ -116,14 +105,6 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Draft not found' },
         { status: 404 }
-      )
-    }
-
-    // Only allow the creator or admins to delete
-    if (draft.createdBy !== session.user.id && !isAdmin) {
-      return NextResponse.json(
-        { error: 'Permission denied' },
-        { status: 403 }
       )
     }
 
