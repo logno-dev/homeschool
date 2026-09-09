@@ -31,7 +31,7 @@ interface PrintPageProps {
 }
 
 export default async function ClassroomAttendancePrintPage({ params, searchParams }: PrintPageProps) {
-  await requireAdminAccess()
+  await requireAdminAccess('reports')
   const { sessionId } = await params
   const { print } = await searchParams
   const session = await getSessionById(sessionId)

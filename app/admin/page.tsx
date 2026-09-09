@@ -1,8 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { eq, inArray, and } from 'drizzle-orm'
-import { getAuthenticatedUser, getAppRole } from '@/lib/server-auth'
-import { getAdminModuleAccess } from '@/lib/user-groups'
+import { getAdminPageAccess } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { users, classTeachingRequests, familyRegistrationStatus, scholarshipApplications, families, sessions, guardians } from '@/lib/schema'
 import AdminLayout from '@/app/components/AdminLayout'
@@ -26,13 +25,9 @@ function ActionTable({ title, href, children, empty }: { title: string; href: st
 }
 
 export default async function AdminDashboard() {
-  const session = await getAuthenticatedUser()
-  const role = await getAppRole(session)
-  const isPrivileged = role === 'admin' || role === 'moderator'
-  const moduleKeys: ActionCard['key'][] = ['users', 'registration-overrides', 'scholarships', 'class-requests']
-  const access = await Promise.all(moduleKeys.map(async (key) => [key, isPrivileged || await getAdminModuleAccess(session.user.id, key)] as const))
-  const canAccess = new Map(access)
-  if (!Array.from(canAccess.values()).some(Boolean)) redirect('/dashboard')
+  const { session, modules } = await getAdminPageAccess()
+  const canAccess = new Map(modules.map(key => [key, true]))
+  if (modules.length === 0) redirect('/dashboard')
 
   const [activationItems, overrideItems, scholarshipItems, classRequestItems] = await Promise.all([
     canAccess.get('users') ? db.select({ id: users.id, name: users.firstName, lastName: users.lastName, email: users.email, status: users.activationStatus, createdAt: users.createdAt }).from(users).where(inArray(users.activationStatus, ['pending', 'under_review'])) : Promise.resolve([]),
@@ -66,7 +61,7 @@ export default async function AdminDashboard() {
               </Link>
             ))}
           </section>
-          {cards.length === 0 && <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-600">No administrative modules are assigned to your account.</div>}
+          {cards.length === 0 && <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-gray-600">Your assigned modules do not have action queues on this dashboard. Select a module from the navigation to get started.</div>}
           <div className="space-y-5">
             {canAccess.get('users') && <ActionTable title="Account Activations" href="/admin/users" empty={activationItems.length === 0}>{activationItems.map((item) => <tr key={item.id}><td className="px-5 py-3 font-medium text-gray-900">{item.name} {item.lastName}</td><td className="px-5 py-3 text-gray-600">{item.email}</td><td className="px-5 py-3 capitalize text-gray-500">{item.status.replace('_', ' ')}</td><td className="px-5 py-3 text-right"><Link href={`/admin/users/${item.id}`} className="font-medium text-blue-600 hover:text-blue-800">Review</Link></td></tr>)}</ActionTable>}
             {canAccess.get('registration-overrides') && <ActionTable title="Registration Overrides" href="/admin/registration-overrides" empty={overrideItems.length === 0}>{overrideItems.map((item) => <tr key={item.id}><td className="px-5 py-3 font-medium text-gray-900">{item.familyName || 'Unknown family'}</td><td className="px-5 py-3 text-gray-600">{item.sessionName || 'Unknown session'}</td><td className="px-5 py-3 text-gray-500">{new Date(item.createdAt).toLocaleDateString()}</td><td className="px-5 py-3 text-right"><Link href="/admin/registration-overrides" className="font-medium text-blue-600 hover:text-blue-800">Review</Link></td></tr>)}</ActionTable>}

@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useAuth } from '@/lib/auth-client'
 import { getReturnToUrl } from '@/lib/client-env'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { isUserAdmin, userSession } from '@/lib/user-session'
+import { useAdminModules } from './AdminAccessProvider'
+import type { AdminModule } from '@/lib/admin-access'
 
 interface AdminLayoutProps {
   userName: string
@@ -17,20 +18,7 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
   const router = useRouter()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { signOut } = useAuth()
-  const [adminModules, setAdminModules] = useState<string[] | null>(null)
-
-  useEffect(() => {
-    if (isUserAdmin()) {
-      setAdminModules(null)
-      return
-    }
-    const cached = userSession.getUserData()
-    if (cached?.adminModules) {
-      setAdminModules(cached.adminModules)
-      return
-    }
-    userSession.refreshUserData().then((data) => setAdminModules(data?.adminModules || []))
-  }, [])
+  const adminModules = useAdminModules()
 
   const navigationItems = [
     { name: 'Dashboard', href: '/admin', key: 'dashboard', icon: <span className="text-lg">D</span> },
@@ -186,7 +174,7 @@ export default function AdminLayout({ userName, activeTab, children }: AdminLayo
       )
     }
   ]
-  const visibleNavigationItems = isUserAdmin() || adminModules === null ? navigationItems : navigationItems.filter((item) => item.key === 'dashboard' || adminModules.includes(item.key))
+  const visibleNavigationItems = navigationItems.filter((item) => item.key === 'dashboard' || adminModules.includes(item.key as AdminModule))
 
   return (
     <div className="h-[calc(100dvh-4rem)] min-h-0 overflow-hidden bg-gray-50 flex">

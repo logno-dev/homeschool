@@ -10,7 +10,7 @@ interface AdminSchedulePageProps {
 }
 
 export default async function AdminSchedulePage({ params }: AdminSchedulePageProps) {
-  const session = await requireAdminAccess()
+  const session = await requireAdminAccess('sessions')
   const { sessionId } = await params
   const sessionData = await getSessionById(sessionId)
 

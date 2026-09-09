@@ -1,15 +1,9 @@
-import { getAuthenticatedUser, checkAdminRole } from '@/lib/server-auth'
-import { redirect } from 'next/navigation'
+import { requireAdminAccess } from '@/lib/server-auth'
 import AdminLayout from '@/app/components/AdminLayout'
 import EventManagement from '@/app/components/EventManagement'
 
 export default async function EventsAdminPage() {
-  const session = await getAuthenticatedUser()
-  const isAdmin = await checkAdminRole(session)
-  
-  if (!isAdmin) {
-    redirect('/dashboard')
-  }
+  const session = await requireAdminAccess('events')
 
   const userName = [session.user.firstName, session.user.lastName].filter(Boolean).join(' ') || session.user.email
 

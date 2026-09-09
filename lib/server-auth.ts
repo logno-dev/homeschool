@@ -3,6 +3,8 @@ import { getUsers } from './database'
 import { getCurrentAuthSession, type AppAuthSession } from '@/lib/auth-server'
 import { getAdminModuleAccess } from '@/lib/user-groups'
 import type { AdminModule } from '@/lib/admin-access'
+import { ADMIN_MODULES } from '@/lib/admin-access'
+import { cache } from 'react'
 
 type AppRole = 'admin' | 'moderator' | 'user'
 
@@ -56,9 +58,19 @@ export async function checkAdminRoleFromSession(
   return checkAdminRole(session as { role?: string; roles?: string[]; user?: { id: string } })
 }
 
-export async function requireAdminAccess() {
+export const getAdminPageAccess = cache(async () => {
   const session = await getAuthenticatedUser()
   const isAdmin = await checkAdminRole(session)
+  const modules = isAdmin
+    ? ADMIN_MODULES.map(module => module.key)
+    : Array.from(await getAdminModuleAccess(session.user.id))
+
+  return { session, modules }
+})
+
+export async function requireAdminAccess(module?: AdminModule) {
+  const { session, modules } = await getAdminPageAccess()
+  const isAdmin = module ? modules.includes(module) : await checkAdminRole(session)
 
   if (!isAdmin) {
     redirect('/dashboard')
