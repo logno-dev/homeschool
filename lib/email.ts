@@ -96,6 +96,10 @@ async function sendEmail(input: {
   const apiKey = process.env.RESEND_API_KEY
   const from = await getConfiguredSender(input.type, input.senderAlias)
   const replyTo = await getConfiguredReplyTo(input.type, input.replyToAlias)
+  const [cc, bcc] = await Promise.all([
+    getConfiguredRecipients(input.type, 'cc'),
+    getConfiguredRecipients(input.type, 'bcc')
+  ])
 
   if (!apiKey || !from) {
     throw new Error('RESEND_API_KEY and RESEND_EMAIL_DOMAIN must be configured in the active deployment environment')
@@ -111,6 +115,8 @@ async function sendEmail(input: {
       from,
       ...(replyTo ? { reply_to: replyTo } : {}),
       to: input.to,
+      ...(cc.length ? { cc } : {}),
+      ...(bcc.length ? { bcc } : {}),
       ...(input.cc?.length ? { cc: input.cc } : {}),
       ...(input.bcc?.length ? { bcc: input.bcc } : {}),
       subject: input.subject,
@@ -124,6 +130,11 @@ async function sendEmail(input: {
     const payload = await response.text()
     throw new Error(`Resend email failed (${response.status}): ${payload}`)
   }
+}
+
+async function getConfiguredRecipients(type: EmailType, kind: 'cc' | 'bcc'): Promise<string[]> {
+  const setting = await getGlobalSetting(`email_${kind}_${type}`)
+  return (setting || '').split(',').map((email) => email.trim()).filter(Boolean)
 }
 
 async function getConfiguredSender(type: EmailType, overrideAlias?: string) {

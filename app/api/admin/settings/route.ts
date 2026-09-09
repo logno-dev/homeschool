@@ -26,7 +26,7 @@ export async function GET() {
       getGlobalSetting('app_timezone'),
       getGlobalSetting('email_sender_aliases'),
       ...['invoiceOrganizationName', 'invoiceOrganizationAddress', 'invoiceOrganizationCity', 'invoiceOrganizationState', 'invoiceOrganizationPostalCode', 'invoiceOrganizationPhone', 'invoiceOrganizationEmail', 'invoiceOrganizationWebsite', 'invoicePaymentInstructions', 'invoiceDonationStatement'].map((key) => getGlobalSetting(key)),
-       ...EMAIL_TYPES.flatMap((type) => [getGlobalSetting(`email_sender_${type}`), getGlobalSetting(`email_reply_to_${type}`)])
+       ...EMAIL_TYPES.flatMap((type) => [getGlobalSetting(`email_sender_${type}`), getGlobalSetting(`email_reply_to_${type}`), getGlobalSetting(`email_cc_${type}`), getGlobalSetting(`email_bcc_${type}`)])
     ])
     return NextResponse.json({
       ...settings,
@@ -38,9 +38,11 @@ export async function GET() {
       supervisionFormUrl: supervisionFormUrl || '',
       supervisionFormFilename: supervisionFormFilename || '',
       appTimezone: isAppTimezone(appTimezone) ? appTimezone : DEFAULT_APP_TIMEZONE,
-      emailSenderAliases: (() => { try { return JSON.parse(senderAliases || '[]') } catch { return [] } })(),
-      emailSenders: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 2] || ''])),
-       emailReplyTos: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 2 + 1] || ''])),
+       emailSenderAliases: (() => { try { return JSON.parse(senderAliases || '[]') } catch { return [] } })(),
+       emailSenders: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 4] || ''])),
+        emailReplyTos: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 4 + 1] || ''])),
+        emailCcs: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 4 + 2] || ''])),
+        emailBccs: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 4 + 3] || ''])),
        emailTemplates: Object.fromEntries(await Promise.all(NOTIFICATION_TYPES.map(async (type) => [type, await getGlobalSetting(`email_template_${type}`) || ''] as const))),
        emailSubjects: Object.fromEntries(await Promise.all(NOTIFICATION_TYPES.map(async (type) => [type, await getGlobalSetting(`email_subject_${type}`) || ''] as const)))
        , invoiceOrganizationName: invoiceOrganizationName || '', invoiceOrganizationAddress: invoiceOrganizationAddress || '', invoiceOrganizationCity: invoiceOrganizationCity || '', invoiceOrganizationState: invoiceOrganizationState || '', invoiceOrganizationPostalCode: invoiceOrganizationPostalCode || '', invoiceOrganizationPhone: invoiceOrganizationPhone || '', invoiceOrganizationEmail: invoiceOrganizationEmail || '', invoiceOrganizationWebsite: invoiceOrganizationWebsite || '', invoicePaymentInstructions: invoicePaymentInstructions || '', invoiceDonationStatement: invoiceDonationStatement || ''
@@ -59,7 +61,7 @@ export async function POST(request: Request) {
     }
 
      const body = await request.json()
-    const { gradeIncrementDate, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone, emailSenderAliases, emailSenders, emailReplyTos, emailTemplates, emailSubjects, runIncrementNow } = body
+     const { gradeIncrementDate, registrationNotificationEmails, classRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone, emailSenderAliases, emailSenders, emailReplyTos, emailCcs, emailBccs, emailTemplates, emailSubjects, runIncrementNow } = body
 
     if (runIncrementNow) {
       const result = await incrementAllStudentGrades()
@@ -96,6 +98,14 @@ export async function POST(request: Request) {
     }
     if (emailReplyTos !== undefined && (typeof emailReplyTos !== 'object' || emailReplyTos === null || Object.entries(emailReplyTos).some(([type, alias]) => !EMAIL_TYPES.includes(type as EmailType) || typeof alias !== 'string'))) {
       return NextResponse.json({ error: 'emailReplyTos contains an invalid reply-to selection' }, { status: 400 })
+    }
+    for (const [key, value] of [['emailCcs', emailCcs], ['emailBccs', emailBccs]] as const) {
+      if (value !== undefined && (typeof value !== 'object' || value === null || Object.entries(value).some(([type, addresses]) => !EMAIL_TYPES.includes(type as EmailType) || typeof addresses !== 'string'))) {
+        return NextResponse.json({ error: `${key} contains an invalid notification address list` }, { status: 400 })
+      }
+      if (value !== undefined && Object.values(value).some((addresses) => String(addresses).split(',').map((email) => email.trim()).filter(Boolean).some((email) => !/^\S+@\S+\.\S+$/.test(email)))) {
+        return NextResponse.json({ error: `${key} must contain valid email addresses` }, { status: 400 })
+      }
     }
     if (emailTemplates !== undefined && (typeof emailTemplates !== 'object' || emailTemplates === null || Object.entries(emailTemplates).some(([type, template]) => !NOTIFICATION_TYPES.includes(type as NotificationType) || typeof template !== 'string'))) {
       return NextResponse.json({ error: 'emailTemplates contains an invalid notification type or template' }, { status: 400 })
@@ -161,6 +171,8 @@ export async function POST(request: Request) {
     if (emailSenderAliases !== undefined) await setGlobalSetting('email_sender_aliases', JSON.stringify(Array.from(new Set(emailSenderAliases))))
     if (emailSenders !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_sender_${type}`, emailSenders[type] || null)))
     if (emailReplyTos !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_reply_to_${type}`, emailReplyTos[type] || null)))
+    if (emailCcs !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_cc_${type}`, emailCcs[type] || null)))
+    if (emailBccs !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_bcc_${type}`, emailBccs[type] || null)))
     if (emailTemplates !== undefined) await Promise.all(NOTIFICATION_TYPES.map((type) => setGlobalSetting(`email_template_${type}`, emailTemplates[type] || null)))
      if (emailSubjects !== undefined) await Promise.all(NOTIFICATION_TYPES.map((type) => setGlobalSetting(`email_subject_${type}`, emailSubjects[type] || null)))
      await Promise.all(invoiceKeys.filter((key) => body[key] !== undefined).map((key) => setGlobalSetting(key, body[key] || null)))

@@ -19,6 +19,8 @@ interface SettingsState {
   emailSenderAliases: string
   emailSenders: Record<string, string>
   emailReplyTos: Record<string, string>
+  emailCcs: Record<string, string>
+  emailBccs: Record<string, string>
   emailTemplates: Record<string, string>
   emailSubjects: Record<string, string>
   supervisionFormUrl: string
@@ -50,7 +52,7 @@ export default function AdminSettingsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const { showSuccess, showError } = useToast()
-  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {}, emailTemplates: {}, emailSubjects: {}, supervisionFormUrl: '', supervisionFormFilename: '', invoiceOrganizationName: '', invoiceOrganizationAddress: '', invoiceOrganizationCity: '', invoiceOrganizationState: '', invoiceOrganizationPostalCode: '', invoiceOrganizationPhone: '', invoiceOrganizationEmail: '', invoiceOrganizationWebsite: '', invoicePaymentInstructions: '', invoiceDonationStatement: '' })
+  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {}, emailCcs: {}, emailBccs: {}, emailTemplates: {}, emailSubjects: {}, supervisionFormUrl: '', supervisionFormFilename: '', invoiceOrganizationName: '', invoiceOrganizationAddress: '', invoiceOrganizationCity: '', invoiceOrganizationState: '', invoiceOrganizationPostalCode: '', invoiceOrganizationPhone: '', invoiceOrganizationEmail: '', invoiceOrganizationWebsite: '', invoicePaymentInstructions: '', invoiceDonationStatement: '' })
   const [handbooks, setHandbooks] = useState<Handbook[]>([])
   const [handbookVersion, setHandbookVersion] = useState('')
   const [handbookFile, setHandbookFile] = useState<File | null>(null)
@@ -87,7 +89,9 @@ export default function AdminSettingsPage() {
           , emailSenderAliases: (result.emailSenderAliases || []).join(', ')
           , emailSenders: result.emailSenders || {}
            , emailReplyTos: result.emailReplyTos || {}
-           , emailTemplates: result.emailTemplates || {}
+            , emailCcs: result.emailCcs || {}
+            , emailBccs: result.emailBccs || {}
+            , emailTemplates: result.emailTemplates || {}
            , emailSubjects: result.emailSubjects || {}
           , supervisionFormUrl: result.supervisionFormUrl || ''
            , supervisionFormFilename: result.supervisionFormFilename || ''
@@ -131,8 +135,10 @@ export default function AdminSettingsPage() {
           appTimezone: settings.appTimezone
           , emailSenderAliases: settings.emailSenderAliases.split(',').map((alias) => alias.trim()).filter(Boolean)
           , emailSenders: settings.emailSenders
-           , emailReplyTos: settings.emailReplyTos
-           , emailTemplates: settings.emailTemplates
+            , emailReplyTos: settings.emailReplyTos
+            , emailCcs: settings.emailCcs
+            , emailBccs: settings.emailBccs
+            , emailTemplates: settings.emailTemplates
            , emailSubjects: settings.emailSubjects
            , ...Object.fromEntries(Object.entries(settings).filter(([key]) => key.startsWith('invoice')))
         })
