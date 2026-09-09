@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
+import USAddressFields from '@/app/components/USAddressFields'
+import { formatAddress, parseAddress } from '@/lib/address'
+import { formatPhoneNumber, PHONE_PATTERN } from '@/lib/phone'
 
 interface Child {
   firstName: string
@@ -22,7 +25,7 @@ export default function FamilyRegisterPage() {
 
   // Family information
   const [familyName, setFamilyName] = useState('')
-  const [address, setAddress] = useState('')
+  const [address, setAddress] = useState(() => parseAddress(''))
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
 
@@ -86,10 +89,10 @@ export default function FamilyRegisterPage() {
         },
         body: JSON.stringify({
           family: {
-            name: familyName,
-            address,
+            name: familyName.trim(),
+            address: formatAddress(address),
             phone,
-            email
+            email: email.trim()
           },
           guardian: {
             phone: guardianPhone
@@ -177,6 +180,8 @@ export default function FamilyRegisterPage() {
                   <input
                     type="text"
                     value={familyName}
+                    pattern=".*\S.*"
+                    title="Enter a family name."
                     onChange={(e) => setFamilyName(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                     placeholder="The Smith Family"
@@ -196,17 +201,7 @@ export default function FamilyRegisterPage() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Address
-                  </label>
-                  <input
-                    type="text"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
-                    placeholder="123 Main St, City, State 12345"
-                    required
-                  />
+                  <USAddressFields value={address} onChange={setAddress} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -215,7 +210,10 @@ export default function FamilyRegisterPage() {
                   <input
                     type="tel"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+                    pattern={PHONE_PATTERN}
+                    maxLength={14}
+                    title="Enter a 10-digit phone number: (555) 123-4567."
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                     placeholder="(555) 123-4567"
                     required
@@ -228,7 +226,10 @@ export default function FamilyRegisterPage() {
                   <input
                     type="tel"
                     value={guardianPhone}
-                    onChange={(e) => setGuardianPhone(e.target.value)}
+                    onChange={(e) => setGuardianPhone(formatPhoneNumber(e.target.value))}
+                    pattern={PHONE_PATTERN}
+                    maxLength={14}
+                    title="Enter a 10-digit phone number: (555) 123-4567."
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                     placeholder="(555) 123-4567"
                   />
@@ -272,6 +273,8 @@ export default function FamilyRegisterPage() {
                       <input
                         type="text"
                         value={child.firstName}
+                        pattern=".*\S.*"
+                        title="Enter the child's first name."
                         onChange={(e) => updateChild(index, 'firstName', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                         required
@@ -284,6 +287,8 @@ export default function FamilyRegisterPage() {
                       <input
                         type="text"
                         value={child.lastName}
+                        pattern=".*\S.*"
+                        title="Enter the child's last name."
                         onChange={(e) => updateChild(index, 'lastName', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"
                         required
@@ -295,6 +300,7 @@ export default function FamilyRegisterPage() {
                       </label>
                       <input
                         type="date"
+                        max={new Date().toLocaleDateString('en-CA')}
                         value={child.dateOfBirth}
                         onChange={(e) => updateChild(index, 'dateOfBirth', e.target.value)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 bg-white"

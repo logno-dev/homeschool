@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useToast } from './ToastContainer'
 import { formatPhoneNumber, isValidPhoneNumber, PHONE_PATTERN } from '@/lib/phone'
+import { formatAddress, parseAddress } from '@/lib/address'
+import USAddressFields from './USAddressFields'
 
 interface Family {
   id: string
@@ -25,7 +27,7 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [formData, setFormData] = useState({
     name: family.name,
-    address: family.address,
+    address: parseAddress(family.address),
     phone: family.phone,
     email: family.email
   })
@@ -46,7 +48,7 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
   const startEditing = () => {
     setFormData({
       name: familyData.name,
-      address: familyData.address,
+      address: parseAddress(familyData.address),
        phone: formatPhoneNumber(familyData.phone),
       email: familyData.email
     })
@@ -56,7 +58,7 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
   const cancelEditing = () => {
     setFormData({
       name: familyData.name,
-      address: familyData.address,
+      address: parseAddress(familyData.address),
        phone: formatPhoneNumber(familyData.phone),
       email: familyData.email
     })
@@ -76,7 +78,7 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: formData.name.trim(),
-          address: formData.address.trim(),
+           address: formatAddress(formData.address),
           phone: formData.phone.trim(),
           email: formData.email.trim()
         })
@@ -129,8 +131,11 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
         {isEditing ? (
           <form onSubmit={handleSave} className="space-y-4">
             <div>
-              <label className="text-sm font-medium text-gray-500">Family Name</label>
+              <label htmlFor="family-name" className="text-sm font-medium text-gray-500">Family Name</label>
               <input
+                id="family-name"
+                pattern=".*\S.*"
+                title="Enter a family name."
                 type="text"
                 value={formData.name}
                 onChange={(event) => setFormData(prev => ({ ...prev, name: event.target.value }))}
@@ -138,19 +143,13 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
                 required
               />
             </div>
+            <USAddressFields value={formData.address} onChange={address => setFormData(prev => ({ ...prev, address }))} />
             <div>
-              <label className="text-sm font-medium text-gray-500">Address</label>
+              <label htmlFor="family-phone" className="text-sm font-medium text-gray-500">Phone</label>
               <input
-                type="text"
-                value={formData.address}
-                onChange={(event) => setFormData(prev => ({ ...prev, address: event.target.value }))}
-                className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-500">Phone</label>
-              <input
+                 id="family-phone"
+                 autoComplete="tel-national"
+                 title="Enter a 10-digit phone number: (555) 123-4567."
                  type="tel"
                  inputMode="tel"
                  pattern={PHONE_PATTERN}
@@ -162,8 +161,10 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-500">Email</label>
+              <label htmlFor="family-email" className="text-sm font-medium text-gray-500">Email</label>
               <input
+                id="family-email"
+                autoComplete="email"
                 type="email"
                 value={formData.email}
                 onChange={(event) => setFormData(prev => ({ ...prev, email: event.target.value }))}
@@ -187,7 +188,7 @@ export default function FamilyActions({ family }: FamilyActionsProps) {
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Address</label>
-              <p className="text-gray-900">{familyData.address}</p>
+              <p className="whitespace-pre-line text-gray-900">{familyData.address}</p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-500">Phone</label>
