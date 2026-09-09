@@ -69,6 +69,17 @@ export default function AdminUserDetailsPage() {
     await load()
   }
 
+  const reactivate = async () => {
+    if (!confirm('Reactivate this user? They will be able to sign in immediately.')) return
+    setBusy(true)
+    const response = await fetch(`/api/admin/users/${params.userId}/reactivate`, { method: 'POST' })
+    const payload = await response.json()
+    setBusy(false)
+    if (!response.ok) { setMessage(payload.error || 'Unable to reactivate user'); return }
+    setMessage('User reactivated')
+    await load()
+  }
+
   const emulate = async () => {
     const response = await fetch(`/api/admin/users/${params.userId}`, { method: 'POST' })
     const payload = await response.json()
@@ -110,6 +121,7 @@ export default function AdminUserDetailsPage() {
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <label className="text-sm font-medium text-gray-700">Role<select value={details.user.role === 'staff' ? 'moderator' : details.user.role} onChange={(event) => updateRole(event.target.value)} disabled={busy || details.user.id === user.id} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="user">User</option><option value="moderator">Moderator</option><option value="admin">Admin</option></select></label>
               {details.user.id !== user.id && details.user.status === 'active' && <button onClick={deactivate} disabled={busy} className="self-end rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50">Deactivate User</button>}
+              {details.user.status === 'inactive' && <button onClick={reactivate} disabled={busy} className="self-end rounded-md border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 hover:bg-green-100 disabled:opacity-50">Reactivate User</button>}
             </div>
             <div className="mt-5 rounded-md border border-amber-200 bg-amber-50 p-4">
               <h3 className="text-sm font-semibold text-amber-900">Password reset</h3>
