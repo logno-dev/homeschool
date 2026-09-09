@@ -1040,17 +1040,15 @@ export async function POST(request: Request) {
         eq(familySessionFees.sessionId, sessionId),
         eq(familySessionFees.familyId, familyId)
       )).limit(1)
-      if (fee) {
-        await sendRegistrationConfirmationEmail({
-          to: guardian[0].email,
-          firstName: guardian[0].firstName,
-          sessionName: sessionInfo.name,
-          classNames: (registrations || []).map((registration) => registration.className).join(', '),
-          totalAmount: fee.totalFee,
-          amountPaid: fee.paidAmount,
-           balanceDue: Math.max(0, fee.totalFee - fee.paidAmount)
-         })
-      }
+       await sendRegistrationConfirmationEmail({
+         to: guardian[0].email,
+         firstName: guardian[0].firstName,
+         sessionName: sessionInfo.name,
+         classNames: (registrations || []).map((registration) => registration.className).join(', '),
+         totalAmount: fee?.totalFee || 0,
+         amountPaid: fee?.paidAmount || 0,
+         balanceDue: fee ? Math.max(0, fee.totalFee - fee.paidAmount) : 0
+       })
     } catch (emailError) {
       console.error('Error sending registration confirmation:', emailError)
     }
