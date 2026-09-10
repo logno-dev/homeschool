@@ -119,15 +119,19 @@ export async function PATCH(
       if (editData.requiresFee !== undefined) updateData.requiresFee = editData.requiresFee
       if (editData.feeAmount !== undefined) updateData.feeAmount = editData.requiresFee ? parseFloat(editData.feeAmount) : null
       if (editData.schedulingRequirements !== undefined) updateData.schedulingRequirements = editData.schedulingRequirements?.trim() || null
-      if (editData.teacherId !== undefined && editData.teacherId) {
-        const [teacher] = await db.select({ id: guardians.id }).from(guardians).where(eq(guardians.id, String(editData.teacherId))).limit(1)
-        if (!teacher) return NextResponse.json({ error: 'Teacher not found' }, { status: 404 })
-        updateData.guardianId = teacher.id
-      }
-      if (editData.teacherName !== undefined) {
-        const teacherName = editData.teacherName?.trim() || ''
-        if (!editData.teacherId && !teacherName) return NextResponse.json({ error: 'Enter a teacher placeholder when no assigned teacher is selected' }, { status: 400 })
-        updateData.teacherName = teacherName || null
+      if (editData.teacherId !== undefined || editData.teacherName !== undefined) {
+        const teacherId = String(editData.teacherId || '')
+        if (teacherId) {
+          const [teacher] = await db.select({ id: guardians.id }).from(guardians).where(eq(guardians.id, teacherId)).limit(1)
+          if (!teacher) return NextResponse.json({ error: 'Teacher not found' }, { status: 404 })
+          updateData.guardianId = teacher.id
+          updateData.teacherName = null
+        } else {
+          const teacherName = String(editData.teacherName || '').trim()
+          if (!teacherName) return NextResponse.json({ error: 'Enter a teacher placeholder when no assigned teacher is selected' }, { status: 400 })
+          updateData.guardianId = null
+          updateData.teacherName = teacherName
+        }
       }
 
       if (updateData.gradeRange && (updateData.gradeRangeFrom === undefined || updateData.gradeRangeTo === undefined)) {
@@ -152,7 +156,8 @@ export async function PATCH(
       const previousRequest = await getClassTeachingRequestById(requestId)
       updatedRequest = await updateClassTeachingRequest(requestId, updateData)
       if (updatedRequest) {
-        await syncTeacherGroupMembership(updatedRequest.guardianId)
+        if (updatedRequest.guardianId) await syncTeacherGroupMembership(updatedRequest.guardianId)
+        if (previousRequest?.guardianId && previousRequest.guardianId !== updatedRequest.guardianId) await syncTeacherGroupMembership(previousRequest.guardianId)
         if (updatedRequest.coTeacherId) await syncTeacherGroupMembership(updatedRequest.coTeacherId)
         if (previousRequest?.coTeacherId && previousRequest.coTeacherId !== updatedRequest.coTeacherId) await syncTeacherGroupMembership(previousRequest.coTeacherId)
       }

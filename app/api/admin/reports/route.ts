@@ -40,13 +40,14 @@ export async function GET(request: Request) {
           classroomName: sessionClassrooms.name,
           period: schedules.period,
           className: classTeachingRequests.className,
+          teacherName: classTeachingRequests.teacherName,
           teacherFirstName: guardians.firstName,
           teacherLastName: guardians.lastName
         })
         .from(schedules)
         .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
         .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
-        .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
+        .leftJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
         .where(and(
           eq(schedules.sessionId, sessionId),
           eq(schedules.status, 'published')

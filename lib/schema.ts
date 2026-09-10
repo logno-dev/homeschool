@@ -201,7 +201,7 @@ export const scheduleDraftEntries = sqliteTable('schedule_draft_entries', {
 export const classTeachingRequests = sqliteTable('class_teaching_requests', {
   id: text('id').primaryKey(),
   sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
-  guardianId: text('guardian_id').notNull().references(() => guardians.id, { onDelete: 'cascade' }),
+  guardianId: text('guardian_id').references(() => guardians.id, { onDelete: 'cascade' }),
   teacherName: text('teacher_name'),
   className: text('class_name').notNull(),
   description: text('description').notNull(),

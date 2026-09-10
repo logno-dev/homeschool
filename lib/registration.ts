@@ -74,7 +74,7 @@ function buildTeachingAssignments(schedules: any[], guardians: any[]): TeachingA
   const guardianIds = new Set(guardians.map((guardian) => guardian.id))
 
   return schedules
-    .filter((schedule) => guardianIds.has(schedule.teacher.id))
+    .filter((schedule) => schedule.teacher?.id && guardianIds.has(schedule.teacher.id))
     .map((schedule) => ({
       guardianId: schedule.teacher.id,
       period: schedule.schedule.period,
@@ -100,6 +100,7 @@ async function getFamilyHoldSelections(sessionId: string, userId: string) {
         childId: classRegistrations.childId,
         period: schedules.period,
         className: classTeachingRequests.className,
+        teacherName: classTeachingRequests.teacherName,
         teacherFirstName: guardians.firstName,
         teacherLastName: guardians.lastName,
         classroomName: sessionClassrooms.name,
@@ -109,7 +110,7 @@ async function getFamilyHoldSelections(sessionId: string, userId: string) {
       .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
       .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
       .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
-      .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
+      .leftJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
       .where(and(
         eq(classRegistrations.sessionId, sessionId),
         eq(classRegistrations.familyId, guardian.familyId),
@@ -151,7 +152,7 @@ async function getFamilyHoldSelections(sessionId: string, userId: string) {
       childId: registration.childId,
       className: registration.className,
       period: registration.period,
-      teacher: `${registration.teacherFirstName} ${registration.teacherLastName}`,
+      teacher: registration.teacherName || [registration.teacherFirstName, registration.teacherLastName].filter(Boolean).join(' ') || 'Unassigned',
       classroom: registration.classroomName,
       status: 'registered' as const,
       holdId: registration.id,

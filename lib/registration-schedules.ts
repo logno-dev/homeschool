@@ -33,7 +33,7 @@ export async function getRegistrationSchedules(sessionId: string) {
       .from(schedules)
       .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
       .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
-      .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
+      .leftJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
       .where(and(
         eq(schedules.sessionId, sessionId),
         eq(schedules.status, 'published')
@@ -215,8 +215,8 @@ export async function getRegistrationSchedules(sessionId: string) {
     return {
       ...item,
       teacher: item.classTeachingRequest.teacherName
-        ? { ...item.teacher, firstName: item.classTeachingRequest.teacherName, lastName: '' }
-        : item.teacher,
+        ? { id: null, firstName: item.classTeachingRequest.teacherName, lastName: '' }
+        : item.teacher || { id: null, firstName: 'Unassigned', lastName: '' },
       currentRegistrations: registrationCountMap[item.schedule.id] || 0,
       availableSpots: item.classTeachingRequest.maxStudents - (registrationCountMap[item.schedule.id] || 0),
       helpersAvailable: item.classTeachingRequest.helpersNeeded - currentHelpers,

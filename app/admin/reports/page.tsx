@@ -14,8 +14,9 @@ interface ScheduleRow {
   classroomName: string
   period: string
   className: string
-  teacherFirstName: string
-  teacherLastName: string
+  teacherName: string | null
+  teacherFirstName: string | null
+  teacherLastName: string | null
 }
 
 interface RosterRow {

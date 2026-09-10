@@ -39,7 +39,7 @@ interface Classroom {
 }
 
 interface Teacher {
-  id: string
+  id: string | null
   firstName: string
   lastName: string
 }

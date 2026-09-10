@@ -51,7 +51,7 @@ export default async function ClassroomAttendancePrintPage({ params, searchParam
       .from(schedules)
       .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
       .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
-      .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
+      .leftJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
       .where(and(
         eq(schedules.sessionId, sessionId),
         eq(schedules.status, 'published')

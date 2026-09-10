@@ -76,7 +76,7 @@ export async function GET(request: Request) {
         .from(schedules)
         .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
         .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
-        .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
+        .leftJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
         .where(eq(schedules.sessionId, sessionId)),
 
       db

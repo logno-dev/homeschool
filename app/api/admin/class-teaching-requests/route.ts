@@ -19,7 +19,7 @@ export async function GET() {
     const teachers = await db.select({ id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName, email: guardians.email }).from(guardians)
     const requests = await getClassTeachingRequestsWithSession()
     const teacherNames = new Map(teachers.map((teacher) => [teacher.id, `${teacher.firstName} ${teacher.lastName}`.trim()]))
-    return NextResponse.json({ requests: requests.map((request) => ({ ...request, teacherDisplayName: request.teacherName || teacherNames.get(request.guardianId) || 'Unassigned' })), sessions: sessionsList, teachers })
+    return NextResponse.json({ requests: requests.map((request) => ({ ...request, teacherDisplayName: request.teacherName || (request.guardianId ? teacherNames.get(request.guardianId) : null) || 'Unassigned' })), sessions: sessionsList, teachers })
   } catch (error) {
     console.error('Error fetching class teaching requests:', error)
     return NextResponse.json(
@@ -57,9 +57,8 @@ export async function POST(request: Request) {
     const [selectedTeacher] = requestedTeacherId
       ? await db.select({ id: guardians.id }).from(guardians).where(eq(guardians.id, requestedTeacherId)).limit(1)
       : []
-    const [fallbackTeacher] = await db.select({ id: guardians.id }).from(guardians).limit(1)
-    const guardianId = selectedTeacher?.id || fallbackTeacher?.id
-    if (!guardianId) return NextResponse.json({ error: 'At least one guardian is required to create a class' }, { status: 400 })
+    if (requestedTeacherId && !selectedTeacher) return NextResponse.json({ error: 'Teacher not found' }, { status: 404 })
+    const guardianId = selectedTeacher?.id || null
     const [selectedCoTeacher] = requestedCoTeacherId
       ? await db.select({ id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName }).from(guardians).where(eq(guardians.id, requestedCoTeacherId)).limit(1)
       : []
@@ -71,7 +70,7 @@ export async function POST(request: Request) {
       id: randomUUID(),
       sessionId,
       guardianId,
-      teacherName: requestedTeacherName || null,
+      teacherName: guardianId ? null : requestedTeacherName,
       className,
       description,
       gradeRange,
@@ -93,7 +92,7 @@ export async function POST(request: Request) {
       createdAt: now,
       updatedAt: now
     }).returning()
-    if (requestedTeacherId) await syncTeacherGroupMembership(guardianId)
+    if (guardianId) await syncTeacherGroupMembership(guardianId)
     if (selectedCoTeacher?.id) await syncTeacherGroupMembership(selectedCoTeacher.id)
     return NextResponse.json({ request: created }, { status: 201 })
   } catch (error) {

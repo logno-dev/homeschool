@@ -17,6 +17,7 @@ export async function GET() {
         sessionId: sessions.id,
         sessionName: sessions.name,
         className: classTeachingRequests.className,
+        teacherName: classTeachingRequests.teacherName,
         feeAmount: sql<number>`COALESCE(${classTeachingRequests.feeAmount}, 0)`,
         guardianId: classTeachingRequests.guardianId,
         teacherFirstName: guardians.firstName,
@@ -27,7 +28,7 @@ export async function GET() {
       .from(classTeachingRequests)
       .innerJoin(schedules, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
       .innerJoin(sessions, eq(classTeachingRequests.sessionId, sessions.id))
-      .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
+      .leftJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
       .leftJoin(
         classRegistrations,
         and(
@@ -41,6 +42,7 @@ export async function GET() {
         sessions.id,
         sessions.name,
         classTeachingRequests.className,
+        classTeachingRequests.teacherName,
         classTeachingRequests.feeAmount,
         classTeachingRequests.guardianId,
         guardians.firstName,

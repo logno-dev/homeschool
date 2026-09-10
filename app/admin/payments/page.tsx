@@ -60,7 +60,8 @@ interface ClassFeeSummary {
   sessionName: string
   className: string
   feeAmount: number
-  guardianId: string
+  guardianId: string | null
+  teacherName: string | null
   teacherFirstName: string | null
   teacherLastName: string | null
   enrolledCount: number
@@ -845,7 +846,7 @@ export default function PaymentsPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{summary.sessionName}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{summary.className}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {formatPersonName(summary.teacherFirstName, summary.teacherLastName)}
+                            {summary.teacherName || formatPersonName(summary.teacherFirstName, summary.teacherLastName)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                             {formatCurrency(summary.feeAmount)}

@@ -784,7 +784,7 @@ export async function approveClassTeachingRequest(id: string, reviewerId: string
   })
   if (updated) {
     const { syncTeacherGroupMembership } = await import('./user-groups')
-    await syncTeacherGroupMembership(updated.guardianId)
+    if (updated.guardianId) await syncTeacherGroupMembership(updated.guardianId)
     if (updated.coTeacherId) await syncTeacherGroupMembership(updated.coTeacherId)
   }
   return updated
@@ -799,7 +799,7 @@ export async function rejectClassTeachingRequest(id: string, reviewerId: string,
   })
   if (updated) {
     const { syncTeacherGroupMembership } = await import('./user-groups')
-    await syncTeacherGroupMembership(updated.guardianId)
+    if (updated.guardianId) await syncTeacherGroupMembership(updated.guardianId)
     if (updated.coTeacherId) await syncTeacherGroupMembership(updated.coTeacherId)
   }
   return updated

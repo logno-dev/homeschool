@@ -49,7 +49,7 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
   const [showVolunteerModal, setShowVolunteerModal] = useState(false)
 
   // Transform schedules data into teaching assignments for conflict detection
-  const teachingAssignments = schedules.map(schedule => ({
+  const teachingAssignments = schedules.filter(schedule => schedule.teacher?.id).map(schedule => ({
     guardianId: schedule.teacher.id,
     period: schedule.schedule.period,
     className: schedule.classTeachingRequest.className,
