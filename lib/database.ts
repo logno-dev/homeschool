@@ -3,7 +3,7 @@ import { db, client, hasDatabaseConnection } from './db'
 import { families, guardians, children, feePayments, users, sessions, classrooms, sessionClassrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments, globalSettings, volunteerJobs, sessionVolunteerJobs, faqs } from './schema'
 import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, SessionClassroom, Schedule, ScheduleDraft, ScheduleDraftEntry, ClassTeachingRequest, ScheduleComment, NewFamily, NewGuardian, NewChild, NewFeePayment, NewUser, NewSession, NewClassroom, NewSessionClassroom, NewSchedule, NewScheduleDraft, NewScheduleDraftEntry, NewClassTeachingRequest, NewScheduleComment, NewSessionVolunteerJob } from './schema'
 import { incrementGradeValue } from './grades'
-import { getRegistrationAccess } from './user-groups'
+import { ensureFamilyGroupMembership, getRegistrationAccess } from './user-groups'
 import { getAppTimezone, parseAppDate } from './app-time'
 
 // Helper function to generate sharing codes
@@ -371,8 +371,11 @@ export async function createUser(userData: Omit<NewUser, 'createdAt' | 'updatedA
     updatedAt: new Date().toISOString()
   }
   
-  const result = await db.insert(users).values(newUser).returning()
-  return result[0]
+  return await db.transaction(async (tx) => {
+    const [user] = await tx.insert(users).values(newUser).returning()
+    await ensureFamilyGroupMembership(user.id, tx)
+    return user
+  })
 }
 
 export async function getUsers(): Promise<User[]> {

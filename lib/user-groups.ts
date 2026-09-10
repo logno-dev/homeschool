@@ -9,6 +9,8 @@ import { ADMIN_MODULES, type AdminModule } from '@/lib/admin-access'
 export const FAMILY_GROUP_SLUG = 'family'
 export const TEACHER_GROUP_SLUG = 'teacher'
 
+type GroupDatabase = Pick<typeof db, 'select' | 'insert'>
+
 export async function getUserGroups(userId: string) {
   try {
     return await db
@@ -22,22 +24,25 @@ export async function getUserGroups(userId: string) {
   }
 }
 
-export async function addUserToGroup(userId: string, groupId: string) {
-  const [existingMembership] = await db.select({ id: userGroupMemberships.id })
+export async function addUserToGroup(userId: string, groupId: string, connection: GroupDatabase = db) {
+  const [existingMembership] = await connection.select({ id: userGroupMemberships.id })
     .from(userGroupMemberships)
     .where(and(eq(userGroupMemberships.userId, userId), eq(userGroupMemberships.groupId, groupId)))
     .limit(1)
   if (existingMembership) return
-  await db.insert(userGroupMemberships).values({ id: randomUUID(), userId, groupId }).onConflictDoNothing()
+  await connection.insert(userGroupMemberships).values({ id: randomUUID(), userId, groupId }).onConflictDoNothing()
 }
 
 export async function removeUserFromGroup(userId: string, groupId: string) {
   await db.delete(userGroupMemberships).where(and(eq(userGroupMemberships.userId, userId), eq(userGroupMemberships.groupId, groupId)))
 }
 
-export async function ensureFamilyGroupMembership(userId: string) {
-  const [familyGroup] = await db.select({ id: userGroups.id }).from(userGroups).where(eq(userGroups.slug, FAMILY_GROUP_SLUG)).limit(1)
-  if (familyGroup) await addUserToGroup(userId, familyGroup.id)
+export async function ensureFamilyGroupMembership(userId: string, connection: GroupDatabase = db) {
+  // Signup must work even before an administrator has opened User Groups.
+  await connection.insert(userGroups).values({ id: 'group-family', name: 'Family', slug: FAMILY_GROUP_SLUG, isSystem: true }).onConflictDoNothing()
+  const [familyGroup] = await connection.select({ id: userGroups.id }).from(userGroups).where(eq(userGroups.slug, FAMILY_GROUP_SLUG)).limit(1)
+  if (!familyGroup) throw new Error('Family user group could not be initialized')
+  await addUserToGroup(userId, familyGroup.id, connection)
 }
 
 export async function syncTeacherGroupMembership(userId: string) {
