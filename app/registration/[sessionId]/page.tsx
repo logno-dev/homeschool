@@ -11,6 +11,7 @@ import { RegistrationProvider } from '@/app/components/RegistrationContext'
 import RegistrationGrid from '@/app/components/RegistrationGrid'
 import VolunteerHourCounter from '@/app/components/VolunteerHourCounter'
 import ReadonlyScheduleView from '@/app/components/ReadonlyScheduleView'
+import ResumeRegistration from '@/app/components/ResumeRegistration'
 import { getRegistrationScheduleBundle } from '@/lib/registration'
 import Link from 'next/link'
 import { db } from '@/lib/db'
@@ -68,7 +69,14 @@ export default async function RegistrationPage({ params, searchParams }: { param
   // Check if family has a denied override
   const hasDeniedOverride = registrationStatus && registrationStatus.registrationState === 'denied'
   const isModifying = modify === '1'
-  const editableRegistrations = registrationStatus.classRegistrations.map((entry) => {
+  const isIncomplete = ['in_progress', 'incomplete'].includes(registrationStatus.registrationState)
+  const classSelections = isIncomplete
+    ? Array.from(new Map([...registrationStatus.heldClassRegistrations, ...registrationStatus.classRegistrations].map(entry => [`${entry.registration.childId}:${entry.registration.scheduleId}`, entry])).values())
+    : registrationStatus.classRegistrations
+  const volunteerSelections = isIncomplete
+    ? Array.from(new Map([...registrationStatus.heldVolunteerAssignments, ...registrationStatus.volunteerAssignments].map(entry => [`${entry.assignment.guardianId}:${entry.assignment.period}:${entry.assignment.scheduleId || entry.assignment.volunteerJobId}`, entry])).values())
+    : registrationStatus.volunteerAssignments
+  const editableRegistrations = classSelections.map((entry) => {
     const schedule = scheduleBundle.schedules.find((item) => item.schedule.id === entry.registration.scheduleId)
     return {
       childId: entry.registration.childId,
@@ -80,7 +88,7 @@ export default async function RegistrationPage({ params, searchParams }: { param
       status: entry.registration.status === 'waitlisted' ? 'waitlisted' as const : 'registered' as const
     }
   })
-  const editableVolunteerAssignments = registrationStatus.volunteerAssignments.map((entry) => ({
+  const editableVolunteerAssignments = volunteerSelections.map((entry) => ({
     guardianId: entry.assignment.guardianId,
     guardianName: scheduleBundle.guardians.find((guardian) => guardian.id === entry.assignment.guardianId)
       ? `${scheduleBundle.guardians.find((guardian) => guardian.id === entry.assignment.guardianId)?.firstName} ${scheduleBundle.guardians.find((guardian) => guardian.id === entry.assignment.guardianId)?.lastName}`
@@ -205,6 +213,19 @@ export default async function RegistrationPage({ params, searchParams }: { param
                   initialEmergencyContact={isModifying ? editableEmergencyContact : undefined}
               />
             </RegistrationProvider>
+          </div>
+        ) : isIncomplete && !isModifying ? (
+          <div className="space-y-6">
+            <h1 className="text-3xl font-bold text-gray-900">Finish Your Registration</h1>
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+              <h2 className="font-semibold text-amber-900">Your registration was not fully completed</h2>
+              <p className="mt-2 text-sm text-amber-800">Your saved classes and volunteer selections are shown below. Complete registration to confirm any remaining reserved volunteer spots and generate your session fees.</p>
+              <ResumeRegistration sessionId={sessionId} />
+              <Link href={`/registration/${sessionId}?modify=1`} className="mt-3 inline-block text-sm font-medium text-blue-700 underline">Review or change selections</Link>
+            </div>
+            <ReadonlyScheduleView sessionId={sessionId} sessionInfo={classSessionInfo}
+              classRegistrations={[...registrationStatus.classRegistrations, ...registrationStatus.heldClassRegistrations]}
+              volunteerAssignments={[...registrationStatus.volunteerAssignments, ...registrationStatus.heldVolunteerAssignments]} />
           </div>
         ) : isRegistered && !isModifying ? (
           // Show readonly view for registered families

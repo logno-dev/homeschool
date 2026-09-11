@@ -10,12 +10,14 @@ import { createClient } from '@libsql/client'
 import { drizzle } from 'drizzle-orm/libsql'
 import { getTableConfig, SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
 import { eq } from 'drizzle-orm'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 
 const require = createRequire(import.meta.url)
 function load(path, mocks = {}) {
-  const { outputText } = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true } })
+  const { outputText } = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } })
   const module = { exports: {} }
-  vm.runInNewContext(outputText, { module, exports: module.exports, console, setTimeout, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name) })
+  vm.runInNewContext(outputText, { module, exports: module.exports, console, setTimeout, Request, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name) })
   return module.exports
 }
 
@@ -26,7 +28,7 @@ const db = drizzle(client, { schema })
 let viewerId = 'guardian-b'
 try {
   const dialect = new SQLiteSyncDialect()
-  for (const table of [schema.guardians, schema.sessions, schema.schedules, schema.classTeachingRequests, schema.volunteerAssignments, schema.familyRegistrationStatus, schema.familySessionFees, schema.children, schema.classRegistrations]) {
+  for (const table of [schema.guardians, schema.sessions, schema.schedules, schema.classTeachingRequests, schema.volunteerAssignments, schema.familyRegistrationStatus, schema.familySessionFees, schema.children, schema.classRegistrations, schema.sessionFeeConfigs, schema.sessionClassrooms, schema.volunteerJobs]) {
     const { name, columns } = getTableConfig(table)
     const definitions = columns.map(column => {
       let sql = `"${column.name}" ${column.getSQLType()}${column.primary ? ' PRIMARY KEY' : ''}${column.notNull ? ' NOT NULL' : ''}`
@@ -113,6 +115,77 @@ try {
   assert.equal(rows.length, 2)
   assert.equal(rows.find(row => row.id === 'numeric-hold').period, 'second')
   console.log('Two-helper checkout, held-row reuse, full-class rejection, other-guardian holds, pending/expired holds, and role/period matching checks passed.')
+
+  // Reproduce an interrupted registration: children and the first volunteer
+  // were committed, but another volunteer is still held and no invoice exists.
+  await db.delete(schema.volunteerAssignments)
+  await db.delete(schema.familyRegistrationStatus)
+  await db.insert(schema.sessionClassrooms).values({ id: 'room', sessionId: 'session', classroomId: 'base-room', name: 'Test room' })
+  await db.insert(schema.schedules).values({ id: 'schedule-first', sessionId: 'session', classTeachingRequestId: 'class', classroomId: 'room', sessionClassroomId: 'room', period: 'first', status: 'published' })
+  await db.insert(schema.children).values({ id: 'child-b', familyId: 'family-b', firstName: 'Child', lastName: 'Test', dateOfBirth: '2018-01-01', grade: '1st Grade' })
+  for (const scheduleId of ['schedule-first', 'schedule']) {
+    await db.insert(schema.classRegistrations).values({ id: `saved-${scheduleId}`, sessionId: 'session', familyId: 'family-b', childId: 'child-b', scheduleId, registeredBy: 'guardian-b', status: 'registered', emergencyContact: 'Contact', emergencyPhone: '(555) 123-4567' })
+  }
+  await insertAssignment('saved-first', 'guardian-b', 'family-b', 'assigned', { scheduleId: 'schedule-first', period: 'first' })
+  await insertAssignment('held-second', 'guardian-b', 'family-b', 'hold', { holdExpiresAt: future })
+  await db.insert(schema.sessionFeeConfigs).values({ id: 'config', sessionId: 'session', firstChildFee: 45, additionalChildFee: 20, dueDate: '2026-12-01' })
+  mocks['@/lib/database'].getGuardiansByFamily = async familyId => db.select().from(schema.guardians).where(eq(schema.guardians.familyId, familyId))
+  const statusModule = load('lib/registration-status.ts', { ...mocks, 'server-only': {} })
+  let status = await statusModule.getRegistrationStatus('session', 'guardian-b')
+  assert.equal(status.registrationState, 'in_progress')
+  assert.equal(status.classRegistrations.length, 2)
+  assert.equal(status.volunteerAssignments.length, 1)
+  assert.equal(status.heldVolunteerAssignments.length, 1)
+  const ReadonlyScheduleView = load('app/components/ReadonlyScheduleView.tsx').default
+  const html = renderToStaticMarkup(React.createElement(ReadonlyScheduleView, { sessionId: 'session', classRegistrations: status.classRegistrations, volunteerAssignments: [...status.volunteerAssignments, ...status.heldVolunteerAssignments] }))
+  assert.ok(html.includes('Reserved in cart — not yet confirmed'))
+  mocks['@/lib/database'].getActiveSessions = async () => db.select().from(schema.sessions)
+  const RegistrationList = load('app/registration/page.tsx', { ...mocks, '@/lib/registration-status': statusModule, 'next/link': ({ children, ...props }) => React.createElement('a', props, children) }).default
+  const listHtml = renderToStaticMarkup(await RegistrationList())
+  assert.ok(listHtml.includes('Complete Registration'))
+  assert.ok(listHtml.includes('href="/registration/session"'))
+  assert.ok(!listHtml.includes('?modify=1'))
+
+  const feeModule = load('lib/fee-calculation.ts', { ...mocks, '@/lib/session-fee-rules': load('lib/session-fee-rules.ts') })
+  let failFees = true
+  mocks['@/lib/fee-calculation'].createOrUpdateFamilySessionFee = async (...args) => {
+    if (failFees) throw new Error('Simulated fee-generation failure')
+    return feeModule.createOrUpdateFamilySessionFee(...args)
+  }
+  const resume = load('app/api/registration/resume/route.ts', { ...mocks, '@/lib/registration-status': statusModule, '../batch-register/route': { POST: submit } }).POST
+  response = await resume(request({ sessionId: 'session' }))
+  assert.equal(response.status, 503)
+  assert.equal((await response.json()).registrationIncomplete, true)
+  status = await statusModule.getRegistrationStatus('session', 'guardian-b')
+  assert.equal(status.registrationState, 'in_progress', 'Fee failure must never mark registration complete')
+  assert.equal(status.volunteerAssignments.length, 2)
+  assert.equal(status.heldVolunteerAssignments.length, 0)
+  assert.equal((await db.select().from(schema.familySessionFees)).length, 0)
+
+  failFees = false
+  response = await resume(request({ sessionId: 'session' }))
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()))
+  status = await statusModule.getRegistrationStatus('session', 'guardian-b')
+  assert.equal(status.registrationState, 'completed')
+  assert.equal(status.classRegistrations.length, 2)
+  assert.equal(status.volunteerAssignments.length, 2)
+  const [fee] = await db.select().from(schema.familySessionFees)
+  assert.equal(fee.totalFee, 45)
+  assert.equal(fee.paidAmount, 0)
+  assert.equal(fee.status, 'pending')
+  assert.equal((await resume(request({ sessionId: 'session' }))).status, 200)
+  assert.equal((await db.select().from(schema.familySessionFees)).length, 1)
+  assert.deepEqual((await db.select().from(schema.classRegistrations)).map(row => row.id).sort(), ['saved-schedule', 'saved-schedule-first'])
+  assert.deepEqual((await db.select().from(schema.volunteerAssignments)).map(row => row.id).sort(), ['held-second', 'saved-first'])
+  // An approved volunteer-hours exception remains valid when retrying billing.
+  await db.delete(schema.volunteerAssignments)
+  await db.delete(schema.familySessionFees)
+  await db.update(schema.familyRegistrationStatus).set({ status: 'completed', adminOverride: true, overriddenBy: 'guardian-a' }).where(eq(schema.familyRegistrationStatus.familyId, 'family-b'))
+  assert.equal((await resume(request({ sessionId: 'session' }))).status, 200)
+  assert.equal((await statusModule.getRegistrationStatus('session', 'guardian-b')).registrationState, 'completed')
+  viewerId = 'guardian-c'
+  assert.equal((await resume(request({ sessionId: 'session' }))).status, 409, 'Another family cannot resume these selections')
+  console.log('Partial-registration display, idempotent resume, fee-failure recovery, unpaid invoice creation, and family isolation checks passed.')
 } finally {
   client.close()
   rmSync(directory, { recursive: true, force: true })

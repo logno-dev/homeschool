@@ -39,6 +39,7 @@ interface VolunteerAssignment {
     id: string
     period: string
     volunteerType: string
+    status?: string
   }
   schedule?: {
     id: string
@@ -161,6 +162,7 @@ export default function ReadonlyScheduleView({
                               <p className="text-xs text-blue-600">
                                 Grade Range: {reg.classTeachingRequest.gradeRange}
                               </p>
+                              {reg.registration.status === 'hold' && <p className="mt-1 text-xs font-semibold text-amber-700">Reserved in cart — not yet confirmed</p>}
                             </div>
                           ))}
                         </div>
@@ -181,6 +183,7 @@ export default function ReadonlyScheduleView({
                               <p className="text-xs text-green-700">
                                 Role: {vol.assignment.volunteerType}
                               </p>
+                              {vol.assignment.status === 'hold' && <p className="mt-1 text-xs font-semibold text-amber-700">Reserved in cart — not yet confirmed</p>}
                               {vol.classroom && (
                                 <p className="text-xs text-green-700">
                                   Room: {vol.classroom.name}
@@ -230,6 +233,7 @@ export default function ReadonlyScheduleView({
                               </p>
                               <p className="text-xs text-blue-700">Room: {reg.classroom.name}</p>
                               <p className="text-xs text-blue-600">Grade Range: {reg.classTeachingRequest.gradeRange}</p>
+                              {reg.registration.status === 'hold' && <p className="mt-1 text-xs font-semibold text-amber-700">Reserved in cart — not yet confirmed</p>}
                             </div>
                           ))}
                         </div>
@@ -250,6 +254,7 @@ export default function ReadonlyScheduleView({
                                   : vol.classTeachingRequest?.className || 'General Volunteer'}
                               </h5>
                               <p className="text-xs text-green-700">Role: {vol.assignment.volunteerType}</p>
+                              {vol.assignment.status === 'hold' && <p className="mt-1 text-xs font-semibold text-amber-700">Reserved in cart — not yet confirmed</p>}
                               {vol.classroom && <p className="text-xs text-green-700">Room: {vol.classroom.name}</p>}
                             </div>
                           ))}

@@ -37,6 +37,7 @@ export default async function RegistrationPage() {
               <div className="space-y-4">
                  {sessions.map(({ session, access, registrationStatus, feeConfig }) => {
                    const hasRegistration = Boolean(registrationStatus?.hasRegistrations)
+                   const needsCompletion = ['in_progress', 'incomplete'].includes(registrationStatus.registrationState)
                    return (
                    <div
                     key={session.id}
@@ -62,12 +63,12 @@ export default async function RegistrationPage() {
                          >
                            View Schedule
                          </Link>
-                         {hasRegistration ? (
+                         {hasRegistration || needsCompletion ? (
                            <Link
-                             href={`/registration/${session.id}?modify=1`}
+                             href={needsCompletion ? `/registration/${session.id}` : `/registration/${session.id}?modify=1`}
                              className="inline-flex w-full sm:w-auto items-center justify-center font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 bg-orange-600 text-white hover:bg-orange-700 active:bg-orange-800 focus:ring-orange-500 px-4 py-2 text-sm min-h-[36px]"
                            >
-                             Modify Registration
+                             {needsCompletion ? 'Complete Registration' : 'Modify Registration'}
                            </Link>
                          ) : access.isOpen ? (
                            <Link

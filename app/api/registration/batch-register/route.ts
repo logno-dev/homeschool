@@ -14,7 +14,7 @@ import {
   sessionVolunteerJobs,
   familySessionFees
 } from '@/lib/schema'
-import { eq, and, inArray, or, gt, not } from 'drizzle-orm'
+import { eq, and, inArray, or, gt, not, isNotNull } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
 import { isGradeWithinRange } from '@/lib/grades'
@@ -215,12 +215,12 @@ async function validateRegistration(
 
       if (existingRegistration.length > 0) {
         const existing = existingRegistration[0]
-        const isOwnHold =
-          existing.status === 'hold' &&
+        const isOwnSelection =
+          ['hold', 'registered'].includes(existing.status) &&
           existing.familyId === familyId &&
           existing.scheduleId === registration.scheduleId
 
-        if (isOwnHold) {
+        if (isOwnSelection) {
           continue
         }
         conflicts.push({
@@ -268,9 +268,9 @@ async function validateRegistration(
       const matchesAssignment = existing.scheduleId
         ? existing.scheduleId === assignment.scheduleId
         : existing.volunteerJobId === assignment.volunteerJobId
-      const isOwnHold = existing.status === 'hold' && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment
+      const isOwnSelection = ['hold', 'assigned'].includes(existing.status) && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment
 
-      if (isOwnHold) {
+      if (isOwnSelection) {
         continue
       }
       conflicts.push({
@@ -432,6 +432,7 @@ async function validateRegistration(
 }
 
 export async function POST(request: Request) {
+  let processingStarted = false
   try {
     const auth = await getAuthenticatedUserSession()
     if ('error' in auth) {
@@ -544,7 +545,14 @@ export async function POST(request: Request) {
       where: and(
         eq(familyRegistrationStatus.familyId, familyId),
         eq(familyRegistrationStatus.sessionId, sessionId),
-        eq(familyRegistrationStatus.status, 'approved')
+        or(
+          eq(familyRegistrationStatus.status, 'approved'),
+          and(
+            inArray(familyRegistrationStatus.status, ['completed', 'in_progress', 'incomplete']),
+            eq(familyRegistrationStatus.adminOverride, true),
+            isNotNull(familyRegistrationStatus.overriddenBy)
+          )
+        )
       )
     })
 
@@ -725,6 +733,20 @@ export async function POST(request: Request) {
 
     const holdReferenceTime = new Date().toISOString()
 
+    // Persist the incomplete state before individual writes. If a later write
+    // or fee calculation fails, the family can resume instead of appearing done.
+    const [completionStatus] = await db.select().from(familyRegistrationStatus).where(and(
+      eq(familyRegistrationStatus.familyId, familyId),
+      eq(familyRegistrationStatus.sessionId, sessionId)
+    )).limit(1)
+    const completionStatusId = completionStatus?.id || randomUUID()
+    if (completionStatus) {
+      await db.update(familyRegistrationStatus).set({ status: 'in_progress', completedAt: null, updatedAt: new Date().toISOString() }).where(eq(familyRegistrationStatus.id, completionStatusId))
+    } else {
+      await db.insert(familyRegistrationStatus).values({ id: completionStatusId, sessionId, familyId, status: 'in_progress', volunteerRequirementsMet: validation.volunteerRequirementsMet })
+    }
+    processingStarted = true
+
     // Process registrations without large transaction to avoid Turso timeouts
     console.log('Starting registration processing...')
     let registeredCount = 0
@@ -737,6 +759,20 @@ export async function POST(request: Request) {
       
       // Use smaller transaction for each registration
        await withRegistrationRetry(() => db.transaction(async (tx) => {
+        // Retrying an interrupted submission must not reinsert an already
+        // committed registration or demote it to a waitlist when the class fills.
+        const [savedRegistration] = await tx.select().from(classRegistrations).where(and(
+          eq(classRegistrations.sessionId, sessionId),
+          eq(classRegistrations.familyId, familyId),
+          eq(classRegistrations.childId, registration.childId),
+          eq(classRegistrations.scheduleId, registration.scheduleId),
+          eq(classRegistrations.status, registration.status === 'waitlisted' ? 'waitlisted' : 'registered')
+        )).limit(1)
+        if (savedRegistration) {
+          if (savedRegistration.status === 'registered') registeredCount++
+          else waitlistedCount++
+          return
+        }
         // Check if child is already registered for a class in this period
         console.log('Checking existing registration...')
         let registrationStatus: 'registered' | 'waitlisted' = registration.status === 'waitlisted' ? 'waitlisted' : 'registered'
@@ -903,6 +939,11 @@ export async function POST(request: Request) {
             : existing.volunteerJobId === assignment.volunteerJobId
           const isOwnHold = existing.status === 'hold' && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment
 
+          if (existing.status === 'assigned' && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment) {
+            volunteerCount++
+            return
+          }
+
           if (!isOwnHold) {
             throw new Error(`Guardian is already assigned as a volunteer for the ${normalizedPeriod} period`)
           }
@@ -1039,8 +1080,16 @@ export async function POST(request: Request) {
       await createOrUpdateFamilySessionFee(sessionId, familyId)
     } catch (feeError) {
       console.error('Error calculating fees:', feeError)
-      // Don't fail the registration if fee calculation fails, just log it
+      publishRegistrationUpdate(sessionId)
+      return NextResponse.json({ success: false, registrationIncomplete: true, error: 'Your selections were saved, but session fees could not be generated. Reopen registration and use Complete registration to retry.' }, { status: 503 })
     }
+
+    await db.update(familyRegistrationStatus).set({
+      status: 'completed',
+      volunteerRequirementsMet: validation.volunteerRequirementsMet,
+      completedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }).where(eq(familyRegistrationStatus.id, completionStatusId))
 
     try {
       const [fee] = await db.select().from(familySessionFees).where(and(
@@ -1073,7 +1122,10 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Error in batch registration:', error)
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : 'Internal server error' 
+      error: processingStarted
+        ? `Registration was interrupted after saving some selections. Reopen registration to finish. ${error instanceof Error ? error.message : ''}`
+        : error instanceof Error ? error.message : 'Internal server error',
+      registrationIncomplete: processingStarted
     }, { status: 500 })
   }
 }
