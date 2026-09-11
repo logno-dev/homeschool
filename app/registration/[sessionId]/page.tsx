@@ -1,10 +1,11 @@
 export const runtime = 'nodejs'
 
-import { isAfter, isBefore, parseISO, format } from 'date-fns'
+import { parseISO, format } from 'date-fns'
 import { redirect } from 'next/navigation'
 import { checkAdminRole, getAuthenticatedUser } from '@/lib/server-auth'
 import { getSessionById } from '@/lib/database'
-import { userBelongsToGroup, getRegistrationAccess } from '@/lib/user-groups'
+import { getRegistrationAccess } from '@/lib/user-groups'
+import { getAppTimezone, parseAppDate } from '@/lib/app-time'
 import { getRegistrationStatus } from '@/lib/registration-status'
 import { RegistrationProvider } from '@/app/components/RegistrationContext'
 import RegistrationGrid from '@/app/components/RegistrationGrid'
@@ -20,14 +21,14 @@ export default async function RegistrationPage({ params, searchParams }: { param
   const session = await getAuthenticatedUser()
   const { sessionId } = await params
   const { modify } = await searchParams
-  const [sessionData, registrationStatus, hasEarlyAccess, groupRegistrationAccess, scheduleBundle, isStaffAdmin, feeConfig] = await Promise.all([
+  const [sessionData, registrationStatus, groupRegistrationAccess, scheduleBundle, isStaffAdmin, feeConfig, timezone] = await Promise.all([
     getSessionById(sessionId),
     getRegistrationStatus(sessionId, session.user.id),
-    userBelongsToGroup(session.user.id, 'teacher'),
     getRegistrationAccess(sessionId, session.user.id),
     getRegistrationScheduleBundle(sessionId, session.user.id),
     checkAdminRole(session),
-    db.select({ costBreakdown: sessionFeeConfigs.costBreakdown }).from(sessionFeeConfigs).where(eq(sessionFeeConfigs.sessionId, sessionId)).limit(1).then((rows) => rows[0] || null)
+    db.select({ costBreakdown: sessionFeeConfigs.costBreakdown }).from(sessionFeeConfigs).where(eq(sessionFeeConfigs.sessionId, sessionId)).limit(1).then((rows) => rows[0] || null),
+    getAppTimezone()
   ])
 
   if (!session?.user?.id) {
@@ -35,38 +36,15 @@ export default async function RegistrationPage({ params, searchParams }: { param
   }
 
   const classSessionInfo = sessionData
-  const hasTeacherInFamily = hasEarlyAccess
-  const now = new Date()
-  const registrationStart = classSessionInfo ? parseISO(classSessionInfo.registrationStartDate) : null
-  const registrationEnd = classSessionInfo ? parseISO(classSessionInfo.registrationEndDate) : null
-  const teacherEarlyStart = classSessionInfo?.teacherRegistrationStartDate
-    ? parseISO(classSessionInfo.teacherRegistrationStartDate)
-    : null
-
-  let canRegister = false
-  let reason = ''
-  let teacherEarlyAccess = false
-
-  if (registrationStart && registrationEnd) {
-    if (isAfter(now, registrationStart) && isBefore(now, registrationEnd)) {
-      canRegister = true
-    } else if (hasTeacherInFamily && teacherEarlyStart && isAfter(now, teacherEarlyStart) && isBefore(now, registrationStart)) {
-      canRegister = true
-      teacherEarlyAccess = true
-    } else if (isBefore(now, teacherEarlyStart || registrationStart)) {
-      if (hasTeacherInFamily && teacherEarlyStart) {
-        reason = `Teacher early registration opens ${format(teacherEarlyStart, 'MMM d, yyyy \'at\' h:mm a')}`
-      } else {
-        reason = `Registration opens ${format(registrationStart, 'MMM d, yyyy \'at\' h:mm a')}`
-      }
-    } else if (isAfter(now, registrationEnd)) {
-      reason = `Registration closed on ${format(registrationEnd, 'MMM d, yyyy \'at\' h:mm a')}`
-    }
-  }
-
-  canRegister = groupRegistrationAccess.isOpen
-  reason = groupRegistrationAccess.reason || ''
-  teacherEarlyAccess = groupRegistrationAccess.group?.slug === 'teacher'
+  let canRegister = groupRegistrationAccess.isOpen
+  let reason = groupRegistrationAccess.reason || ''
+  const matchingWindow = groupRegistrationAccess.windows?.find(window => window.groupId === groupRegistrationAccess.group?.id)
+  const formatWindowDate = (value: string, endOfDay = false) => parseAppDate(value, timezone, endOfDay).toLocaleString('en-US', {
+    timeZone: timezone, dateStyle: 'medium', ...(value.includes('T') ? { timeStyle: 'short' as const } : {})
+  })
+  const windowDescription = matchingWindow
+    ? `${formatWindowDate(matchingWindow.startDate)} – ${formatWindowDate(matchingWindow.endDate, true)} (${groupRegistrationAccess.group?.name})`
+    : 'No active or upcoming window for your family.'
 
   if (isStaffAdmin) {
     canRegister = Boolean(classSessionInfo?.isActive && scheduleBundle.schedules.length > 0)
@@ -75,9 +53,7 @@ export default async function RegistrationPage({ params, searchParams }: { param
 
   const registrationAccess = {
     canRegister,
-    isTeacher: hasTeacherInFamily,
-    reason,
-    teacherEarlyAccess
+    reason
   }
 
   // Check if family is already registered
@@ -279,13 +255,8 @@ export default async function RegistrationPage({ params, searchParams }: { param
                     <p><strong>Session Dates:</strong> {format(parseISO(classSessionInfo.startDate), 'MMM d, yyyy')} - {format(parseISO(classSessionInfo.endDate), 'MMM d, yyyy')}</p>
                   </div>
                   <div>
-                    <p><strong>Registration Window:</strong> {format(parseISO(classSessionInfo.registrationStartDate), 'MMM d, yyyy')} - {format(parseISO(classSessionInfo.registrationEndDate), 'MMM d, yyyy')}</p>
+                    <p><strong>Family Registration Window:</strong> {windowDescription}</p>
                   </div>
-                  {classSessionInfo.teacherRegistrationStartDate && (
-                    <div>
-                      <p><strong>Teacher Early Access:</strong> {format(parseISO(classSessionInfo.teacherRegistrationStartDate), 'MMM d, yyyy')}</p>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
@@ -305,11 +276,6 @@ export default async function RegistrationPage({ params, searchParams }: { param
                   <div className="mt-2 text-sm text-yellow-700">
                     <p>{registrationAccess.reason}</p>
                     <Link href={`/schedule?sessionId=${sessionId}`} className="mt-3 inline-flex rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">View session schedule</Link>
-                    {registrationAccess.isTeacher && classSessionInfo?.teacherRegistrationStartDate && (
-                      <p className="mt-1 font-medium">
-                        Your family has early access (teacher in family) starting {format(parseISO(classSessionInfo.teacherRegistrationStartDate), 'MMM d, yyyy \'at\' h:mm a')}.
-                      </p>
-                    )}
                   </div>
                 </div>
               </div>
@@ -321,12 +287,12 @@ export default async function RegistrationPage({ params, searchParams }: { param
             <div className="mb-8">
               <h1 className="text-3xl font-bold text-gray-900">{isModifying ? 'Modify Registration' : 'Class Registration'}</h1>
               <p className="mt-2 text-gray-600">{isModifying ? 'Update your class selections and volunteer assignments, then submit the changes.' : 'Click on any available class to register your children.'}</p>
-              {registrationAccess.teacherEarlyAccess && (
+              {groupRegistrationAccess.isOpen && groupRegistrationAccess.group && (
                 <div className="mt-2 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                   <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  Family Teacher Early Access
+                  Family access through {groupRegistrationAccess.group.name}
                 </div>
               )}
             </div>
@@ -339,13 +305,8 @@ export default async function RegistrationPage({ params, searchParams }: { param
                     <p><strong>Session Dates:</strong> {format(parseISO(classSessionInfo.startDate), 'MMM d, yyyy')} - {format(parseISO(classSessionInfo.endDate), 'MMM d, yyyy')}</p>
                   </div>
                   <div>
-                    <p><strong>Registration Window:</strong> {format(parseISO(classSessionInfo.registrationStartDate), 'MMM d, yyyy')} - {format(parseISO(classSessionInfo.registrationEndDate), 'MMM d, yyyy')}</p>
+                    <p><strong>Family Registration Window:</strong> {windowDescription}</p>
                   </div>
-                  {classSessionInfo.teacherRegistrationStartDate && (
-                    <div>
-                      <p><strong>Teacher Early Access:</strong> {format(parseISO(classSessionInfo.teacherRegistrationStartDate), 'MMM d, yyyy')}</p>
-                    </div>
-                  )}
                 </div>
               </div>
             )}

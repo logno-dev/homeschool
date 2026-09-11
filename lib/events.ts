@@ -2,7 +2,7 @@ import { desc, eq } from 'drizzle-orm'
 import { db, client } from '@/lib/db'
 import { events, sessions, sessionRegistrationWindows, userGroups } from '@/lib/schema'
 import { getAppTimezone, parseAppDate } from '@/lib/app-time'
-import { getUserGroups } from '@/lib/user-groups'
+import { getFamilyRegistrationGroups } from '@/lib/user-groups'
 
 export interface CalendarEvent {
   id: string
@@ -70,7 +70,7 @@ export async function fetchCalendarEvents(viewerUserId?: string): Promise<Calend
       })
       .from(sessions)
 
-    const viewerGroupIds = viewerUserId ? new Set((await getUserGroups(viewerUserId)).map(({ group }) => group.id)) : new Set<string>()
+    const viewerGroupIds = viewerUserId ? new Set((await getFamilyRegistrationGroups(viewerUserId)).map(({ group }) => group.id)) : new Set<string>()
     const registrationWindows = viewerUserId ? await db.select({ window: sessionRegistrationWindows, group: userGroups }).from(sessionRegistrationWindows).innerJoin(userGroups, eq(sessionRegistrationWindows.groupId, userGroups.id)) : []
 
     const sessionEvents: CalendarEvent[] = sessionDates.flatMap((session) => {

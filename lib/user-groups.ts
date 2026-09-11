@@ -2,7 +2,7 @@ import 'server-only'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
-import { classTeachingRequests, sessions, sessionRegistrationWindows, userGroupMemberships, userGroups } from '@/lib/schema'
+import { classTeachingRequests, guardians, users, sessions, sessionRegistrationWindows, userGroupMemberships, userGroups } from '@/lib/schema'
 import { getAppTimezone, parseAppDate } from '@/lib/app-time'
 import { ADMIN_MODULES, type AdminModule } from '@/lib/admin-access'
 
@@ -20,6 +20,29 @@ export async function getUserGroups(userId: string) {
       .where(eq(userGroupMemberships.userId, userId))
   } catch (error) {
     console.error('Error loading user groups:', error)
+    return []
+  }
+}
+
+// Registration windows are shared across a family. Keep these effective groups
+// separate from personal membership checks used for administrative permissions.
+export async function getFamilyRegistrationGroups(userId: string) {
+  try {
+    const [guardian] = await db.select({ familyId: guardians.familyId }).from(guardians).where(eq(guardians.id, userId)).limit(1)
+    let familyId: string | undefined = guardian?.familyId
+    if (!familyId) {
+      const [user] = await db.select({ familyId: users.familyId }).from(users).where(eq(users.id, userId)).limit(1)
+      familyId = user?.familyId || undefined
+    }
+    if (!familyId) return getUserGroups(userId)
+
+    const familyGuardianIds = db.select({ id: guardians.id }).from(guardians).where(eq(guardians.familyId, familyId))
+    return await db.selectDistinct({ group: userGroups })
+      .from(userGroupMemberships)
+      .innerJoin(userGroups, eq(userGroupMemberships.groupId, userGroups.id))
+      .where(or(eq(userGroupMemberships.userId, userId), inArray(userGroupMemberships.userId, familyGuardianIds)))
+  } catch (error) {
+    console.error('Error loading family registration groups:', error)
     return []
   }
 }
@@ -66,7 +89,7 @@ export async function getRegistrationAccess(sessionId: string, userId: string) {
   const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1)
   if (!session) return { isOpen: false, session: null, reason: 'Session not found', group: null }
 
-  const memberships = await getUserGroups(userId)
+  const memberships = await getFamilyRegistrationGroups(userId)
   const groupIds = memberships.map(({ group }) => group.id)
   const groupById = new Map(memberships.map(({ group }) => [group.id, group]))
   const windows = groupIds.length
@@ -93,7 +116,7 @@ export async function getRegistrationAccess(sessionId: string, userId: string) {
     }
   }
 
-  return { isOpen: false, session, reason: 'Registration is closed for your user groups.', group: null, windows }
+  return { isOpen: false, session, reason: 'Registration is closed for your family’s user groups.', group: null, windows }
 }
 
 export async function userBelongsToGroup(userId: string, slug: string) {
