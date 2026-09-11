@@ -50,7 +50,7 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
       .filter(t => t.period !== 'lunch' && periodsWithStudents.has(t.period))
       .forEach(t => coveredPeriods.add(t.period))
 
-    const nonPeriodHours = pendingVolunteerAssignments.filter(a => a.period === 'non_period').length
+    const nonPeriodHours = pendingVolunteerAssignments.filter(a => a.period === 'non_period').length + teachingAssignments.filter(a => a.period === 'non_period').length
     const remainingPeriods = Math.max(0, periodsWithStudents.size - coveredPeriods.size)
     const wildcardCoverage = Math.min(nonPeriodHours, remainingPeriods)
 
@@ -78,10 +78,10 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
   teachingAssignmentsByPeriod.forEach((assignment) => coveredPeriods.add(assignment.period))
 
   const invalidTeachingAssignments = teachingAssignments.filter(
-    (assignment) => assignment.period !== 'lunch' && !periodsWithStudents.has(assignment.period)
+      (assignment) => assignment.period !== 'lunch' && assignment.period !== 'non_period' && !periodsWithStudents.has(assignment.period)
   )
 
-  const nonPeriodAssignments = pendingVolunteerAssignments.filter(a => a.period === 'non_period')
+  const nonPeriodAssignments = [...pendingVolunteerAssignments.filter(a => a.period === 'non_period'), ...teachingAssignments.filter(a => a.period === 'non_period').map(a => ({ ...a, jobTitle: 'Existing family volunteer commitment' }))]
   const remainingPeriods = Math.max(0, requiredHours - coveredPeriods.size)
   const wildcardCoverage = Math.min(nonPeriodAssignments.length, remainingPeriods)
   const missingPeriods = requiredPeriods.filter((period) => !coveredPeriods.has(period))
@@ -215,7 +215,7 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
                 {/* Teaching assignments */}
                 {teachingAssignmentsByPeriod.map((assignment, index) => (
                   <div key={`teaching-${index}`} className="flex justify-between">
-                    <span className="capitalize">{assignment.period} Hour ({assignment.guardianName} Teaching {assignment.className}):</span>
+                    <span className="capitalize">{assignment.period} Hour ({assignment.guardianName} {assignment.volunteerType === 'teacher' ? 'Teaching ' : ''}{assignment.className}):</span>
                     <span>1 hour</span>
                   </div>
                 ))}
@@ -241,7 +241,7 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
                   <div className="font-medium !text-red-600">Does not count toward requirements:</div>
                   {invalidTeachingAssignments.map((assignment, index) => (
                     <div key={`invalid-teaching-${index}`} className="flex justify-between !text-red-600">
-                    <span className="capitalize">{assignment.period} Hour ({assignment.guardianName} Teaching {assignment.className})</span>
+                    <span className="capitalize">{assignment.period} Hour ({assignment.guardianName} {assignment.volunteerType === 'teacher' ? 'Teaching ' : ''}{assignment.className})</span>
                       <span>(no students registered)</span>
                     </div>
                   ))}

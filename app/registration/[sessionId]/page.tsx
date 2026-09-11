@@ -37,6 +37,7 @@ export default async function RegistrationPage({ params, searchParams }: { param
   }
 
   const classSessionInfo = sessionData
+  scheduleBundle.teachingAssignments = [...scheduleBundle.teachingAssignments, ...registrationStatus.existingVolunteerCoverage]
   let canRegister = groupRegistrationAccess.isOpen
   let reason = groupRegistrationAccess.reason || ''
   const matchingWindow = groupRegistrationAccess.windows?.find(window => window.groupId === groupRegistrationAccess.group?.id)

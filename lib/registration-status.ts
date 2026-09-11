@@ -13,6 +13,7 @@ import {
 } from '@/lib/schema'
 import { and, eq, inArray, or, gt } from 'drizzle-orm'
 import { getGuardianById, getGuardiansByFamily } from '@/lib/database'
+import { getVisibleVolunteerJobs } from '@/lib/volunteer-job-access'
 
 export async function getRegistrationStatus(sessionId: string, userId: string) {
   const guardian = await getGuardianById(userId)
@@ -24,6 +25,7 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
       volunteerAssignments: [],
       heldClassRegistrations: [],
       heldVolunteerAssignments: [],
+      existingVolunteerCoverage: [],
       status: null,
       familyGuardians: [],
       canRegister: false
@@ -84,6 +86,16 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
 
   const classRegs = allClassRegs.filter(record => record.registration.status !== 'hold')
   const volunteerRegs = allVolunteerRegs.filter(record => record.assignment.status !== 'hold')
+  const visibleJobs = allVolunteerRegs.some(record => record.assignment.volunteerJobId)
+    ? await getVisibleVolunteerJobs(userId, familyGuardians.map(guardian => guardian.id)) : new Map<string, string[]>()
+  const canSeeAssignment = (record: typeof allVolunteerRegs[number]) => !record.assignment.volunteerJobId || visibleJobs.has(record.assignment.volunteerJobId)
+  const existingVolunteerCoverage = volunteerRegs.filter(record => !canSeeAssignment(record)).map(record => ({
+    guardianId: record.assignment.guardianId,
+    guardianName: familyGuardians.find(guardian => guardian.id === record.assignment.guardianId)?.firstName || 'Guardian',
+    period: ({ '1': 'first', '2': 'second', '3': 'third' } as Record<string, string>)[record.assignment.period] || record.assignment.period,
+    volunteerType: 'existing_volunteer',
+    className: 'Existing family volunteer commitment'
+  }))
   const hasRegistrations = classRegs.length > 0 || volunteerRegs.length > 0
   const status = registrationStatus.length > 0 ? registrationStatus[0] : null
 
@@ -106,9 +118,10 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
     registrationState,
     hasRegistrations,
     classRegistrations: classRegs,
-    volunteerAssignments: volunteerRegs.map(normalizeVolunteer),
+    volunteerAssignments: volunteerRegs.filter(canSeeAssignment).map(normalizeVolunteer),
     heldClassRegistrations: allClassRegs.filter(record => record.registration.status === 'hold'),
-    heldVolunteerAssignments: allVolunteerRegs.filter(record => record.assignment.status === 'hold').map(normalizeVolunteer),
+    heldVolunteerAssignments: allVolunteerRegs.filter(record => record.assignment.status === 'hold' && (!record.assignment.volunteerJobId || visibleJobs.get(record.assignment.volunteerJobId)?.includes(record.assignment.guardianId))).map(normalizeVolunteer),
+    existingVolunteerCoverage,
     status,
     familyGuardians,
     canRegister: ['not_started', 'in_progress', 'incomplete', 'approved'].includes(registrationState)

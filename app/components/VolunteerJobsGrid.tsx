@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Modal from './Modal'
 import { useToast } from './ToastContainer'
 import { useRegistration } from './RegistrationContext'
@@ -13,6 +13,7 @@ interface VolunteerJob {
   quantityAvailable: number
   jobType: string
   isActive: boolean
+  eligibleGuardianIds?: string[]
 }
 
 interface Guardian {
@@ -47,6 +48,12 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
   const [selectedJob, setSelectedJob] = useState<VolunteerJob | null>(null)
   const [selectedPeriod, setSelectedPeriod] = useState<string>('')
   const [showVolunteerModal, setShowVolunteerModal] = useState(false)
+  useEffect(() => {
+    if (selectedJob && !volunteerJobs.some(job => job.id === selectedJob.id)) {
+      setSelectedJob(null)
+      setShowVolunteerModal(false)
+    }
+  }, [volunteerJobs, selectedJob])
 
   // Transform schedules data into teaching assignments for conflict detection
   const teachingAssignments = schedules.filter(schedule => schedule.teacher?.id).map(schedule => ({
@@ -287,6 +294,7 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
             <div className="space-y-3">
               {guardians && guardians
                 .filter(guardian => {
+                  if (selectedJob.eligibleGuardianIds && !selectedJob.eligibleGuardianIds.includes(guardian.id)) return false
                   const currentAssignment = getVolunteerAssignmentForPeriod(selectedPeriod)
                   return !currentAssignment || currentAssignment.guardianId !== guardian.id
                 })
@@ -325,6 +333,7 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                 })}
               
               {(!guardians || guardians.filter(guardian => {
+                if (selectedJob.eligibleGuardianIds && !selectedJob.eligibleGuardianIds.includes(guardian.id)) return false
                 const currentAssignment = getVolunteerAssignmentForPeriod(selectedPeriod)
                 return !currentAssignment || currentAssignment.guardianId !== guardian.id
               }).length === 0) && (

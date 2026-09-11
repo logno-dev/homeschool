@@ -20,7 +20,7 @@ export default async function EventPage({ params }: { params: Promise<{ eventId:
         <Link href={`/calendar/${date}`} className="hover:underline">All events on this day</Link>
       </nav>
       <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        {event.bannerUrl && <img src={event.bannerUrl} alt="" className="aspect-[3/1] w-full object-cover" />}
+        {event.bannerUrl && <img src={event.bannerUrl} alt="" className="h-auto w-full" />}
         <div className="p-5 sm:p-8">
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
             <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: event.color }} />{event.eventType}

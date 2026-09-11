@@ -13,7 +13,7 @@ export async function GET(
     }
 
     const { sessionId } = await params
-    const scheduleData = await getRegistrationSchedules(sessionId)
+    const scheduleData = await getRegistrationSchedules(sessionId, auth.session.user.id)
 
     return NextResponse.json(scheduleData, { headers: { 'Cache-Control': 'no-store' } })
   } catch (error) {

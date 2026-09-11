@@ -23,12 +23,12 @@ interface TeachingAssignment {
 
 export async function getRegistrationScheduleBundle(sessionId: string, userId?: string) {
   const [scheduleData, familyData] = await Promise.all([
-    getRegistrationSchedules(sessionId),
+    getRegistrationSchedules(sessionId, userId),
     userId ? getFamilyData(userId) : Promise.resolve({ guardians: [], children: [] })
   ])
 
   const familyHolds = userId
-    ? await getFamilyHoldSelections(sessionId, userId)
+    ? await getFamilyHoldSelections(sessionId, userId, new Map([...scheduleData.volunteerJobs, ...scheduleData.nonPeriodVolunteerJobs].map(job => [job.id, job.eligibleGuardianIds])))
     : { registrations: [], volunteerAssignments: [] }
 
   const teachingAssignments = buildTeachingAssignments(
@@ -84,7 +84,7 @@ function buildTeachingAssignments(schedules: any[], guardians: any[]): TeachingA
     }))
 }
 
-async function getFamilyHoldSelections(sessionId: string, userId: string) {
+async function getFamilyHoldSelections(sessionId: string, userId: string, visibleJobs: Map<string, string[]>) {
   const guardian = await getGuardianById(userId)
   if (!guardian?.familyId) {
     return { registrations: [], volunteerAssignments: [] }
@@ -158,7 +158,7 @@ async function getFamilyHoldSelections(sessionId: string, userId: string) {
       holdId: registration.id,
       holdExpiresAt: registration.holdExpiresAt
     })),
-    volunteerAssignments: heldVolunteerAssignments.map((assignment) => ({
+    volunteerAssignments: heldVolunteerAssignments.filter(assignment => !assignment.volunteerJobId || visibleJobs.get(assignment.volunteerJobId)?.includes(assignment.guardianId)).map((assignment) => ({
       guardianId: assignment.guardianId,
       guardianName: `${assignment.guardianFirstName} ${assignment.guardianLastName}`,
       period: assignment.period,

@@ -6,7 +6,7 @@ export default function EventCard({ event }: { event: CalendarEvent }) {
   return (
     <Link href={eventHref(event)} className="group block min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:border-blue-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-blue-500">
       <div className="flex flex-col sm:flex-row">
-        {event.bannerUrl && <img src={event.bannerUrl} alt="" loading="lazy" className="h-36 w-full object-cover sm:h-auto sm:w-40 sm:self-stretch" />}
+        {event.bannerUrl && <img src={event.bannerUrl} alt="" loading="lazy" className="h-36 w-full bg-gray-50 object-contain sm:h-auto sm:w-40 sm:self-stretch" />}
         <div className="min-w-0 flex-1 p-4 sm:p-5">
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
             <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: event.color }} />

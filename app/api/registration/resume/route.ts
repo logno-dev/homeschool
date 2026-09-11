@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const classes = new Map(classRows.map(row => [`${row.registration.childId}:${row.registration.scheduleId}`, row]))
     const volunteerRows = [...status.heldVolunteerAssignments, ...status.volunteerAssignments]
     const volunteers = new Map(volunteerRows.map(row => [`${row.assignment.guardianId}:${row.assignment.period}:${row.assignment.volunteerType}:${row.assignment.scheduleId || row.assignment.volunteerJobId}`, row]))
-    if (!classes.size && !volunteers.size) return NextResponse.json({ error: 'No saved selections remain. Please select your classes and volunteer jobs again.' }, { status: 400 })
+    if (!classes.size && !volunteers.size && !status.existingVolunteerCoverage.length) return NextResponse.json({ error: 'No saved selections remain. Please select your classes and volunteer jobs again.' }, { status: 400 })
     const emergency = classRows.find(row => row.registration.emergencyContact && row.registration.emergencyPhone)
     return await submitRegistration(new Request(request.url, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

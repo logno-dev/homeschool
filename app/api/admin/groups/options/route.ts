@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { userGroups } from '@/lib/schema'
 
 export async function GET() {
-  const auth = await getAuthenticatedAdmin(['groups', 'sessions'])
+  const auth = await getAuthenticatedAdmin(['groups', 'sessions', 'volunteer-jobs'])
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {

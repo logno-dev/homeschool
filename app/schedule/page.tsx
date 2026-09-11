@@ -25,7 +25,7 @@ export default async function SchedulePage({ searchParams }: { searchParams: Pro
   }
 
   const [scheduleData, registrationStatus] = await Promise.all([
-    getRegistrationSchedules(activeSession.id),
+    getRegistrationSchedules(activeSession.id, session.user.id),
     getRegistrationStatus(activeSession.id, session.user.id)
   ])
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Modal from './Modal'
 import { useToast } from './ToastContainer'
 import { useRegistration } from './RegistrationContext'
@@ -13,6 +13,7 @@ interface VolunteerJob {
   quantityAvailable: number
   jobType: string
   isActive: boolean
+  eligibleGuardianIds?: string[]
 }
 
 interface Guardian {
@@ -37,6 +38,12 @@ export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians, jobAs
   
   const [selectedJob, setSelectedJob] = useState<VolunteerJob | null>(null)
   const [showVolunteerModal, setShowVolunteerModal] = useState(false)
+  useEffect(() => {
+    if (selectedJob && !volunteerJobs.some(job => job.id === selectedJob.id)) {
+      setSelectedJob(null)
+      setShowVolunteerModal(false)
+    }
+  }, [volunteerJobs, selectedJob])
 
   const handleJobClick = (job: VolunteerJob) => {
     setSelectedJob(job)
@@ -169,6 +176,7 @@ export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians, jobAs
             <div className="space-y-3">
               {guardians && guardians
                 .filter(guardian => {
+                  if (selectedJob.eligibleGuardianIds && !selectedJob.eligibleGuardianIds.includes(guardian.id)) return false
                   // Filter out guardians already assigned to this specific job
                   return !getJobAssignments(selectedJob.id).some(assignment => 
                     assignment.guardianId === guardian.id
@@ -190,6 +198,7 @@ export default function NonPeriodVolunteerJobs({ volunteerJobs, guardians, jobAs
                 ))}
               
               {(!guardians || guardians.filter(guardian => 
+                (!selectedJob.eligibleGuardianIds || selectedJob.eligibleGuardianIds.includes(guardian.id)) &&
                 !getJobAssignments(selectedJob.id).some(assignment => 
                   assignment.guardianId === guardian.id
                 )

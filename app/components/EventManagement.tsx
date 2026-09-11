@@ -367,9 +367,9 @@ export default function EventManagement() {
 
             <div className="space-y-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
               <label htmlFor="event-banner" className="block text-sm font-medium text-gray-700">Event banner (optional)</label>
-              {formData.bannerUrl && <img src={formData.bannerUrl} alt="Event banner preview" className="aspect-[3/1] w-full rounded-md object-cover" />}
+              {formData.bannerUrl && <img src={formData.bannerUrl} alt="Event banner preview" className="h-auto w-full rounded-md" />}
               <input id="event-banner" type="file" accept={EVENT_IMAGE_TYPES.join(',')} onChange={uploadBanner} disabled={isUploading || isSaving} aria-describedby="event-banner-help" className="block w-full min-w-0 text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-blue-700" />
-              <p id="event-banner-help" className="text-xs text-gray-500">JPG, PNG, WebP, or GIF, up to 4 MB. A wide image works best (about 1200 × 400).</p>
+              <p id="event-banner-help" className="text-xs text-gray-500">JPG, PNG, WebP, or GIF, up to 4 MB. The complete image will display at its original aspect ratio.</p>
               {isUploading && <p role="status" className="text-sm text-blue-700">Uploading banner…</p>}
               {uploadError && <p role="alert" className="text-sm text-red-700">{uploadError}</p>}
               {formData.bannerUrl && <button type="button" disabled={isUploading || isSaving} onClick={() => setFormData(current => ({ ...current, bannerUrl: '' }))} className="text-sm font-medium text-red-600 disabled:opacity-50">Remove banner</button>}

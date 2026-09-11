@@ -89,6 +89,7 @@ const sessionRows = [{ id: 'session-1', name: 'Fall', isActive: true }]
 let reads = 0
 let writes = 0
 const apiMocks = {
+  '@/lib/volunteer-job-access': { canSignUpForVolunteerJob: async () => true },
   '@/lib/server-auth': auth,
   '@/lib/schema': { sessions: {}, volunteerAssignments: {} },
   '@/lib/database': { getGuardianById: async () => ({ familyId: 'family-1' }) },

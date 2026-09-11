@@ -241,6 +241,7 @@ export const volunteerJobs = sqliteTable('volunteer_jobs', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
   description: text('description').notNull(), // Detailed description and expectations
+  allowedGroupIds: text('allowed_group_ids').notNull().default('[]'), // Empty list = unrestricted; any matching personal group grants access
   quantityAvailable: integer('quantity_available').notNull().default(1), // Number of positions available
   jobType: text('job_type').notNull().default('non_period'), // 'period_based' or 'non_period'
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true), // Whether this job is currently available

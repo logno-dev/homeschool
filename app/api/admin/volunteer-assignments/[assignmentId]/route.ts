@@ -5,6 +5,7 @@ import { volunteerAssignments, schedules } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
 import { getGuardianById } from '@/lib/database'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
+import { canSignUpForVolunteerJob } from '@/lib/volunteer-job-access'
 
 export async function PATCH(
   request: Request,
@@ -43,6 +44,16 @@ export async function PATCH(
       finalPeriod = schedule[0].period
     } else if (volunteerType === 'volunteer_job' && !volunteerJobId) {
       return NextResponse.json({ error: 'volunteerJobId is required for volunteer jobs' }, { status: 400 })
+    }
+
+    if (guardianId || volunteerType || volunteerJobId || status === 'assigned') {
+      const [existing] = await db.select().from(volunteerAssignments).where(eq(volunteerAssignments.id, assignmentId)).limit(1)
+      if (!existing) return NextResponse.json({ error: 'Assignment not found' }, { status: 404 })
+      const targetGuardianId = guardianId || existing.guardianId
+      const targetJobId = volunteerJobId || existing.volunteerJobId
+      if ((volunteerType || existing.volunteerType) === 'volunteer_job' && (!targetJobId || !await canSignUpForVolunteerJob(targetJobId, existing.sessionId, targetGuardianId, targetGuardianId))) {
+        return NextResponse.json({ error: 'This guardian is not eligible for the volunteer job' }, { status: 403 })
+      }
     }
 
     const updatePayload = {

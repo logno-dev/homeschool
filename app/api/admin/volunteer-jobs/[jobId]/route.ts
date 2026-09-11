@@ -3,6 +3,9 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { volunteerJobs, sessionVolunteerJobs, guardians, sessions } from '@/lib/schema'
 import { and, eq, inArray } from 'drizzle-orm'
+import { validateVolunteerJobGroups } from '@/lib/volunteer-job-access'
+import { parseVolunteerJobGroups } from '@/lib/volunteer-job-groups'
+import { publishRegistrationUpdate } from '@/lib/registration-events'
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ jobId: string }> }) {
   try {
@@ -13,7 +16,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { jobId } = await params
     const body = await request.json()
-    const { title, description, quantityAvailable, jobType } = body
+    const { title, description, quantityAvailable, jobType, allowedGroupIds } = body
 
     if (!title || !description || quantityAvailable === undefined) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -36,6 +39,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (jobType) {
       updateData.jobType = jobType
+    }
+    if (allowedGroupIds !== undefined) {
+      try { updateData.allowedGroupIds = JSON.stringify(await validateVolunteerJobGroups(allowedGroupIds)) } catch (error) {
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid user groups' }, { status: 400 })
+      }
     }
 
     const updatedJob = await db.update(volunteerJobs)
@@ -65,7 +73,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         ))
     }
 
-    return NextResponse.json(updatedJob[0])
+    activeSessions.forEach(session => publishRegistrationUpdate(session.id))
+    return NextResponse.json({ ...updatedJob[0], allowedGroupIds: parseVolunteerJobGroups(updatedJob[0].allowedGroupIds) || [] })
   } catch (error) {
     console.error('Error updating volunteer job:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -102,6 +111,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
         ))
     }
 
+    activeSessions.forEach(session => publishRegistrationUpdate(session.id))
     return NextResponse.json({ message: 'Volunteer job deleted successfully' })
   } catch (error) {
     console.error('Error deleting volunteer job:', error)

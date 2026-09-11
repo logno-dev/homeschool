@@ -6,6 +6,7 @@ import { getAuthenticatedUser } from '@/lib/server-auth'
 import { getGuardianById } from '@/lib/database'
 import { volunteerAssignments, schedules, classTeachingRequests, sessionVolunteerJobs, guardians } from '@/lib/schema'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
+import { canSignUpForVolunteerJob } from '@/lib/volunteer-job-access'
 
 const HOLD_DURATION_MS = 24 * 60 * 60 * 1000
 
@@ -43,6 +44,9 @@ export async function POST(request: Request) {
     if (!sessionId || !guardianId || !period || !volunteerType) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+    if (!['teacher', 'helper', 'co_teacher', 'volunteer_job'].includes(volunteerType) || (volunteerJobId && volunteerType !== 'volunteer_job') || (volunteerType === 'volunteer_job' && scheduleId)) {
+      return NextResponse.json({ error: 'Invalid volunteer assignment type' }, { status: 400 })
+    }
 
     const guardianRecord = await db
       .select({ id: guardians.id, familyId: guardians.familyId })
@@ -60,6 +64,9 @@ export async function POST(request: Request) {
 
     if (volunteerType !== 'volunteer_job' && !scheduleId) {
       return NextResponse.json({ error: 'Missing schedule id' }, { status: 400 })
+    }
+    if (volunteerType === 'volunteer_job' && !await canSignUpForVolunteerJob(volunteerJobId, sessionId, session.user.id, guardianId)) {
+      return NextResponse.json({ error: 'This volunteer job is not available for this user and guardian.' }, { status: 403 })
     }
 
     const now = new Date().toISOString()

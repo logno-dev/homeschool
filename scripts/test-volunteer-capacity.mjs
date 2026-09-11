@@ -55,6 +55,7 @@ try {
     '@/lib/grades': { isGradeWithinRange: () => true },
     '@/lib/registration-events': { publishRegistrationUpdate: () => {} },
     '@/lib/user-groups': { getRegistrationAccess: async () => ({ isOpen: true }) },
+    '@/lib/volunteer-job-access': { canSignUpForVolunteerJob: async () => true, getVisibleVolunteerJobs: async () => new Map() },
     '@/lib/email': { sendRegistrationConfirmationEmail: async () => {}, sendRegistrationOverrideNotificationEmail: async () => {} },
   }
   const hold = load('app/api/registration/holds/volunteer/route.ts', mocks).POST

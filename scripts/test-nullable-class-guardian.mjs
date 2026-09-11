@@ -100,6 +100,7 @@ const published = [
   { schedule: { id: 'linked-schedule' }, teacher: { id: 'real-teacher', firstName: 'Real', lastName: 'Teacher' }, classTeachingRequest: { teacherName: null, maxStudents: 10, helpersNeeded: 1 } },
 ]
 const registrationSchedules = load('lib/registration-schedules.ts', {
+  '@/lib/volunteer-job-access': { getVisibleVolunteerJobs: async () => new Map() },
   'server-only': {}, '@/lib/schema': schema,
   '@/lib/database': { ensureSessionClassrooms: async () => {}, ensureSessionVolunteerJobs: async () => {} },
   '@/lib/db': { db: { select: () => ({ from: table => {

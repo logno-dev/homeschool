@@ -8,6 +8,7 @@ interface VolunteerJob {
   id: string
   title: string
   description: string
+  allowedGroupIds: string[]
   quantityAvailable: number
   jobType: 'period_based' | 'non_period'
   createdBy: string
@@ -20,6 +21,10 @@ interface VolunteerJob {
 export function VolunteerJobsManagement() {
   const [jobs, setJobs] = useState<VolunteerJob[]>([])
   const [loading, setLoading] = useState(true)
+  const [groups, setGroups] = useState<Array<{ id: string; name: string }>>([])
+  const [groupsReady, setGroupsReady] = useState(false)
+  const [restrictToGroups, setRestrictToGroups] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingJob, setEditingJob] = useState<VolunteerJob | null>(null)
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null)
@@ -28,13 +33,27 @@ export function VolunteerJobsManagement() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    allowedGroupIds: [] as string[],
     quantityAvailable: 1,
     jobType: 'non_period' as 'period_based' | 'non_period'
   })
 
   useEffect(() => {
     fetchJobs()
+    fetchGroups()
   }, [])
+
+  const fetchGroups = async () => {
+    try {
+      const response = await fetch('/api/admin/groups/options')
+      if (!response.ok) throw new Error('Unable to load user groups')
+      const payload = await response.json()
+      setGroups(payload.groups || [])
+      setGroupsReady(true)
+    } catch {
+      setToast({ id: 'groups-error', title: 'Unable to load user groups. Reload this page before editing jobs.', type: 'error' })
+    }
+  }
 
   const fetchJobs = async () => {
     try {
@@ -56,15 +75,22 @@ export function VolunteerJobsManagement() {
     setFormData({
       title: '',
       description: '',
+      allowedGroupIds: [],
       quantityAvailable: 1,
       jobType: 'non_period'
     })
     setShowAddForm(false)
     setEditingJob(null)
+    setRestrictToGroups(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (saving || !groupsReady) return
+    if (restrictToGroups && !formData.allowedGroupIds.length) {
+      setToast({ id: 'groups-required', title: 'Select at least one allowed user group.', type: 'error' })
+      return
+    }
     
     if (!formData.title.trim() || !formData.description.trim()) {
       setToast({ id: 'validation-error', title: 'Title and description are required', type: 'error' })
@@ -76,6 +102,7 @@ export function VolunteerJobsManagement() {
       return
     }
 
+    setSaving(true)
     try {
       const url = editingJob 
         ? `/api/admin/volunteer-jobs/${editingJob.id}`
@@ -83,7 +110,7 @@ export function VolunteerJobsManagement() {
       
       const method = editingJob ? 'PUT' : 'POST'
       
-      const body = formData
+      const body = { ...formData, allowedGroupIds: restrictToGroups ? formData.allowedGroupIds : [] }
 
       const response = await fetch(url, {
         method,
@@ -107,17 +134,19 @@ export function VolunteerJobsManagement() {
       }
     } catch (error) {
       setToast({ id: 'save-error', title: 'Error saving volunteer job', type: 'error' })
-    }
+    } finally { setSaving(false) }
   }
 
   const handleEdit = (job: VolunteerJob) => {
     setFormData({
       title: job.title,
       description: job.description,
+      allowedGroupIds: job.allowedGroupIds || [],
       quantityAvailable: job.quantityAvailable,
       jobType: job.jobType
     })
     setEditingJob(job)
+    setRestrictToGroups(Boolean(job.allowedGroupIds?.length))
     setShowAddForm(true)
   }
 
@@ -149,7 +178,7 @@ export function VolunteerJobsManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <h2 className="text-2xl font-bold">Volunteer Jobs</h2>
         <button
           onClick={() => setShowAddForm(true)}
@@ -160,7 +189,7 @@ export function VolunteerJobsManagement() {
       </div>
 
       {showAddForm && (
-        <div className="bg-gray-50 p-6 rounded-lg border">
+          <div className="bg-gray-50 p-4 sm:p-6 rounded-lg border">
           <h3 className="text-lg font-semibold mb-4">
             {editingJob ? 'Edit Volunteer Job' : 'Add New Volunteer Job'}
           </h3>
@@ -237,16 +266,35 @@ export function VolunteerJobsManagement() {
               </p>
             </div>
 
-            <div className="flex gap-2">
+            <fieldset className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
+              <legend className="px-1 text-sm font-semibold text-gray-900">Who can sign up?</legend>
+              <label className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="job-access" checked={!restrictToGroups} onChange={() => setRestrictToGroups(false)} />Everyone</label>
+              <label className="flex items-center gap-2 text-sm text-gray-700"><input type="radio" name="job-access" checked={restrictToGroups} onChange={() => setRestrictToGroups(true)} />Only members of selected user groups</label>
+              {restrictToGroups && <div className="space-y-3 border-t border-gray-100 pt-3">
+                <p className="text-sm text-gray-600">Members of any selected group can see and sign up for this job. Eligibility is based on each person's own group memberships.</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {groups.map(group => <label key={group.id} className="flex items-center gap-2 rounded-md border border-gray-200 p-3 text-sm text-gray-700">
+                    <input type="checkbox" checked={formData.allowedGroupIds.includes(group.id)} onChange={event => setFormData(current => ({ ...current, allowedGroupIds: event.target.checked ? [...current.allowedGroupIds, group.id] : current.allowedGroupIds.filter(id => id !== group.id) }))} />{group.name}
+                  </label>)}
+                  {formData.allowedGroupIds.filter(id => !groups.some(group => group.id === id)).map(id => <label key={id} className="flex items-center gap-2 rounded-md border border-amber-200 p-3 text-sm text-amber-800"><input type="checkbox" checked onChange={() => setFormData(current => ({ ...current, allowedGroupIds: current.allowedGroupIds.filter(value => value !== id) }))} />Unavailable group — uncheck to remove</label>)}
+                </div>
+                {groupsReady && groups.length === 0 && <p className="text-sm text-gray-500">Create a user group before restricting this job.</p>}
+              </div>}
+              {!groupsReady && <p className="text-sm text-gray-500">Waiting for user groups to load…</p>}
+            </fieldset>
+
+            <div className="flex flex-wrap gap-2">
               <button
                 type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                disabled={saving || !groupsReady}
+                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
-                {editingJob ? 'Update Job' : 'Create Job'}
+                {saving ? 'Saving…' : editingJob ? 'Update Job' : 'Create Job'}
               </button>
               <button
                 type="button"
                 onClick={resetForm}
+                disabled={saving}
                 className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
               >
                 Cancel
@@ -275,16 +323,17 @@ export function VolunteerJobsManagement() {
               <div className="space-y-4">
                 {jobs.filter(job => job.jobType === 'period_based').map((job) => (
                   <div key={job.id} className="bg-white p-6 rounded-lg border shadow-sm">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                           <h4 className="text-lg font-semibold text-gray-900">{job.title}</h4>
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
                             Hour-Based
                           </span>
                         </div>
                         <p className="text-gray-600 mt-2 whitespace-pre-wrap">{job.description}</p>
-                        <div className="mt-3 flex items-center gap-4 text-sm text-gray-500">
+                        <p className="mt-2 text-sm font-medium text-blue-700">Access: {job.allowedGroupIds?.length ? job.allowedGroupIds.map(id => groups.find(group => group.id === id)?.name || 'Unavailable group').join(', ') : 'Everyone'}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                           <span>Positions: {job.quantityAvailable} per period</span>
                           <span>Created by: {job.createdByName} {job.createdByLastName}</span>
                           <span>Created: {new Date(job.createdAt).toLocaleDateString()}</span>
@@ -324,16 +373,17 @@ export function VolunteerJobsManagement() {
               <div className="space-y-4">
                 {jobs.filter(job => job.jobType === 'non_period').map((job) => (
                   <div key={job.id} className="bg-white p-6 rounded-lg border shadow-sm">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:justify-between sm:items-start">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                           <h4 className="text-lg font-semibold text-gray-900">{job.title}</h4>
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
                             General
                           </span>
                         </div>
                         <p className="text-gray-600 mt-2 whitespace-pre-wrap">{job.description}</p>
-                        <div className="mt-3 flex items-center gap-4 text-sm text-gray-500">
+                        <p className="mt-2 text-sm font-medium text-blue-700">Access: {job.allowedGroupIds?.length ? job.allowedGroupIds.map(id => groups.find(group => group.id === id)?.name || 'Unavailable group').join(', ') : 'Everyone'}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                           <span>Positions: {job.quantityAvailable}</span>
                           <span>Created by: {job.createdByName} {job.createdByLastName}</span>
                           <span>Created: {new Date(job.createdAt).toLocaleDateString()}</span>

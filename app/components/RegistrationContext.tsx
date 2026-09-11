@@ -328,7 +328,7 @@ export function RegistrationProvider({
       .filter(t => t.period !== 'lunch' && periodsWithStudents.includes(t.period))
       .forEach(t => coveredPeriods.add(t.period))
 
-    const nonPeriodHours = pendingVolunteerAssignments.filter(a => a.period === 'non_period').length
+    const nonPeriodHours = pendingVolunteerAssignments.filter(a => a.period === 'non_period').length + teachingAssignments.filter(a => a.period === 'non_period').length
     const remainingPeriods = Math.max(0, requiredHours - coveredPeriods.size)
     const wildcardCoverage = Math.min(nonPeriodHours, remainingPeriods)
     const fulfilledHours = coveredPeriods.size + wildcardCoverage
@@ -345,21 +345,21 @@ export function RegistrationProvider({
     return requirements.fulfilledHours >= requirements.requiredHours
   }, [getVolunteerRequirements])
 
-  const hasGuardianConflictInPeriod = useCallback((guardianId: string, period: string, teachingAssignments?: any[]) => {
+  const hasGuardianConflictInPeriod = useCallback((guardianId: string, period: string, externalAssignments?: any[]) => {
     // Check if guardian is already assigned as volunteer in this period
     const hasVolunteerAssignment = pendingVolunteerAssignments.some(a => 
       a.guardianId === guardianId && a.period === period
     )
     
     // Check if guardian is teaching, co-teaching, or helping in this period from external data
-    const hasTeachingAssignment = teachingAssignments?.some(assignment => 
+    const hasTeachingAssignment = [...teachingAssignments, ...(externalAssignments || [])].some(assignment =>
       assignment.guardianId === guardianId && assignment.period === period
     )
     
     return hasVolunteerAssignment || hasTeachingAssignment || false
-  }, [pendingVolunteerAssignments])
+  }, [pendingVolunteerAssignments, teachingAssignments])
 
-  const getGuardianConflictDetails = useCallback((guardianId: string, period: string, teachingAssignments?: any[]) => {
+  const getGuardianConflictDetails = useCallback((guardianId: string, period: string, externalAssignments?: any[]) => {
     // Check volunteer assignments first
     const volunteerAssignment = pendingVolunteerAssignments.find(a => 
       a.guardianId === guardianId && a.period === period
@@ -374,16 +374,16 @@ export function RegistrationProvider({
     }
     
     // Check teaching assignments from external data
-    const teachingAssignment = teachingAssignments?.find(assignment => 
+    const teachingAssignment = [...teachingAssignments, ...(externalAssignments || [])].find(assignment =>
       assignment.guardianId === guardianId && assignment.period === period
     )
     
     if (teachingAssignment) {
-      return `Teaching ${teachingAssignment.className}`
+      return teachingAssignment.volunteerType === 'existing_volunteer' ? 'Existing family volunteer commitment' : `Teaching ${teachingAssignment.className}`
     }
     
     return null
-  }, [pendingVolunteerAssignments])
+  }, [pendingVolunteerAssignments, teachingAssignments])
 
   const getPendingRegistrationsForSchedule = useCallback((scheduleId: string) => {
     return pendingRegistrations.filter(registration => registration.scheduleId === scheduleId && registration.status !== 'waitlisted').length

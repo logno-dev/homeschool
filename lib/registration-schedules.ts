@@ -13,12 +13,13 @@ import {
   volunteerAssignments
 } from '@/lib/schema'
 import { and, eq, or, gt, inArray, isNotNull } from 'drizzle-orm'
+import { getVisibleVolunteerJobs } from '@/lib/volunteer-job-access'
 
-export async function getRegistrationSchedules(sessionId: string) {
+export async function getRegistrationSchedules(sessionId: string, viewerUserId?: string) {
   await ensureSessionClassrooms(sessionId)
   await ensureSessionVolunteerJobs(sessionId)
   const now = new Date().toISOString()
-  const [publishedSchedules, registrationData, volunteerData, volunteerJobAssignments, sessionJobsRaw] = await Promise.all([
+  const [publishedSchedules, registrationData, volunteerData, volunteerJobAssignments, sessionJobsRaw, visibleJobs] = await Promise.all([
     db
       .select({
         schedule: schedules,
@@ -115,8 +116,10 @@ export async function getRegistrationSchedules(sessionId: string) {
       .innerJoin(volunteerJobs, eq(sessionVolunteerJobs.volunteerJobId, volunteerJobs.id))
       .where(and(
         eq(sessionVolunteerJobs.sessionId, sessionId),
-        eq(sessionVolunteerJobs.isActive, true)
-      ))
+        eq(sessionVolunteerJobs.isActive, true),
+        eq(volunteerJobs.isActive, true)
+      )),
+    getVisibleVolunteerJobs(viewerUserId)
   ])
 
   const normalizeJobType = (value?: string | null) => {
@@ -137,14 +140,16 @@ export async function getRegistrationSchedules(sessionId: string) {
     isActive: boolean
   }>
 
-  const periodBasedJobs = sessionJobs
+  const eligibleSessionJobs = sessionJobs.filter(job => visibleJobs.has(job.id)).map(job => ({ ...job, eligibleGuardianIds: visibleJobs.get(job.id) || [] }))
+
+  const periodBasedJobs = eligibleSessionJobs
     .filter((job) => normalizeJobType(job.jobType || job.fallbackJobType) === 'period_based')
     .map((job) => ({
       ...job,
       jobType: normalizeJobType(job.jobType || job.fallbackJobType)
     }))
 
-  const nonPeriodJobs = sessionJobs
+  const nonPeriodJobs = eligibleSessionJobs
     .filter((job) => normalizeJobType(job.jobType || job.fallbackJobType) === 'non_period')
     .map((job) => ({
       ...job,

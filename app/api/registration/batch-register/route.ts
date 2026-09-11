@@ -22,6 +22,7 @@ import { publishRegistrationUpdate } from '@/lib/registration-events'
 import { getRegistrationAccess } from '@/lib/user-groups'
 import { getGlobalSetting } from '@/lib/database'
 import { sendRegistrationOverrideNotificationEmail, sendRegistrationConfirmationEmail } from '@/lib/email'
+import { canSignUpForVolunteerJob, getVisibleVolunteerJobs } from '@/lib/volunteer-job-access'
 
 interface PendingRegistration {
   scheduleId: string
@@ -122,7 +123,8 @@ async function validateRegistration(
   volunteerAssignmentsList: PendingVolunteerAssignment[],
   familyId: string,
   guardianId: string,
-  excludeFamilyId?: string
+  excludeFamilyId?: string,
+  preservedAssignmentIds: string[] = []
 ): Promise<ValidationResult> {
   const conflicts: ConflictDetails[] = []
   const gradeRangeConflicts: ConflictDetails[] = []
@@ -268,7 +270,7 @@ async function validateRegistration(
       const matchesAssignment = existing.scheduleId
         ? existing.scheduleId === assignment.scheduleId
         : existing.volunteerJobId === assignment.volunteerJobId
-      const isOwnSelection = ['hold', 'assigned'].includes(existing.status) && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment
+      const isOwnSelection = (['hold', 'assigned'].includes(existing.status) || preservedAssignmentIds.includes(existing.id)) && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment
 
       if (isOwnSelection) {
         continue
@@ -448,7 +450,7 @@ export async function POST(request: Request) {
     const { 
       sessionId, 
       registrations,
-      volunteerAssignments: volunteerAssignmentsList,
+      volunteerAssignments: requestedVolunteers,
       requestAdminOverride = false,
       modifyRegistration = false,
       overrideReason: requestedOverrideReason
@@ -461,6 +463,8 @@ export async function POST(request: Request) {
       modifyRegistration?: boolean
       overrideReason?: string
     } = body
+    if (!Array.isArray(registrations) || !Array.isArray(requestedVolunteers)) return NextResponse.json({ error: 'Registration selections must be lists' }, { status: 400 })
+    const volunteerAssignmentsList = [...requestedVolunteers]
 
     // Get the guardian's family information
     const guardian = await db
@@ -477,6 +481,28 @@ export async function POST(request: Request) {
     const familyGuardianIds = (await db.select({ id: guardians.id }).from(guardians).where(eq(guardians.familyId, familyId))).map((member) => member.id)
     if ((volunteerAssignmentsList || []).some((assignment) => !familyGuardianIds.includes(assignment.guardianId))) {
       return NextResponse.json({ error: 'Volunteer assignments must belong to your family' }, { status: 400 })
+    }
+    if (volunteerAssignmentsList.some(assignment => !['teacher', 'helper', 'co_teacher', 'volunteer_job'].includes(assignment.volunteerType) || (assignment.volunteerJobId && assignment.volunteerType !== 'volunteer_job') || (assignment.volunteerType === 'volunteer_job' && (!assignment.volunteerJobId || assignment.scheduleId)))) {
+      return NextResponse.json({ error: 'Invalid volunteer job selection' }, { status: 400 })
+    }
+    const savedJobs = await db.select().from(volunteerAssignments).where(and(
+      eq(volunteerAssignments.familyId, familyId), eq(volunteerAssignments.sessionId, sessionId),
+      eq(volunteerAssignments.volunteerType, 'volunteer_job'), inArray(volunteerAssignments.status, ['assigned', 'pending'])
+    ))
+    const sameJob = (saved: typeof savedJobs[number], selection: PendingVolunteerAssignment) => saved.guardianId === selection.guardianId && saved.volunteerJobId === selection.volunteerJobId && normalizePeriod(saved.period) === normalizePeriod(selection.period)
+    for (const assignment of volunteerAssignmentsList) {
+      if (assignment.volunteerType !== 'volunteer_job' || savedJobs.some(saved => sameJob(saved, assignment))) continue
+      if (!await canSignUpForVolunteerJob(assignment.volunteerJobId!, sessionId, session.user.id, assignment.guardianId)) {
+        return NextResponse.json({ error: 'A selected volunteer job is not available for this user and guardian.' }, { status: 403 })
+      }
+    }
+    // Hidden, previously committed family assignments must survive edits made
+    // by another guardian. Keep their details on the server and retain the rows.
+    const visibleJobs = savedJobs.length ? await getVisibleVolunteerJobs(session.user.id, []) : new Map<string, string[]>()
+    const protectedJobs = savedJobs.filter(saved => !visibleJobs.has(saved.volunteerJobId || ''))
+    const protectedJobIds = protectedJobs.map(saved => saved.id)
+    for (const saved of protectedJobs) {
+      if (!volunteerAssignmentsList.some(selection => sameJob(saved, selection))) volunteerAssignmentsList.push({ guardianId: saved.guardianId, period: normalizePeriod(saved.period), volunteerType: 'volunteer_job', volunteerJobId: saved.volunteerJobId!, guardianName: '', jobTitle: 'Existing family volunteer commitment' })
     }
     const existingFamilyStatus = modifyRegistration
       ? await db.select().from(familyRegistrationStatus).where(and(
@@ -511,7 +537,8 @@ export async function POST(request: Request) {
       volunteerAssignmentsList,
       familyId,
       session.user.id,
-      modifyRegistration ? familyId : undefined
+      modifyRegistration ? familyId : undefined,
+      protectedJobIds
     )
 
     const hasOnlyGradeRangeConflicts =
@@ -576,13 +603,14 @@ export async function POST(request: Request) {
         ))
         await tx.delete(volunteerAssignments).where(and(
           eq(volunteerAssignments.familyId, familyId),
-          eq(volunteerAssignments.sessionId, sessionId)
+          eq(volunteerAssignments.sessionId, sessionId),
+          protectedJobIds.length ? not(inArray(volunteerAssignments.id, protectedJobIds)) : undefined
         ))
        }))
     }
 
     // Path 3: Handle admin override request
-    if ((!validation.volunteerRequirementsMet || hasOnlyGradeRangeConflicts || isPendingOverride) && !existingOverride && requestAdminOverride) {
+    if ((!validation.volunteerRequirementsMet || hasOnlyGradeRangeConflicts || isPendingOverride) && !existingOverride && (requestAdminOverride || (isPendingOverride && protectedJobs.some(job => job.status === 'pending')))) {
       // Process the registration immediately but with "pending" status to hold slots
         await withRegistrationRetry(() => db.transaction(async (tx) => {
         // Insert class registrations with pending status
@@ -606,6 +634,8 @@ export async function POST(request: Request) {
         // Insert volunteer assignments with pending status
         if (volunteerAssignmentsList && volunteerAssignmentsList.length > 0) {
           for (const assignment of volunteerAssignmentsList) {
+            if (protectedJobs.some(saved => sameJob(saved, assignment))) continue
+            if (assignment.volunteerType === 'volunteer_job' && !await canSignUpForVolunteerJob(assignment.volunteerJobId!, sessionId, session.user.id, assignment.guardianId, tx)) throw new Error('A volunteer job is no longer available for this user and guardian.')
             await tx.insert(volunteerAssignments).values({
               id: randomUUID(),
               sessionId,
@@ -939,7 +969,7 @@ export async function POST(request: Request) {
             : existing.volunteerJobId === assignment.volunteerJobId
           const isOwnHold = existing.status === 'hold' && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment
 
-          if (existing.status === 'assigned' && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment) {
+          if ((existing.status === 'assigned' || protectedJobIds.includes(existing.id)) && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment) {
             volunteerCount++
             return
           }
@@ -948,6 +978,8 @@ export async function POST(request: Request) {
             throw new Error(`Guardian is already assigned as a volunteer for the ${normalizedPeriod} period`)
           }
         }
+
+        if (assignment.volunteerType === 'volunteer_job' && !await canSignUpForVolunteerJob(assignment.volunteerJobId!, sessionId, session.user.id, assignment.guardianId, tx)) throw new Error('A volunteer job is no longer available for this user and guardian.')
 
         // Handle class-based volunteer assignments (teacher, helper, co_teacher)
         if (assignment.scheduleId && assignment.volunteerType !== 'volunteer_job') {

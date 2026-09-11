@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
 import { getGuardianById } from '@/lib/database'
+import { canSignUpForVolunteerJob } from '@/lib/volunteer-job-access'
 
 export async function POST(request: Request) {
   try {
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     } else if (!volunteerJobId) {
       return NextResponse.json({ error: 'volunteerJobId is required for volunteer jobs' }, { status: 400 })
     }
+    if (volunteerType === 'volunteer_job' && !await canSignUpForVolunteerJob(volunteerJobId, sessionId, guardianId, guardianId)) return NextResponse.json({ error: 'This guardian is not eligible for the volunteer job' }, { status: 403 })
 
     const inserted = await db
       .insert(volunteerAssignments)
