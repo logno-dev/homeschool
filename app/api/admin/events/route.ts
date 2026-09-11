@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { events, guardians } from '@/lib/schema'
 import { eq, desc } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { sanitizeEventDescription, validateEventBannerUrl, validateEventDates } from '@/lib/event-content'
 
 export async function GET() {
   try {
@@ -17,6 +18,7 @@ export async function GET() {
         id: events.id,
         title: events.title,
         description: events.description,
+        bannerUrl: events.bannerUrl,
         startDate: events.startDate,
         endDate: events.endDate,
         startTime: events.startTime,
@@ -55,6 +57,7 @@ export async function POST(request: NextRequest) {
     const {
       title,
       description,
+      bannerUrl,
       startDate,
       endDate,
       startTime,
@@ -67,19 +70,31 @@ export async function POST(request: NextRequest) {
       isPublic
     } = body
 
-    if (!title || !startDate) {
+    if (typeof title !== 'string' || !title.trim() || !startDate) {
       return NextResponse.json({ error: 'Title and start date are required' }, { status: 400 })
+    }
+
+    let safeBannerUrl: string | null
+    let safeDescription: string
+    try {
+      validateEventDates(startDate, endDate, startTime, endTime, isAllDay)
+      safeBannerUrl = validateEventBannerUrl(bannerUrl)
+      if (description && (typeof description !== 'string' || description.length > 50000)) throw new Error('Description must be text of no more than 50,000 characters')
+      safeDescription = sanitizeEventDescription(description || '')
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid event details' }, { status: 400 })
     }
 
     const eventId = randomUUID()
     const newEvent = await db.insert(events).values({
       id: eventId,
-      title,
-      description: description || null,
+      title: title.trim(),
+      description: safeDescription || null,
+      bannerUrl: safeBannerUrl,
       startDate,
       endDate: endDate || null,
-      startTime: startTime || null,
-      endTime: endTime || null,
+      startTime: isAllDay ? null : startTime || null,
+      endTime: isAllDay ? null : endTime || null,
       isAllDay: isAllDay || false,
       eventType: eventType || 'general',
       sessionId: sessionId || null,

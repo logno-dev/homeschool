@@ -1,6 +1,23 @@
 @import "tailwindcss";
 @import "react-quill-new/dist/quill.snow.css";
 
+.event-editor .ql-editor {
+  min-height: 10rem;
+}
+
+.event-rich-text .ql-editor {
+  height: auto;
+  padding: 0;
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.event-rich-text .ql-editor a {
+  color: var(--dvclc-blue-700);
+  text-decoration: underline;
+}
+
 /* Force light mode - ignore system dark mode preference */
 :root {
   --background: #f7fbff;

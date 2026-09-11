@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import type { CalendarEvent } from '@/lib/events';
+import Link from 'next/link';
+import { descriptionPreview, eventHref } from '@/lib/calendar';
 
 interface NextEventProps {
   nextEvent: CalendarEvent | null;
@@ -53,7 +55,7 @@ export default function NextEvent({ nextEvent }: NextEventProps) {
             className="w-3 h-3 rounded-full" 
             style={{ backgroundColor: nextEvent.color }}
           ></div>
-          <h4 className="font-medium text-gray-900">{nextEvent.title}</h4>
+          <h4 className="font-medium text-gray-900"><Link href={eventHref(nextEvent)} className="hover:text-blue-700 hover:underline">{nextEvent.title}</Link></h4>
         </div>
         
         <div className="text-sm text-gray-600 mb-1">
@@ -62,15 +64,15 @@ export default function NextEvent({ nextEvent }: NextEventProps) {
         </div>
         
         {nextEvent.description && (
-          <p className="text-sm text-gray-500 line-clamp-2">{nextEvent.description}</p>
+          <p className="text-sm text-gray-500 line-clamp-2">{descriptionPreview(nextEvent.description)}</p>
         )}
       </div>
       
       <button
-        onClick={() => router.push('/calendar')}
+        onClick={() => router.push(eventHref(nextEvent))}
         className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium w-full"
       >
-        View Full Calendar
+        View Event Details
       </button>
     </div>
   );

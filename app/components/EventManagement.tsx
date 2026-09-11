@@ -1,11 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
+import Link from 'next/link'
 import { Event, Session } from '@/lib/schema'
 import Modal from './Modal'
 import Button from './Button'
 import Toast from './Toast'
 import SessionOptions from './SessionOptions'
+import { descriptionEditorHtml, descriptionPreview, eventHref, formatEventDate } from '@/lib/calendar'
+import { EVENT_IMAGE_TYPES, MAX_EVENT_IMAGE_SIZE } from '@/lib/event-images'
+
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false, loading: () => <p className="p-3 text-sm text-gray-500">Loading editor…</p> })
+const editorModules = { toolbar: [[{ header: [2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ list: 'ordered' }, { list: 'bullet' }], ['blockquote', 'link'], ['clean']] }
+const editorFormats = ['header', 'bold', 'italic', 'underline', 'strike', 'list', 'blockquote', 'link']
 
 interface EventWithCreator extends Event {
   creatorName?: string
@@ -17,11 +25,15 @@ export default function EventManagement() {
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingEvent, setEditingEvent] = useState<EventWithCreator | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [uploadError, setUploadError] = useState('')
   const [toast, setToast] = useState<{ id: string; title: string; type: 'success' | 'error' } | null>(null)
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    bannerUrl: '',
     startDate: '',
     endDate: '',
     startTime: '',
@@ -66,9 +78,11 @@ export default function EventManagement() {
   }
 
   const resetForm = () => {
+    setUploadError('')
     setFormData({
       title: '',
       description: '',
+      bannerUrl: '',
       startDate: '',
       endDate: '',
       startTime: '',
@@ -84,11 +98,13 @@ export default function EventManagement() {
   }
 
   const openModal = (event?: EventWithCreator) => {
+    setUploadError('')
     if (event) {
       setEditingEvent(event)
       setFormData({
         title: event.title,
-        description: event.description || '',
+        description: descriptionEditorHtml(event.description || ''),
+        bannerUrl: event.bannerUrl || '',
         startDate: event.startDate,
         endDate: event.endDate || '',
         startTime: event.startTime || '',
@@ -107,12 +123,37 @@ export default function EventManagement() {
   }
 
   const closeModal = () => {
+    if (isUploading || isSaving) return
     setIsModalOpen(false)
     resetForm()
   }
 
+  const uploadBanner = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file) return
+    setUploadError('')
+    if (!EVENT_IMAGE_TYPES.includes(file.type) || file.size === 0 || file.size > MAX_EVENT_IMAGE_SIZE) {
+      setUploadError('Choose a JPG, PNG, WebP, or GIF image up to 4 MB.')
+      return
+    }
+    setIsUploading(true)
+    try {
+      const data = new FormData()
+      data.append('file', file)
+      const response = await fetch('/api/admin/events/banner', { method: 'POST', body: data })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to upload banner')
+      setFormData(current => ({ ...current, bannerUrl: payload.url }))
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Unable to upload banner')
+    } finally { setIsUploading(false) }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isUploading || isSaving) return
+    setIsSaving(true)
     
     try {
       const url = editingEvent ? `/api/admin/events/${editingEvent.id}` : '/api/admin/events'
@@ -133,7 +174,8 @@ export default function EventManagement() {
           type: 'success'
         })
         fetchEvents()
-        closeModal()
+        setIsModalOpen(false)
+        resetForm()
       } else {
         const error = await response.json()
         setToast({
@@ -148,7 +190,7 @@ export default function EventManagement() {
         title: 'Failed to save event',
         type: 'error'
       })
-    }
+    } finally { setIsSaving(false) }
   }
 
   const handleDelete = async (eventId: string) => {
@@ -221,9 +263,9 @@ export default function EventManagement() {
           ) : (
             events.map((event) => (
               <li key={event.id} className="px-6 py-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-3">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-3">
                       <div
                         className="w-4 h-4 rounded-full"
                         style={{ backgroundColor: event.color }}
@@ -242,12 +284,9 @@ export default function EventManagement() {
                     </div>
                     
                     <div className="mt-2 text-sm text-gray-600">
-                      <div className="flex items-center space-x-4">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
                         <span>
-                          {new Date(event.startDate).toLocaleDateString()}
-                          {event.endDate && event.endDate !== event.startDate && 
-                            ` - ${new Date(event.endDate).toLocaleDateString()}`
-                          }
+                          {formatEventDate(event)}
                         </span>
                         {!event.isAllDay && event.startTime && (
                           <span>
@@ -260,12 +299,13 @@ export default function EventManagement() {
                         )}
                       </div>
                       {event.description && (
-                        <p className="mt-1 text-gray-500">{event.description}</p>
+                        <p className="mt-1 line-clamp-2 break-words text-gray-500">{descriptionPreview(event.description)}</p>
                       )}
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-2">
+                    <Link href={eventHref(event)} className="text-blue-600 hover:text-blue-900 text-sm font-medium">View</Link>
                     <button
                       onClick={() => openModal(event)}
                       className="text-blue-600 hover:text-blue-900 text-sm font-medium"
@@ -290,16 +330,18 @@ export default function EventManagement() {
         isOpen={isModalOpen} 
         onClose={closeModal}
         title={editingEvent ? 'Edit Event' : 'Create Event'}
+        size="lg"
       >
         <div>
           
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="event-title" className="block text-sm font-medium text-gray-700 mb-1">
                 Title *
               </label>
               <input
                 type="text"
+                id="event-title"
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -311,22 +353,37 @@ export default function EventManagement() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Description
               </label>
-              <textarea
+              <ReactQuill
+                theme="snow"
                 value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={description => setFormData(current => ({ ...current, description }))}
+                modules={editorModules}
+                formats={editorFormats}
+                placeholder="Share the details, what to bring, and any helpful links…"
+                className="event-editor bg-white"
+                readOnly={isSaving}
               />
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
+              <label htmlFor="event-banner" className="block text-sm font-medium text-gray-700">Event banner (optional)</label>
+              {formData.bannerUrl && <img src={formData.bannerUrl} alt="Event banner preview" className="aspect-[3/1] w-full rounded-md object-cover" />}
+              <input id="event-banner" type="file" accept={EVENT_IMAGE_TYPES.join(',')} onChange={uploadBanner} disabled={isUploading || isSaving} aria-describedby="event-banner-help" className="block w-full min-w-0 text-sm text-gray-600 file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:text-blue-700" />
+              <p id="event-banner-help" className="text-xs text-gray-500">JPG, PNG, WebP, or GIF, up to 4 MB. A wide image works best (about 1200 × 400).</p>
+              {isUploading && <p role="status" className="text-sm text-blue-700">Uploading banner…</p>}
+              {uploadError && <p role="alert" className="text-sm text-red-700">{uploadError}</p>}
+              {formData.bannerUrl && <button type="button" disabled={isUploading || isSaving} onClick={() => setFormData(current => ({ ...current, bannerUrl: '' }))} className="text-sm font-medium text-red-600 disabled:opacity-50">Remove banner</button>}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="event-start-date" className="block text-sm font-medium text-gray-700 mb-1">
                   Start Date *
                 </label>
                 <input
                   type="date"
                   value={formData.startDate}
+                  id="event-start-date"
                   onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
@@ -334,12 +391,14 @@ export default function EventManagement() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="event-end-date" className="block text-sm font-medium text-gray-700 mb-1">
                   End Date
                 </label>
                 <input
                   type="date"
+                  id="event-end-date"
                   value={formData.endDate}
+                  min={formData.startDate || undefined}
                   onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -464,11 +523,12 @@ export default function EventManagement() {
                 type="button"
                 variant="secondary"
                 onClick={closeModal}
+                disabled={isSaving || isUploading}
               >
                 Cancel
               </Button>
-              <Button type="submit">
-                {editingEvent ? 'Update Event' : 'Create Event'}
+              <Button type="submit" disabled={isSaving || isUploading}>
+                {isSaving ? 'Saving…' : isUploading ? 'Uploading banner…' : editingEvent ? 'Update Event' : 'Create Event'}
               </Button>
             </div>
           </form>

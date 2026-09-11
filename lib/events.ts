@@ -8,6 +8,7 @@ export interface CalendarEvent {
   id: string
   title: string
   description?: string | null
+  bannerUrl?: string | null
   startDate: string
   endDate?: string | null
   startTime?: string | null
@@ -39,6 +40,7 @@ export async function fetchCalendarEvents(viewerUserId?: string): Promise<Calend
         id: events.id,
         title: events.title,
         description: events.description,
+        bannerUrl: events.bannerUrl,
         startDate: events.startDate,
         endDate: events.endDate,
         startTime: events.startTime,
@@ -72,6 +74,12 @@ export async function fetchCalendarEvents(viewerUserId?: string): Promise<Calend
 
     const viewerGroupIds = viewerUserId ? new Set((await getFamilyRegistrationGroups(viewerUserId)).map(({ group }) => group.id)) : new Set<string>()
     const registrationWindows = viewerUserId ? await db.select({ window: sessionRegistrationWindows, group: userGroups }).from(sessionRegistrationWindows).innerJoin(userGroups, eq(sessionRegistrationWindows.groupId, userGroups.id)) : []
+    const timezone = await getAppTimezone()
+    const registrationDate = (value: string) => {
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(parseAppDate(value, timezone))
+      const fields = Object.fromEntries(parts.map(part => [part.type, part.value]))
+      return { startDate: `${fields.year}-${fields.month}-${fields.day}`, startTime: value.includes('T') ? `${fields.hour}:${fields.minute}` : null, isAllDay: !value.includes('T') }
+    }
 
     const sessionEvents: CalendarEvent[] = sessionDates.flatMap((session) => {
       const generatedEvents: CalendarEvent[] = [
@@ -118,11 +126,9 @@ export async function fetchCalendarEvents(viewerUserId?: string): Promise<Calend
         id: `registration-open-${window.id}`,
         title: `${session.name} Registration Opens (${group.name})`,
         description: `Registration opens for the ${group.name} group`,
-        startDate: window.startDate,
+        ...registrationDate(window.startDate),
         endDate: null,
-        startTime: null,
         endTime: null,
-        isAllDay: true,
         eventType: 'registration',
         sessionId: session.id,
         location: null,
@@ -136,11 +142,9 @@ export async function fetchCalendarEvents(viewerUserId?: string): Promise<Calend
         id: `registration-close-${window.id}`,
         title: `${session.name} Registration Closes (${group.name})`,
         description: `Registration closes for the ${group.name} group`,
-        startDate: window.endDate,
+        ...registrationDate(window.endDate),
         endDate: null,
-        startTime: null,
         endTime: null,
-        isAllDay: true,
         eventType: 'registration',
         sessionId: session.id,
         location: null,
@@ -163,6 +167,16 @@ export async function fetchCalendarEvents(viewerUserId?: string): Promise<Calend
     }
     return []
   }
+}
+
+export async function getCalendarEventById(id: string, viewerUserId: string, canViewPrivate = false): Promise<CalendarEvent | null> {
+  // Resolve generated session/window entries through the same visibility rules
+  // as the calendar, so a direct URL cannot expose another family's windows.
+  const visible = (await fetchCalendarEvents(viewerUserId)).find(event => event.id === id)
+  if (visible) return visible
+  if (!canViewPrivate) return null
+  const [event] = await db.select().from(events).where(eq(events.id, id)).limit(1)
+  return event || null
 }
 
 export async function getNextUpcomingEvent(eventsList: CalendarEvent[]): Promise<CalendarEvent | null> {

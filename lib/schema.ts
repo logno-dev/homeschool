@@ -442,6 +442,7 @@ export const events = sqliteTable('events', {
   id: text('id').primaryKey(),
   title: text('title').notNull(),
   description: text('description'),
+  bannerUrl: text('banner_url'),
   startDate: text('start_date').notNull(), // ISO date string
   endDate: text('end_date'), // Optional end date for multi-day events
   startTime: text('start_time'), // Optional time (HH:MM format)

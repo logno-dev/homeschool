@@ -3,6 +3,7 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { events, guardians } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
+import { sanitizeEventDescription, validateEventBannerUrl, validateEventDates } from '@/lib/event-content'
 
 export async function GET(
   _request: NextRequest,
@@ -57,6 +58,7 @@ export async function PUT(
     const {
       title,
       description,
+      bannerUrl,
       startDate,
       endDate,
       startTime,
@@ -69,19 +71,31 @@ export async function PUT(
       isPublic
     } = body
 
-    if (!title || !startDate) {
+    if (typeof title !== 'string' || !title.trim() || !startDate) {
       return NextResponse.json({ error: 'Title and start date are required' }, { status: 400 })
+    }
+
+    let safeBannerUrl: string | null
+    let safeDescription: string
+    try {
+      validateEventDates(startDate, endDate, startTime, endTime, isAllDay)
+      safeBannerUrl = validateEventBannerUrl(bannerUrl === undefined ? existingEvent[0].bannerUrl : bannerUrl)
+      if (description && (typeof description !== 'string' || description.length > 50000)) throw new Error('Description must be text of no more than 50,000 characters')
+      safeDescription = sanitizeEventDescription(description || '')
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid event details' }, { status: 400 })
     }
 
     const updatedEvent = await db
       .update(events)
       .set({
-        title,
-        description: description || null,
+        title: title.trim(),
+        description: safeDescription || null,
+        bannerUrl: safeBannerUrl,
         startDate,
         endDate: endDate || null,
-        startTime: startTime || null,
-        endTime: endTime || null,
+        startTime: isAllDay ? null : startTime || null,
+        endTime: isAllDay ? null : endTime || null,
         isAllDay: isAllDay || false,
         eventType: eventType || 'general',
         sessionId: sessionId || null,
