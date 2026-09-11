@@ -90,9 +90,9 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
   // Always show the counter to provide guidance to users
 
   return (
-    <div className="bg-white rounded-lg shadow border p-6 mb-8">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="min-w-0 bg-white rounded-lg shadow border p-4 sm:p-6 mb-8">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Volunteer Hour Requirements</h2>
           <p className="text-sm text-gray-600">
             {requiredHours > 0 
@@ -102,17 +102,17 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
           </p>
         </div>
         
-        <div className="flex items-center space-x-8">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_3rem_minmax(0,1fr)] items-center gap-x-2 gap-y-3 sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)] lg:w-auto lg:shrink-0 lg:grid-cols-[auto_4rem_auto_auto] lg:gap-x-6">
           {/* Required Hours */}
-          <div className="text-center">
-            <div className="text-3xl font-bold text-blue-600">{requiredHours}</div>
-            <div className="text-sm text-gray-600">Required Hours</div>
+          <div className="min-w-0 text-center">
+            <div className="text-2xl sm:text-3xl font-bold text-blue-600">{requiredHours}</div>
+            <div className="text-xs sm:text-sm leading-snug text-gray-600">Required Hours</div>
           </div>
 
           {/* Progress Indicator */}
-          <div className="flex items-center">
-            <div className="w-16 h-16 relative">
-              <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 64 64">
+          <div className="flex items-center justify-center">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 relative">
+              <svg className="w-full h-full transform -rotate-90" viewBox="0 0 64 64">
                 {/* Background circle */}
                 <circle
                   cx="32"
@@ -138,7 +138,7 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className={`text-sm font-semibold ${isComplete ? "text-green-600" : "text-blue-600"}`}>
+                <span className={`text-xs sm:text-sm font-semibold ${isComplete ? "text-green-600" : "text-blue-600"}`}>
                   {requiredHours > 0 ? Math.round((fulfilledHours / requiredHours) * 100) : 0}%
                 </span>
               </div>
@@ -146,15 +146,15 @@ export default function VolunteerHourCounter({ teachingAssignments = [] }: Volun
           </div>
 
           {/* Fulfilled Hours */}
-          <div className="text-center">
-            <div className={`text-3xl font-bold ${isComplete ? "text-green-600" : "text-orange-600"}`}>
+          <div className="min-w-0 text-center">
+            <div className={`text-2xl sm:text-3xl font-bold ${isComplete ? "text-green-600" : "text-orange-600"}`}>
               {fulfilledHours}
             </div>
-            <div className="text-sm text-gray-600">Fulfilled Hours</div>
+            <div className="text-xs sm:text-sm leading-snug text-gray-600">Fulfilled Hours</div>
           </div>
 
           {/* Status Badge */}
-          <div className="text-center">
+          <div className="col-span-3 min-w-0 text-center lg:col-span-1">
             {requiredHours === 0 ? (
               <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                 <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
