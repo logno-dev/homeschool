@@ -10,7 +10,7 @@ export function sanitizeEventDescription(value: string): string {
     allowedSchemes: ['https', 'http', 'mailto', 'tel'],
     allowProtocolRelative: false,
     transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }) },
-  })
+  }).replace(/(?:&nbsp;|&#160;|&#xa0;|\u00a0)/gi, ' ')
 }
 
 export function validateEventBannerUrl(value: unknown): string | null {
