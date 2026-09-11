@@ -8,6 +8,7 @@ import Modal from '../../components/Modal'
 import { useToast } from '../../components/ToastContainer'
 import type { Session } from '../../../lib/schema'
 import SessionOptions from '../../components/SessionOptions'
+import FamilyRegistrationList, { type FamilyRegistrationSummary } from '../../components/FamilyRegistrationList'
 
 interface RegistrationRow {
   id: string
@@ -103,6 +104,7 @@ interface RegistrationsResponse {
   guardians: GuardianOption[]
   children: ChildOption[]
   classrooms: ClassroomOption[]
+  familyRegistrations: FamilyRegistrationSummary[]
 }
 
 const PERIODS = [
@@ -138,6 +140,7 @@ export default function AdminRegistrationsPage() {
     period: 'first'
   })
   const [newRegistration, setNewRegistration] = useState({ childId: '', status: 'registered' })
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   useEffect(() => {
     if (loading) return
@@ -210,6 +213,7 @@ export default function AdminRegistrationsPage() {
   const guardians = useMemo(() => data?.guardians ?? [], [data])
   const children = useMemo(() => data?.children ?? [], [data])
   const classrooms = useMemo(() => data?.classrooms ?? [], [data])
+  const familyRegistrations = useMemo(() => data?.familyRegistrations ?? [], [data])
 
   const schedulesByCell = useMemo(() => {
     const map = new Map<string, ScheduleOption>()
@@ -456,14 +460,20 @@ export default function AdminRegistrationsPage() {
         <div className="px-4 py-6 sm:px-0 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <h1 className="text-2xl font-bold text-gray-900">Registration Management</h1>
-            <select
-              value={selectedSessionId}
-              onChange={(e) => setSelectedSessionId(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Select session</option>
-              <SessionOptions sessions={sessions} />
-            </select>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex rounded-md border border-gray-300 bg-white p-1" aria-label="Registration view">
+                <button type="button" onClick={() => setViewMode('grid')} className={`rounded px-3 py-1.5 text-sm font-medium ${viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Schedule</button>
+                <button type="button" onClick={() => setViewMode('list')} className={`rounded px-3 py-1.5 text-sm font-medium ${viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>Families</button>
+              </div>
+              <select
+                value={selectedSessionId}
+                onChange={(e) => setSelectedSessionId(e.target.value)}
+                className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">Select session</option>
+                <SessionOptions sessions={sessions} />
+              </select>
+            </div>
           </div>
 
           {sessionsLoading || isLoading ? (
@@ -471,7 +481,10 @@ export default function AdminRegistrationsPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
               <p className="mt-2 text-gray-600">Loading registrations...</p>
             </div>
+          ) : viewMode === 'list' ? (
+            <FamilyRegistrationList families={familyRegistrations} />
           ) : (
+            <>
             <div className="bg-white shadow rounded-lg overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h2 className="text-lg font-semibold text-gray-900">Class Schedule</h2>
@@ -530,7 +543,6 @@ export default function AdminRegistrationsPage() {
                 </table>
               </div>
             </div>
-          )}
 
           {nonPeriodJobs.length > 0 && (
             <div className="bg-white shadow rounded-lg overflow-hidden">
@@ -658,6 +670,8 @@ export default function AdminRegistrationsPage() {
                 })}
               </div>
             </div>
+          )}
+            </>
           )}
         </div>
       </main>

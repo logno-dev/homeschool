@@ -17,7 +17,7 @@ const require = createRequire(import.meta.url)
 function load(path, mocks = {}) {
   const { outputText } = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } })
   const module = { exports: {} }
-  vm.runInNewContext(outputText, { module, exports: module.exports, console, setTimeout, Request, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name) })
+  vm.runInNewContext(outputText, { module, exports: module.exports, console, setTimeout, Request, URL, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name) })
   return module.exports
 }
 
@@ -28,7 +28,7 @@ const db = drizzle(client, { schema })
 let viewerId = 'guardian-b'
 try {
   const dialect = new SQLiteSyncDialect()
-  for (const table of [schema.guardians, schema.sessions, schema.schedules, schema.classTeachingRequests, schema.volunteerAssignments, schema.familyRegistrationStatus, schema.familySessionFees, schema.children, schema.classRegistrations, schema.sessionFeeConfigs, schema.sessionClassrooms, schema.volunteerJobs]) {
+  for (const table of [schema.families, schema.guardians, schema.sessions, schema.schedules, schema.classTeachingRequests, schema.volunteerAssignments, schema.familyRegistrationStatus, schema.familySessionFees, schema.children, schema.classRegistrations, schema.sessionFeeConfigs, schema.sessionClassrooms, schema.volunteerJobs, schema.sessionVolunteerJobs]) {
     const { name, columns } = getTableConfig(table)
     const definitions = columns.map(column => {
       let sql = `"${column.name}" ${column.getSQLType()}${column.primary ? ' PRIMARY KEY' : ''}${column.notNull ? ' NOT NULL' : ''}`
@@ -39,6 +39,9 @@ try {
       return sql
     })
     await client.execute(`CREATE TABLE "${name}" (${definitions.join(', ')})`)
+  }
+  for (const id of ['family-a', 'family-b', 'family-c']) {
+    await db.insert(schema.families).values({ id, name: id, address: 'Test', phone: '555-123-4567', email: `${id}@example.com`, sharingCode: id })
   }
   for (const [id, familyId] of [['guardian-a', 'family-a'], ['guardian-b', 'family-b'], ['guardian-c', 'family-c'], ['guardian-b2', 'family-b']]) {
     await db.insert(schema.guardians).values({ id, familyId, email: `${id}@example.com`, firstName: id, lastName: 'Test' })
@@ -226,9 +229,27 @@ try {
   assert.equal((await db.select().from(schema.volunteerAssignments))[0].status, 'assigned')
   assert.equal((await db.select().from(schema.familyRegistrationStatus))[0].status, 'completed')
 
+  await db.insert(schema.children).values({ id: 'child-c', familyId: 'family-c', firstName: 'Cart', lastName: 'Child', dateOfBirth: '2018-01-01', grade: '1st Grade' })
+  await db.insert(schema.classRegistrations).values({ id: 'family-c-cart', sessionId: 'session', familyId: 'family-c', childId: 'child-c', scheduleId: 'schedule', registeredBy: 'guardian-c', status: 'hold', holdExpiresAt: future })
+  const adminRegistrations = load('app/api/admin/registrations/route.ts', mocks).GET
+  response = await adminRegistrations(new Request('http://localhost/api/admin/registrations?sessionId=session'))
+  assert.equal(response.status, 200)
+  const familyList = (await response.json()).familyRegistrations
+  const familySummary = familyList.find(family => family.familyId === 'family-b')
+  assert.equal(familySummary.registrationState, 'complete')
+  assert.equal(familySummary.paymentState, 'unpaid')
+  assert.equal(familySummary.classes.length, 2)
+  assert.equal(familySummary.volunteerAssignments.length, 1)
+  assert.equal(familySummary.guardians.length, 2)
+  const cartSummary = familyList.find(family => family.familyId === 'family-c')
+  assert.equal(cartSummary.registrationState, 'in_cart')
+  assert.equal(cartSummary.hasCart, true)
+  await db.delete(schema.classRegistrations).where(eq(schema.classRegistrations.id, 'family-c-cart'))
+  await db.delete(schema.children).where(eq(schema.children.id, 'child-c'))
+
   viewerId = 'guardian-c'
   assert.equal((await resume(request({ sessionId: 'session' }))).status, 409, 'Another family cannot resume these selections')
-  console.log('Partial-registration display, idempotent resume, fee-failure recovery, override hold conversion/approval, unpaid invoice creation, and family isolation checks passed.')
+  console.log('Partial-registration display, idempotent resume, fee-failure recovery, override hold conversion/approval, family admin summaries, unpaid invoice creation, and family isolation checks passed.')
 } finally {
   client.close()
   rmSync(directory, { recursive: true, force: true })

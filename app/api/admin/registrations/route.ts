@@ -10,7 +10,10 @@ import {
   guardians,
   volunteerAssignments,
   volunteerJobs,
-  sessionVolunteerJobs
+  sessionVolunteerJobs,
+  families,
+  familyRegistrationStatus,
+  familySessionFees
 } from '@/lib/schema'
 import { and, eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
@@ -29,12 +32,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'sessionId is required' }, { status: 400 })
     }
 
-    const [registrationRows, scheduleRows, volunteerRows, volunteerJobRows, guardianRows, childRows, classroomRows] = await Promise.all([
+    const [registrationRows, scheduleRows, volunteerRows, volunteerJobRows, guardianRows, childRows, classroomRows, familyRows, familyStatusRows, feeRows] = await Promise.all([
       db
         .select({
            id: classRegistrations.id,
            status: classRegistrations.status,
            holdExpiresAt: classRegistrations.holdExpiresAt,
+           emergencyContact: classRegistrations.emergencyContact,
+           emergencyPhone: classRegistrations.emergencyPhone,
            createdAt: classRegistrations.createdAt,
           child: {
             id: children.id,
@@ -83,6 +88,7 @@ export async function GET(request: Request) {
       db
         .select({
           id: volunteerAssignments.id,
+          familyId: volunteerAssignments.familyId,
           period: volunteerAssignments.period,
           volunteerType: volunteerAssignments.volunteerType,
           status: volunteerAssignments.status,
@@ -124,6 +130,7 @@ export async function GET(request: Request) {
       db
         .select({
           id: guardians.id,
+          familyId: guardians.familyId,
           firstName: guardians.firstName,
           lastName: guardians.lastName,
           email: guardians.email
@@ -147,7 +154,36 @@ export async function GET(request: Request) {
           classroomId: sessionClassrooms.classroomId
         })
         .from(sessionClassrooms)
-        .where(eq(sessionClassrooms.sessionId, sessionId))
+        .where(eq(sessionClassrooms.sessionId, sessionId)),
+
+      db.select({ id: families.id, name: families.name, email: families.email, phone: families.phone }).from(families),
+
+      db.select({
+        id: familyRegistrationStatus.id,
+        familyId: familyRegistrationStatus.familyId,
+        status: familyRegistrationStatus.status,
+        volunteerRequirementsMet: familyRegistrationStatus.volunteerRequirementsMet,
+        adminOverride: familyRegistrationStatus.adminOverride,
+        adminOverrideReason: familyRegistrationStatus.adminOverrideReason,
+        overriddenBy: familyRegistrationStatus.overriddenBy,
+        overriddenAt: familyRegistrationStatus.overriddenAt,
+        completedAt: familyRegistrationStatus.completedAt,
+        createdAt: familyRegistrationStatus.createdAt,
+        updatedAt: familyRegistrationStatus.updatedAt
+      }).from(familyRegistrationStatus).where(eq(familyRegistrationStatus.sessionId, sessionId)),
+
+      db.select({
+        id: familySessionFees.id,
+        familyId: familySessionFees.familyId,
+        totalFee: familySessionFees.totalFee,
+        registrationFee: familySessionFees.registrationFee,
+        classFees: familySessionFees.classFees,
+        paidAmount: familySessionFees.paidAmount,
+        status: familySessionFees.status,
+        dueDate: familySessionFees.dueDate,
+        overpaymentAmount: familySessionFees.overpaymentAmount,
+        overpaymentStatus: familySessionFees.overpaymentStatus
+      }).from(familySessionFees).where(eq(familySessionFees.sessionId, sessionId))
     ])
 
     const registrationCountMap = registrationRows.reduce((acc, row) => {
@@ -168,9 +204,11 @@ export async function GET(request: Request) {
 
     const volunteerAssignmentsResponse = volunteerRows.map((row) => ({
       id: row.id,
+      familyId: row.familyId,
       period: row.period,
       volunteerType: row.volunteerType,
       status: row.status,
+      holdExpiresAt: row.holdExpiresAt,
       guardian: row.guardian,
       schedule: row.scheduleId
         ? {
@@ -189,6 +227,86 @@ export async function GET(request: Request) {
         : null
     }))
 
+    const now = new Date().toISOString()
+    const isActiveClass = (row: typeof registrationRows[number]) => ['registered', 'waitlisted', 'pending'].includes(row.status)
+      || (row.status === 'hold' && (!row.holdExpiresAt || row.holdExpiresAt > now))
+    const isActiveVolunteer = (row: typeof volunteerRows[number]) => ['assigned', 'completed', 'pending'].includes(row.status)
+      || (row.status === 'hold' && (!row.holdExpiresAt || row.holdExpiresAt > now))
+    const activeRegistrationRows = registrationRows.filter(isActiveClass)
+    const activeVolunteerRows = volunteerRows.filter(isActiveVolunteer)
+    const familyIds = new Set([
+      ...activeRegistrationRows.map((row) => row.child.familyId),
+      ...activeVolunteerRows.map((row) => row.familyId),
+      ...familyStatusRows.map((row) => row.familyId),
+      ...feeRows.map((row) => row.familyId)
+    ])
+    const familyStatusByFamily = new Map<string, typeof familyStatusRows[number]>()
+    for (const row of familyStatusRows) {
+      const current = familyStatusByFamily.get(row.familyId)
+      if (!current || row.updatedAt > current.updatedAt) familyStatusByFamily.set(row.familyId, row)
+    }
+    const feeByFamily = new Map(feeRows.map((row) => [row.familyId, row]))
+    const familyRegistrations = familyRows.filter((family) => familyIds.has(family.id)).map((family) => {
+      const familyClasses = activeRegistrationRows.filter((row) => row.child.familyId === family.id)
+      const familyVolunteers = activeVolunteerRows.filter((row) => row.familyId === family.id)
+      const status = familyStatusByFamily.get(family.id) || null
+      const fee = feeByFamily.get(family.id) || null
+      const hasCartRows = [...familyClasses, ...familyVolunteers].some((row) => row.status === 'hold' && Boolean(row.holdExpiresAt))
+      const needsResolution = [...familyClasses, ...familyVolunteers].some((row) => row.status === 'hold' && !row.holdExpiresAt)
+      const hasPendingRows = [...familyClasses, ...familyVolunteers].some((row) => row.status === 'pending')
+      const registrationState = status?.status === 'admin_override' ? 'override_needed'
+        : status?.status === 'denied' ? 'override_denied'
+        : status?.status === 'completed' || status?.status === 'approved' ? 'complete'
+        : ['in_progress', 'incomplete'].includes(status?.status || '') ? 'in_progress'
+        : hasPendingRows ? 'override_needed'
+        : hasCartRows ? 'in_cart'
+        : fee ? 'complete'
+        : 'in_progress'
+      const paymentState = !fee ? 'not_generated'
+        : fee.totalFee <= 0 ? 'no_payment_due'
+        : fee.paidAmount >= fee.totalFee ? 'paid'
+        : fee.dueDate < now.slice(0, 10) ? 'overdue'
+        : fee.paidAmount > 0 ? 'partial'
+        : 'unpaid'
+
+      return {
+        familyId: family.id,
+        familyName: family.name,
+        email: family.email,
+        phone: family.phone,
+        registrationState,
+        paymentState,
+        hasCart: hasCartRows,
+        needsResolution,
+        status,
+        fee: fee ? { ...fee, remainingBalance: Math.max(0, fee.totalFee - fee.paidAmount) } : null,
+        emergencyContact: familyClasses.find((row) => row.emergencyContact)?.emergencyContact || null,
+        emergencyPhone: familyClasses.find((row) => row.emergencyPhone)?.emergencyPhone || null,
+        guardians: guardianRows.filter((guardian) => guardian.familyId === family.id),
+        classes: familyClasses.map((row) => ({
+          id: row.id,
+          status: row.status,
+          holdExpiresAt: row.holdExpiresAt,
+          child: row.child,
+          schedule: row.schedule,
+          className: row.classTeachingRequest.className,
+          teacherName: row.classTeachingRequest.teacherName,
+          classroom: row.classroom.name
+        })),
+        volunteerAssignments: familyVolunteers.map((row) => ({
+          id: row.id,
+          status: row.status,
+          holdExpiresAt: row.holdExpiresAt,
+          period: row.period,
+          volunteerType: row.volunteerType,
+          guardian: row.guardian,
+          className: row.className,
+          classroom: row.classroom,
+          volunteerJobTitle: row.jobTitle
+        }))
+      }
+    }).sort((a, b) => a.familyName.localeCompare(b.familyName))
+
     return NextResponse.json({
       registrations: registrationRows,
       schedules: schedulesResponse,
@@ -196,7 +314,8 @@ export async function GET(request: Request) {
       volunteerJobs: volunteerJobRows,
       guardians: guardianRows,
       children: childRows,
-      classrooms: classroomRows
+      classrooms: classroomRows,
+      familyRegistrations
     })
   } catch (error) {
     console.error('Error loading admin registrations:', error)
