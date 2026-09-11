@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import ts from 'typescript'
 import { createClient } from '@libsql/client'
@@ -10,6 +12,12 @@ import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 
 const require = createRequire(import.meta.url)
+// Newer Node versions can hide CJS-to-ESM loading failures that crash the
+// externalized sanitizer in production. Exercise the stricter loader too.
+execFileSync(process.execPath, [
+  ...(process.allowedNodeEnvironmentFlags.has('--no-experimental-require-module') ? ['--no-experimental-require-module'] : []),
+  '-e', 'const assert = require("node:assert/strict"); const sanitize = require("sanitize-html"); assert.equal(sanitize("<p><strong>Event</strong></p><script>bad()</script>"), "<p><strong>Event</strong></p>");',
+], { cwd: fileURLToPath(new URL('../', import.meta.url)), stdio: 'pipe' })
 function load(path, mocks = {}) {
   const { outputText } = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, jsx: ts.JsxEmit.ReactJSX } })
   const module = { exports: {} }
