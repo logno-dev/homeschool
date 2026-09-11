@@ -12,10 +12,11 @@ import {
   familySessionFees,
   sessions
 } from '@/lib/schema'
-import { eq, and } from 'drizzle-orm'
+import { eq, and, inArray } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
 import { sendRegistrationConfirmationEmail } from '@/lib/email'
+import { publishRegistrationUpdate } from '@/lib/registration-events'
 
 export async function PATCH(
   request: NextRequest,
@@ -90,24 +91,62 @@ export async function PATCH(
     if (action === 'approve') {
       // Update pending registrations to registered status
       await db.transaction(async (tx) => {
-        // Update class registrations from pending to registered
+        const submittedRegistrations = await tx.select({
+          id: classRegistrations.id,
+          childId: classRegistrations.childId,
+          scheduleId: classRegistrations.scheduleId,
+          status: classRegistrations.status
+        }).from(classRegistrations).where(and(
+          eq(classRegistrations.familyId, overrideRequest.familyId),
+          eq(classRegistrations.sessionId, overrideRequest.sessionId),
+          inArray(classRegistrations.status, ['pending', 'hold'])
+        ))
+        const duplicateRegistrationHolds = submittedRegistrations.filter((row) => row.status === 'hold' && submittedRegistrations.some((candidate) =>
+          candidate.status === 'pending' && candidate.childId === row.childId && candidate.scheduleId === row.scheduleId
+        )).map((row) => row.id)
+        if (duplicateRegistrationHolds.length) {
+          await tx.delete(classRegistrations).where(inArray(classRegistrations.id, duplicateRegistrationHolds))
+        }
+
+        const submittedAssignments = await tx.select({
+          id: volunteerAssignments.id,
+          guardianId: volunteerAssignments.guardianId,
+          period: volunteerAssignments.period,
+          volunteerType: volunteerAssignments.volunteerType,
+          scheduleId: volunteerAssignments.scheduleId,
+          volunteerJobId: volunteerAssignments.volunteerJobId,
+          status: volunteerAssignments.status
+        }).from(volunteerAssignments).where(and(
+          eq(volunteerAssignments.familyId, overrideRequest.familyId),
+          eq(volunteerAssignments.sessionId, overrideRequest.sessionId),
+          inArray(volunteerAssignments.status, ['pending', 'hold'])
+        ))
+        const duplicateAssignmentHolds = submittedAssignments.filter((row) => row.status === 'hold' && submittedAssignments.some((candidate) =>
+          candidate.status === 'pending' && candidate.guardianId === row.guardianId && candidate.period === row.period && candidate.volunteerType === row.volunteerType
+            && candidate.scheduleId === row.scheduleId && candidate.volunteerJobId === row.volunteerJobId
+        )).map((row) => row.id)
+        if (duplicateAssignmentHolds.length) {
+          await tx.delete(volunteerAssignments).where(inArray(volunteerAssignments.id, duplicateAssignmentHolds))
+        }
+
+        // Reuse any submitted cart holds left by older registration flows.
         await tx
           .update(classRegistrations)
-          .set({ status: 'registered' })
+          .set({ status: 'registered', holdExpiresAt: null, updatedAt: new Date().toISOString() })
           .where(and(
             eq(classRegistrations.familyId, overrideRequest.familyId),
             eq(classRegistrations.sessionId, overrideRequest.sessionId),
-            eq(classRegistrations.status, 'pending')
+            inArray(classRegistrations.status, ['pending', 'hold'])
           ))
 
         // Update volunteer assignments from pending to assigned
         await tx
           .update(volunteerAssignments)
-          .set({ status: 'assigned' })
+          .set({ status: 'assigned', holdExpiresAt: null, updatedAt: new Date().toISOString() })
           .where(and(
             eq(volunteerAssignments.familyId, overrideRequest.familyId),
             eq(volunteerAssignments.sessionId, overrideRequest.sessionId),
-            eq(volunteerAssignments.status, 'pending')
+            inArray(volunteerAssignments.status, ['pending', 'hold'])
           ))
 
         // Update the override status to completed
@@ -124,6 +163,7 @@ export async function PATCH(
           })
           .where(eq(familyRegistrationStatus.id, overrideId))
       })
+      publishRegistrationUpdate(overrideRequest.sessionId)
 
       // Pending registrations were not included in the original fee calculation.
       try {

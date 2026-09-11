@@ -34,6 +34,7 @@ export async function GET(request: Request) {
         .select({
            id: classRegistrations.id,
            status: classRegistrations.status,
+           holdExpiresAt: classRegistrations.holdExpiresAt,
            createdAt: classRegistrations.createdAt,
           child: {
             id: children.id,
@@ -85,6 +86,7 @@ export async function GET(request: Request) {
           period: volunteerAssignments.period,
           volunteerType: volunteerAssignments.volunteerType,
           status: volunteerAssignments.status,
+          holdExpiresAt: volunteerAssignments.holdExpiresAt,
           guardian: {
             id: guardians.id,
             firstName: guardians.firstName,

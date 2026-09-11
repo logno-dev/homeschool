@@ -12,6 +12,7 @@ import SessionOptions from '../../components/SessionOptions'
 interface RegistrationRow {
   id: string
   status: string
+  holdExpiresAt: string | null
   createdAt: string
   child: {
     id: string
@@ -48,6 +49,7 @@ interface VolunteerAssignmentRow {
   period: string
   volunteerType: string
   status: string
+  holdExpiresAt: string | null
   guardian: {
     id: string
     firstName: string
@@ -224,7 +226,7 @@ export default function AdminRegistrationsPage() {
 
   const registeredStudents = registrationsForSchedule.filter((registration) => registration.status === 'registered')
   const waitlistedStudents = registrationsForSchedule.filter((registration) => registration.status === 'waitlisted').sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
-  const heldStudents = registrationsForSchedule.filter((registration) => registration.status === 'hold')
+  const heldStudents = registrationsForSchedule.filter((registration) => registration.status === 'hold' && !registration.holdExpiresAt)
 
   const volunteersForSchedule = useMemo(() => {
     if (!selectedSchedule) return []
@@ -232,7 +234,7 @@ export default function AdminRegistrationsPage() {
   }, [volunteerAssignments, selectedSchedule])
   const heldVolunteersForSchedule = useMemo(() => {
     if (!selectedSchedule) return []
-    return volunteerAssignments.filter((assignment) => assignment.schedule?.id === selectedSchedule.id && assignment.status === 'hold')
+    return volunteerAssignments.filter((assignment) => assignment.schedule?.id === selectedSchedule.id && assignment.status === 'hold' && !assignment.holdExpiresAt)
   }, [volunteerAssignments, selectedSchedule])
 
   const nonPeriodJobs = useMemo(
@@ -693,6 +695,7 @@ export default function AdminRegistrationsPage() {
                       <li key={registration.id} className="flex items-center justify-between rounded-md border border-amber-200 bg-white px-3 py-2">
                         <span className="text-sm font-medium text-gray-900">{registration.child.firstName} {registration.child.lastName}</span>
                         <div className="flex items-center gap-3">
+                          <button onClick={() => updateRegistrationStatus(registration.id, 'registered')} className="text-sm text-green-600 hover:text-green-700">Keep</button>
                           <button onClick={() => openMoveModal(registration)} className="text-sm text-blue-600 hover:text-blue-700">Move</button>
                           <button onClick={() => updateRegistrationStatus(registration.id, 'cancelled')} className="text-sm text-red-600 hover:text-red-700">Drop</button>
                         </div>

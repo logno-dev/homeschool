@@ -617,17 +617,34 @@ export async function POST(request: Request) {
         if (registrations && registrations.length > 0) {
           for (const registration of registrations) {
             const registrationStatus = registration.status === 'waitlisted' ? 'waitlisted' : 'pending'
-            await tx.insert(classRegistrations).values({
-              id: randomUUID(),
-              sessionId,
-              scheduleId: registration.scheduleId,
-              childId: registration.childId,
-              familyId,
-              registeredBy: session.user.id,
-              emergencyContact: emergencyContact?.name?.trim() || null,
-              emergencyPhone: emergencyContact?.phone?.trim() || null,
-              status: registrationStatus
-            })
+            const [existingHold] = registrationStatus === 'pending' ? await tx.select({ id: classRegistrations.id }).from(classRegistrations).where(and(
+              eq(classRegistrations.sessionId, sessionId),
+              eq(classRegistrations.familyId, familyId),
+              eq(classRegistrations.childId, registration.childId),
+              eq(classRegistrations.scheduleId, registration.scheduleId),
+              eq(classRegistrations.status, 'hold')
+            )).limit(1) : []
+            if (existingHold) {
+              await tx.update(classRegistrations).set({
+                status: 'pending',
+                holdExpiresAt: null,
+                emergencyContact: emergencyContact?.name?.trim() || null,
+                emergencyPhone: emergencyContact?.phone?.trim() || null,
+                updatedAt: new Date().toISOString()
+              }).where(eq(classRegistrations.id, existingHold.id))
+            } else {
+              await tx.insert(classRegistrations).values({
+                id: randomUUID(),
+                sessionId,
+                scheduleId: registration.scheduleId,
+                childId: registration.childId,
+                familyId,
+                registeredBy: session.user.id,
+                emergencyContact: emergencyContact?.name?.trim() || null,
+                emergencyPhone: emergencyContact?.phone?.trim() || null,
+                status: registrationStatus
+              })
+            }
           }
         }
 
@@ -636,17 +653,35 @@ export async function POST(request: Request) {
           for (const assignment of volunteerAssignmentsList) {
             if (protectedJobs.some(saved => sameJob(saved, assignment))) continue
             if (assignment.volunteerType === 'volunteer_job' && !await canSignUpForVolunteerJob(assignment.volunteerJobId!, sessionId, session.user.id, assignment.guardianId, tx)) throw new Error('A volunteer job is no longer available for this user and guardian.')
-            await tx.insert(volunteerAssignments).values({
-              id: randomUUID(),
-              sessionId,
-              guardianId: assignment.guardianId,
-              familyId,
-              period: assignment.period,
-              volunteerType: assignment.volunteerType,
-              scheduleId: assignment.scheduleId,
-              volunteerJobId: assignment.volunteerJobId,
-              status: 'pending' // Pending admin approval
-            })
+            const [existingHold] = await tx.select({ id: volunteerAssignments.id }).from(volunteerAssignments).where(and(
+              eq(volunteerAssignments.sessionId, sessionId),
+              eq(volunteerAssignments.familyId, familyId),
+              eq(volunteerAssignments.guardianId, assignment.guardianId),
+              eq(volunteerAssignments.volunteerType, assignment.volunteerType),
+              inArray(volunteerAssignments.period, getPeriodAliases(assignment.period)),
+              assignment.scheduleId ? eq(volunteerAssignments.scheduleId, assignment.scheduleId) : eq(volunteerAssignments.volunteerJobId, assignment.volunteerJobId!),
+              eq(volunteerAssignments.status, 'hold')
+            )).limit(1)
+            if (existingHold) {
+              await tx.update(volunteerAssignments).set({
+                status: 'pending',
+                period: normalizePeriod(assignment.period),
+                holdExpiresAt: null,
+                updatedAt: new Date().toISOString()
+              }).where(eq(volunteerAssignments.id, existingHold.id))
+            } else {
+              await tx.insert(volunteerAssignments).values({
+                id: randomUUID(),
+                sessionId,
+                guardianId: assignment.guardianId,
+                familyId,
+                period: normalizePeriod(assignment.period),
+                volunteerType: assignment.volunteerType,
+                scheduleId: assignment.scheduleId,
+                volunteerJobId: assignment.volunteerJobId,
+                status: 'pending'
+              })
+            }
           }
         }
 
@@ -705,6 +740,7 @@ export async function POST(request: Request) {
           console.error('Unable to send registration override notification:', notificationError)
         }
       }
+      publishRegistrationUpdate(sessionId)
 
       return NextResponse.json({
         success: true,

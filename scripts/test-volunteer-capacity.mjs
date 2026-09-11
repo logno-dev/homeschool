@@ -184,9 +184,51 @@ try {
   await db.update(schema.familyRegistrationStatus).set({ status: 'completed', adminOverride: true, overriddenBy: 'guardian-a' }).where(eq(schema.familyRegistrationStatus.familyId, 'family-b'))
   assert.equal((await resume(request({ sessionId: 'session' }))).status, 200)
   assert.equal((await statusModule.getRegistrationStatus('session', 'guardian-b')).registrationState, 'completed')
+
+  // Override requests must convert their cart holds instead of leaving duplicate
+  // expiring rows that still appear to be on hold after approval.
+  await db.delete(schema.classRegistrations)
+  await db.delete(schema.volunteerAssignments)
+  await db.delete(schema.familyRegistrationStatus)
+  await db.delete(schema.familySessionFees)
+  viewerId = 'guardian-b'
+  for (const scheduleId of ['schedule-first', 'schedule']) {
+    await db.insert(schema.classRegistrations).values({ id: `override-${scheduleId}`, sessionId: 'session', familyId: 'family-b', childId: 'child-b', scheduleId, registeredBy: 'guardian-b', status: 'hold', holdExpiresAt: future })
+  }
+  await insertAssignment('override-volunteer', 'guardian-b', 'family-b', 'hold', { scheduleId: 'schedule-first', period: 'first', holdExpiresAt: future })
+  response = await submit(request({
+    sessionId: 'session',
+    registrations: [
+      { childId: 'child-b', scheduleId: 'schedule-first', period: 'first', className: 'Two-helper class' },
+      { childId: 'child-b', scheduleId: 'schedule', period: 'second', className: 'Two-helper class' }
+    ],
+    volunteerAssignments: [{ ...selection(), scheduleId: 'schedule-first', period: 'first' }],
+    emergencyContact: { name: 'Contact', phone: '(555) 123-4567' },
+    requestAdminOverride: true
+  }))
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()))
+  assert.equal((await response.json()).adminOverrideRequested, true)
+  assert.deepEqual((await db.select().from(schema.classRegistrations)).map(row => row.status), ['pending', 'pending'])
+  assert.deepEqual((await db.select().from(schema.classRegistrations)).map(row => row.holdExpiresAt), [null, null])
+  assert.equal((await db.select().from(schema.volunteerAssignments))[0].status, 'pending')
+  assert.equal((await db.select().from(schema.volunteerAssignments))[0].holdExpiresAt, null)
+
+  // Approval also repairs duplicate hold rows produced by older deployments.
+  await db.insert(schema.classRegistrations).values({ id: 'legacy-duplicate-hold', sessionId: 'session', familyId: 'family-b', childId: 'child-b', scheduleId: 'schedule-first', registeredBy: 'guardian-b', status: 'hold', holdExpiresAt: future })
+  await insertAssignment('legacy-volunteer-hold', 'guardian-b', 'family-b', 'hold', { scheduleId: 'schedule-first', period: 'first', holdExpiresAt: future })
+  mocks['@/lib/server-auth'].getAuthenticatedAdmin = async () => ({ session: { user: { id: 'guardian-a' } } })
+  const approveOverride = load('app/api/admin/registration-overrides/[overrideId]/route.ts', mocks).PATCH
+  const [overrideStatus] = await db.select().from(schema.familyRegistrationStatus)
+  response = await approveOverride(request({ action: 'approve' }), { params: Promise.resolve({ overrideId: overrideStatus.id }) })
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()))
+  assert.deepEqual((await db.select().from(schema.classRegistrations)).map(row => row.status), ['registered', 'registered'])
+  assert.equal((await db.select().from(schema.volunteerAssignments)).length, 1)
+  assert.equal((await db.select().from(schema.volunteerAssignments))[0].status, 'assigned')
+  assert.equal((await db.select().from(schema.familyRegistrationStatus))[0].status, 'completed')
+
   viewerId = 'guardian-c'
   assert.equal((await resume(request({ sessionId: 'session' }))).status, 409, 'Another family cannot resume these selections')
-  console.log('Partial-registration display, idempotent resume, fee-failure recovery, unpaid invoice creation, and family isolation checks passed.')
+  console.log('Partial-registration display, idempotent resume, fee-failure recovery, override hold conversion/approval, unpaid invoice creation, and family isolation checks passed.')
 } finally {
   client.close()
   rmSync(directory, { recursive: true, force: true })
