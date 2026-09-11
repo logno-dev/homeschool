@@ -246,6 +246,7 @@ async function validateRegistration(
         familyId: volunteerAssignments.familyId,
         scheduleId: volunteerAssignments.scheduleId,
         volunteerJobId: volunteerAssignments.volunteerJobId,
+        volunteerType: volunteerAssignments.volunteerType,
         holdExpiresAt: volunteerAssignments.holdExpiresAt
       })
       .from(volunteerAssignments)
@@ -267,7 +268,7 @@ async function validateRegistration(
       const matchesAssignment = existing.scheduleId
         ? existing.scheduleId === assignment.scheduleId
         : existing.volunteerJobId === assignment.volunteerJobId
-      const isOwnHold = existing.status === 'hold' && existing.familyId === familyId && matchesAssignment
+      const isOwnHold = existing.status === 'hold' && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment
 
       if (isOwnHold) {
         continue
@@ -881,6 +882,7 @@ export async function POST(request: Request) {
             familyId: volunteerAssignments.familyId,
             scheduleId: volunteerAssignments.scheduleId,
             volunteerJobId: volunteerAssignments.volunteerJobId,
+            volunteerType: volunteerAssignments.volunteerType,
             holdExpiresAt: volunteerAssignments.holdExpiresAt
           })
           .from(volunteerAssignments)
@@ -899,7 +901,7 @@ export async function POST(request: Request) {
           const matchesAssignment = existing.scheduleId
             ? existing.scheduleId === assignment.scheduleId
             : existing.volunteerJobId === assignment.volunteerJobId
-          const isOwnHold = existing.status === 'hold' && existing.familyId === familyId && matchesAssignment
+          const isOwnHold = existing.status === 'hold' && existing.familyId === familyId && existing.volunteerType === assignment.volunteerType && matchesAssignment
 
           if (!isOwnHold) {
             throw new Error(`Guardian is already assigned as a volunteer for the ${normalizedPeriod} period`)
@@ -925,6 +927,23 @@ export async function POST(request: Request) {
 
           const { classTeachingRequest } = scheduleData[0]
 
+          // A cart hold already occupies this volunteer's spot. Find the exact
+          // hold being confirmed before checking whether another spot is needed.
+          const existingHold = await tx
+            .select({ id: volunteerAssignments.id })
+            .from(volunteerAssignments)
+            .where(and(
+              eq(volunteerAssignments.sessionId, sessionId),
+              eq(volunteerAssignments.familyId, familyId),
+              eq(volunteerAssignments.guardianId, assignment.guardianId),
+              eq(volunteerAssignments.scheduleId, assignment.scheduleId),
+              eq(volunteerAssignments.volunteerType, assignment.volunteerType),
+              inArray(volunteerAssignments.period, periodAliases),
+              eq(volunteerAssignments.status, 'hold'),
+              gt(volunteerAssignments.holdExpiresAt, holdReferenceTime)
+            ))
+            .limit(1)
+
           // Check capacity based on volunteer type
           if (assignment.volunteerType === 'helper') {
             const currentHelpers = await tx
@@ -939,30 +958,18 @@ export async function POST(request: Request) {
                 )
               ))
 
-            if (currentHelpers.length >= classTeachingRequest.helpersNeeded) {
+            const otherHelpers = currentHelpers.filter(helper => helper.id !== existingHold[0]?.id)
+            if (otherHelpers.length >= classTeachingRequest.helpersNeeded) {
               throw new Error(`No helper spots available for: ${assignment.className}`)
             }
           }
-
-          const existingHold = await tx
-            .select({ id: volunteerAssignments.id })
-            .from(volunteerAssignments)
-            .where(and(
-              eq(volunteerAssignments.sessionId, sessionId),
-              eq(volunteerAssignments.familyId, familyId),
-              eq(volunteerAssignments.guardianId, assignment.guardianId),
-              eq(volunteerAssignments.scheduleId, assignment.scheduleId),
-              eq(volunteerAssignments.period, normalizedPeriod),
-              eq(volunteerAssignments.status, 'hold'),
-              gt(volunteerAssignments.holdExpiresAt, holdReferenceTime)
-            ))
-            .limit(1)
 
           if (existingHold.length > 0) {
             await tx
               .update(volunteerAssignments)
               .set({
                 status: 'assigned',
+                period: normalizedPeriod,
                 holdExpiresAt: null,
                 updatedAt: new Date().toISOString()
               })
