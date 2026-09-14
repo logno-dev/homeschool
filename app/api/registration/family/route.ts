@@ -5,6 +5,7 @@ import { guardians, families, children, classRegistrations, schedules, classTeac
 import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { getRegistrationAccess } from '@/lib/user-groups'
+import { getStudentTeacherAssignment } from '@/lib/student-teachers'
 
 interface FamilyRegistration {
   [period: string]: {
@@ -194,6 +195,8 @@ export async function POST(request: Request) {
       // Process child registrations
       for (const [period, periodRegistrations] of Object.entries(registrations)) {
         for (const [childId, scheduleId] of Object.entries(periodRegistrations)) {
+          const studentTeacherAssignment = await getStudentTeacherAssignment(sessionId, childId, period)
+          if (studentTeacherAssignment) throw new Error(`Child is the student teacher for ${studentTeacherAssignment.className} during the ${period} period`)
           // Verify the schedule exists and is published
           const scheduleData = await tx
             .select({

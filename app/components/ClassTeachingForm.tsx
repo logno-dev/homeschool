@@ -12,6 +12,7 @@ interface ClassTeachingFormProps {
 }
 
 const GRADE_OPTIONS: readonly string[] = BUILT_IN_GRADE_RANGES.map((option) => option.value)
+type FamilyChild = { id: string; firstName: string; lastName: string; grade: string }
 
 export default function ClassTeachingForm({
   onSuccess,
@@ -21,6 +22,7 @@ export default function ClassTeachingForm({
 }: ClassTeachingFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [currentSession, setCurrentSession] = useState<Session | null>(null)
+  const [children, setChildren] = useState<FamilyChild[]>([])
   const [formData, setFormData] = useState({
     className: '',
     description: '',
@@ -30,6 +32,7 @@ export default function ClassTeachingForm({
     maxStudents: '15',
     helpersNeeded: '2',
     coTeacher: '',
+    studentTeacherChildId: '',
     classroomNeeds: '',
     requiresFee: false,
     feeAmount: '',
@@ -58,6 +61,7 @@ export default function ClassTeachingForm({
         maxStudents: String(initialRequest.maxStudents ?? 15),
         helpersNeeded: String(initialRequest.helpersNeeded ?? 1),
         coTeacher: initialRequest.coTeacher || '',
+        studentTeacherChildId: initialRequest.studentTeacherChildId || '',
         classroomNeeds: initialRequest.classroomNeeds || '',
         requiresFee: Boolean(initialRequest.requiresFee),
         feeAmount: initialRequest.requiresFee ? String(initialRequest.feeAmount ?? '') : '',
@@ -80,6 +84,13 @@ export default function ClassTeachingForm({
     }
     fetchSession()
   }, [initialRequest])
+
+  useEffect(() => {
+    fetch('/api/family/profile')
+      .then(async (response) => response.ok ? response.json() : { children: [] })
+      .then((payload) => setChildren(payload.children || []))
+      .catch(() => setChildren([]))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -373,6 +384,15 @@ export default function ClassTeachingForm({
             className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Name of co-teacher if applicable"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Student Teacher (Optional)</label>
+          <select value={formData.studentTeacherChildId} onChange={(e) => setFormData({ ...formData, studentTeacherChildId: e.target.value })} className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="">No student teacher</option>
+            {children.map((child) => <option key={child.id} value={child.id}>{child.firstName} {child.lastName} (Grade {child.grade})</option>)}
+          </select>
+          <p className="mt-2 text-sm text-gray-500">The selected child will appear on this class roster as the student teacher and will be unavailable for another class during this period. The parent remains the teacher for volunteer credit.</p>
         </div>
 
         <div>

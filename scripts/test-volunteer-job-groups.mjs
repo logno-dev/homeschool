@@ -68,6 +68,7 @@ try {
       getChildrenByFamily: async () => [], getGlobalSetting: async () => null,
     },
     '@/lib/registration-events': { publishRegistrationUpdate: () => {} },
+    '@/lib/student-teachers': { getStudentTeacherAssignment: async () => null },
     '@/lib/user-groups': { getRegistrationAccess: async () => ({ isOpen: true }) },
     '@/lib/fee-calculation': { createOrUpdateFamilySessionFee: async () => {} },
     '@/lib/grades': { isGradeWithinRange: () => true },

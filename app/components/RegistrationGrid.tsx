@@ -19,6 +19,7 @@ interface ClassTeachingRequest {
   maxStudents: number
   helpersNeeded: number
   coTeacher?: string | null
+  studentTeacherChildId?: string | null
   classroomNeeds?: string | null
   requiresFee: boolean
   feeAmount?: number | null
@@ -50,6 +51,7 @@ interface RosterChild {
   lastName: string
   grade: string
   status?: string
+  role?: 'student_teacher'
 }
 
 interface PendingRosterChild extends RosterChild {
@@ -412,9 +414,14 @@ export default function RegistrationGrid({
 
       if (alreadyInSelectedClass || alreadyPendingForSelectedClass) return false
       if (registrationMode === 'waitlisted') return true
+      const isStudentTeacherInPeriod = schedules.some((schedule) => schedule.schedule.period === selectedClass.schedule.period && schedule.roster.some((student) => student.id === child.id && student.role === 'student_teacher'))
+      if (isStudentTeacherInPeriod) return false
       return modifyRegistration || !isChildRegisteredInPeriod(child.id, selectedClass.schedule.period)
     })
-  }, [children, selectedClass, removedRegistrationKeys, pendingRegistrations, registrationMode, modifyRegistration, isChildRegisteredInPeriod])
+  }, [children, selectedClass, removedRegistrationKeys, pendingRegistrations, registrationMode, modifyRegistration, isChildRegisteredInPeriod, schedules])
+
+  const selectedStudentTeacherCount = selectedClass?.roster.filter((student) => student.role === 'student_teacher').length || 0
+  const selectedStudentCount = (selectedClass?.roster.length || 0) - selectedStudentTeacherCount + pendingRoster.length
 
 
 
@@ -667,7 +674,7 @@ export default function RegistrationGrid({
             {/* Class Roster */}
             <div>
               <h4 className="text-md font-semibold text-gray-900 mb-3">
-                Current Roster ({selectedClass.roster.length + pendingRoster.length} students)
+                Current Roster ({selectedStudentCount} students{selectedStudentTeacherCount ? `, ${selectedStudentTeacherCount} student teacher` : ''})
                 {pendingRoster.length > 0 ? `, ${pendingRoster.length} pending` : ''}
               </h4>
               {selectedClass.roster.length > 0 || pendingRoster.length > 0 ? (
@@ -675,7 +682,8 @@ export default function RegistrationGrid({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                      {selectedClass.roster.map((student) => {
                        const status = student.status || 'registered'
-                       const isReserved = status === 'hold' || status === 'pending'
+                        const isStudentTeacher = student.role === 'student_teacher'
+                        const isReserved = status === 'hold' || status === 'pending'
                        const currentRegistration = modifyRegistration
                          ? pendingRegistrations.find((registration) =>
                            registration.childId === student.id && registration.scheduleId === selectedClass.schedule.id
@@ -685,14 +693,16 @@ export default function RegistrationGrid({
                        const willBeRemoved = modifyRegistration && removedRegistrationKeys.has(registrationKey)
                        return (
                          <div key={student.id} className="flex items-center space-x-2 text-sm">
-                           <div className={`w-2 h-2 rounded-full ${isReserved ? 'bg-amber-500' : 'bg-green-500'}`}></div>
-                           <span>{student.firstName} {student.lastName} (Grade {student.grade})</span>
-                            {willBeRemoved ? (
+                            <div className={`w-2 h-2 rounded-full ${isStudentTeacher ? 'bg-purple-500' : isReserved ? 'bg-amber-500' : 'bg-green-500'}`}></div>
+                            <span>{student.firstName} {student.lastName} (Grade {student.grade})</span>
+                             {isStudentTeacher ? (
+                               <span className="text-xs font-medium text-purple-700">Student teacher</span>
+                             ) : willBeRemoved ? (
                               <span className="text-xs text-red-700">Will be removed</span>
                             ) : isReserved ? (
                               <span className="text-xs text-amber-700">Reserved</span>
                             ) : null}
-                           {modifyRegistration && currentRegistration && (
+                            {modifyRegistration && currentRegistration && !isStudentTeacher && (
                              <button
                                type="button"
                                onClick={() => {

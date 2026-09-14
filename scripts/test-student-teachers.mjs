@@ -1,0 +1,84 @@
+import assert from 'node:assert/strict'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { createRequire } from 'node:module'
+import vm from 'node:vm'
+import ts from 'typescript'
+import { createClient } from '@libsql/client'
+import { drizzle } from 'drizzle-orm/libsql'
+import { getTableConfig, SQLiteSyncDialect } from 'drizzle-orm/sqlite-core'
+
+const require = createRequire(import.meta.url)
+function load(path, mocks = {}) {
+  const { outputText } = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } })
+  const module = { exports: {} }
+  vm.runInNewContext(outputText, { module, exports: module.exports, console, process, Request, Response, URL, require: (name) => Object.hasOwn(mocks, name) ? mocks[name] : require(name) })
+  return module.exports
+}
+
+const directory = mkdtempSync(join(tmpdir(), 'dvclc-student-teachers-'))
+const client = createClient({ url: pathToFileURL(join(directory, 'test.db')).href })
+const schema = load('lib/schema.ts')
+const db = drizzle(client, { schema })
+
+try {
+  const dialect = new SQLiteSyncDialect()
+  const tables = [schema.families, schema.guardians, schema.children, schema.sessions, schema.classrooms, schema.sessionClassrooms, schema.classTeachingRequests, schema.schedules, schema.classRegistrations, schema.volunteerJobs, schema.sessionVolunteerJobs, schema.volunteerAssignments]
+  for (const table of tables) {
+    const { name, columns } = getTableConfig(table)
+    const definitions = columns.map((column) => {
+      let sql = `"${column.name}" ${column.getSQLType()}${column.primary ? ' PRIMARY KEY' : ''}${column.notNull ? ' NOT NULL' : ''}`
+      if (column.default !== undefined) {
+        const value = column.default
+        sql += ` DEFAULT ${typeof value === 'object' ? dialect.sqlToQuery(value).sql : typeof value === 'string' ? `'${value.replaceAll("'", "''")}'` : Number(value)}`
+      }
+      return sql
+    })
+    await client.execute(`CREATE TABLE "${name}" (${definitions.join(', ')})`)
+  }
+
+  await db.insert(schema.families).values({ id: 'family', name: 'Teacher Family', address: '1 Test Way', phone: '555-0100', email: 'family@example.com', sharingCode: 'teacher-family' })
+  await db.insert(schema.guardians).values({ id: 'guardian', familyId: 'family', email: 'parent@example.com', firstName: 'Pat', lastName: 'Teacher' })
+  await db.insert(schema.children).values([
+    { id: 'student-teacher', familyId: 'family', firstName: 'Alex', lastName: 'Teacher', grade: '8', dateOfBirth: '2012-01-01' },
+    { id: 'other-child', familyId: 'family', firstName: 'Sam', lastName: 'Teacher', grade: '6', dateOfBirth: '2014-01-01' }
+  ])
+  await db.insert(schema.sessions).values({ id: 'session', name: 'Fall', startDate: '2026-09-01', endDate: '2026-12-01', registrationStartDate: '2026-08-01', registrationEndDate: '2026-08-31' })
+  await db.insert(schema.classrooms).values({ id: 'room-template', name: 'Room A' })
+  await db.insert(schema.sessionClassrooms).values({ id: 'room', sessionId: 'session', classroomId: 'room-template', name: 'Room A', orderIndex: 0 })
+  await db.insert(schema.classTeachingRequests).values({ id: 'class', sessionId: 'session', guardianId: 'guardian', className: 'Student-Led Science', description: 'Science', gradeRange: '6-8', maxStudents: 10, helpersNeeded: 0, status: 'approved', studentTeacherChildId: 'student-teacher' })
+  await db.insert(schema.schedules).values({ id: 'schedule', sessionId: 'session', classTeachingRequestId: 'class', classroomId: 'room-template', sessionClassroomId: 'room', period: 'first', status: 'published' })
+
+  const studentTeacherHelpers = load('lib/student-teachers.ts', { 'server-only': {}, '@/lib/db': { db }, '@/lib/schema': schema })
+  assert.deepEqual(await studentTeacherHelpers.getStudentTeacherAssignment('session', 'student-teacher', 'first'), { scheduleId: 'schedule', className: 'Student-Led Science' })
+  assert.equal(await studentTeacherHelpers.getStudentTeacherAssignment('session', 'other-child', 'first'), null)
+
+  const createClassHold = load('app/api/registration/holds/class/route.ts', {
+    '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/student-teachers': studentTeacherHelpers,
+    '@/lib/server-auth': { getAuthenticatedUser: async () => ({ user: { id: 'guardian' } }) },
+    '@/lib/database': { getGuardianById: async () => (await db.select().from(schema.guardians))[0] },
+    '@/lib/registration-events': { publishRegistrationUpdate: () => {} }
+  }).POST
+  const holdResponse = await createClassHold(new Request('http://localhost/api/registration/holds/class', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'session', scheduleId: 'schedule', childId: 'student-teacher' }) }))
+  assert.equal(holdResponse.status, 409)
+  assert.match((await holdResponse.json()).error, /student teacher/)
+
+  const registrationSchedules = load('lib/registration-schedules.ts', {
+    'server-only': {}, '@/lib/db': { db }, '@/lib/schema': schema,
+    '@/lib/database': { ensureSessionClassrooms: async () => {}, ensureSessionVolunteerJobs: async () => {} },
+    '@/lib/volunteer-job-access': { getVisibleVolunteerJobs: async () => new Map() }
+  })
+  const result = await registrationSchedules.getRegistrationSchedules('session', 'guardian')
+  assert.equal(result.schedules.length, 1)
+  assert.equal(result.schedules[0].roster[0].id, 'student-teacher')
+  assert.equal(result.schedules[0].roster[0].role, 'student_teacher')
+  assert.equal(`${result.schedules[0].teacher.firstName} ${result.schedules[0].teacher.lastName}`, 'Alex Teacher')
+  assert.equal(result.schedules[0].teacher.id, 'guardian', 'The parent remains linked for volunteer credit')
+  assert.equal(result.schedules[0].availableSpots, 10, 'A student teacher does not consume a student seat')
+  console.log('Student-teacher roster role, period assignment, and seat handling verified.')
+} finally {
+  client.close()
+  rmSync(directory, { recursive: true, force: true })
+}

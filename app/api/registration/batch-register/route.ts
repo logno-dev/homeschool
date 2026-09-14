@@ -18,6 +18,7 @@ import { eq, and, inArray, or, gt, not, isNotNull } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
 import { isGradeWithinRange } from '@/lib/grades'
+import { getStudentTeacherAssignment } from '@/lib/student-teachers'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
 import { getRegistrationAccess } from '@/lib/user-groups'
 import { getGlobalSetting } from '@/lib/database'
@@ -194,6 +195,17 @@ async function validateRegistration(
 
     // Check for child period conflicts
     if (registration.status !== 'waitlisted') {
+      const studentTeacherAssignment = await getStudentTeacherAssignment(sessionId, registration.childId, registration.period)
+      if (studentTeacherAssignment) {
+        conflicts.push({
+          type: 'child_conflict',
+          scheduleId: registration.scheduleId,
+          period: registration.period,
+          className: registration.className,
+          message: `Child is the student teacher for "${studentTeacherAssignment.className}" in the ${registration.period} period`
+        })
+        continue
+      }
       const existingRegistration = await db
         .select({
           status: classRegistrations.status,
@@ -394,12 +406,19 @@ async function validateRegistration(
       ))
   }
 
+  const studentTeacherPeriods = await db
+    .select({ period: schedules.period })
+    .from(schedules)
+    .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
+    .innerJoin(children, eq(classTeachingRequests.studentTeacherChildId, children.id))
+    .where(and(eq(schedules.sessionId, sessionId), eq(schedules.status, 'published'), eq(children.familyId, familyId)))
+
   // Calculate volunteer requirements
   // Required hours: 1 hour per period with students (excluding lunch)
   const periodsWithStudents = new Set(
-    registrations
+    [...registrations
       .filter((registration) => registration.status !== 'waitlisted')
-      .map(r => r.period)
+      .map(r => r.period), ...studentTeacherPeriods.map((entry) => entry.period)]
       .filter(p => p !== 'lunch')
   )
   const requiredHours = periodsWithStudents.size
@@ -822,6 +841,10 @@ export async function POST(request: Request) {
     // Process child registrations first
     for (const registration of registrations) {
       console.log(`Processing registration for child ${registration.childId}...`)
+      if (registration.status !== 'waitlisted') {
+        const studentTeacherAssignment = await getStudentTeacherAssignment(sessionId, registration.childId, registration.period)
+        if (studentTeacherAssignment) throw new Error(`Child is the student teacher for "${studentTeacherAssignment.className}" in the ${registration.period} period`)
+      }
       
       // Use smaller transaction for each registration
        await withRegistrationRetry(() => db.transaction(async (tx) => {

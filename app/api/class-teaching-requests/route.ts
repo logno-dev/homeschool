@@ -12,6 +12,9 @@ import { getGlobalSetting } from '@/lib/database'
 import { sendClassRequestNotificationEmail } from '@/lib/email'
 import type { NewClassTeachingRequest } from '@/lib/schema'
 import { getGradeRangeFromLabel } from '@/lib/grades'
+import { db } from '@/lib/db'
+import { children } from '@/lib/schema'
+import { and, eq } from 'drizzle-orm'
 
 export async function GET() {
   try {
@@ -40,7 +43,9 @@ export async function GET() {
 
     // Get all requests for this guardian with session info
     const requests = await getClassTeachingRequestsByGuardianWithSession(guardian.id)
-    return NextResponse.json({ requests })
+    const familyChildren = await db.select({ id: children.id, firstName: children.firstName, lastName: children.lastName }).from(children).where(eq(children.familyId, guardian.familyId))
+    const childNames = new Map(familyChildren.map((child) => [child.id, `${child.firstName} ${child.lastName}`.trim()]))
+    return NextResponse.json({ requests: requests.map((classRequest) => ({ ...classRequest, studentTeacherDisplayName: classRequest.studentTeacherChildId ? childNames.get(classRequest.studentTeacherChildId) || null : null })) })
   } catch (error) {
     console.error('Error fetching class teaching requests:', error)
     return NextResponse.json(
@@ -102,6 +107,7 @@ export async function POST(request: Request) {
       maxStudents,
       helpersNeeded,
       coTeacher,
+      studentTeacherChildId,
       classroomNeeds,
        requiresFee,
       feeAmount,
@@ -151,6 +157,11 @@ export async function POST(request: Request) {
       )
     }
 
+    if (studentTeacherChildId) {
+      const [studentTeacher] = await db.select({ id: children.id }).from(children).where(and(eq(children.id, String(studentTeacherChildId)), eq(children.familyId, guardian.familyId))).limit(1)
+      if (!studentTeacher) return NextResponse.json({ error: 'Student teacher must be a child in your family' }, { status: 400 })
+    }
+
     const newRequest: Omit<NewClassTeachingRequest, 'id' | 'createdAt' | 'updatedAt'> = {
       sessionId: activeSession.id,
       guardianId: guardian.id,
@@ -162,6 +173,7 @@ export async function POST(request: Request) {
       maxStudents: parseInt(maxStudents),
       helpersNeeded: finalHelpersNeeded,
       coTeacher: coTeacher?.trim() || null,
+      studentTeacherChildId: studentTeacherChildId ? String(studentTeacherChildId) : null,
       classroomNeeds: classroomNeeds?.trim() || null,
        // Registration fee exemption is controlled by administrators only.
        registrationFeeExempt: false,

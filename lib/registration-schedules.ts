@@ -140,6 +140,12 @@ export async function getRegistrationSchedules(sessionId: string, viewerUserId?:
     isActive: boolean
   }>
 
+  const studentTeacherIds = Array.from(new Set(publishedSchedules.map((item) => item.classTeachingRequest.studentTeacherChildId).filter((id): id is string => Boolean(id))))
+  const studentTeachers = studentTeacherIds.length
+    ? await db.select({ id: children.id, firstName: children.firstName, lastName: children.lastName, grade: children.grade }).from(children).where(inArray(children.id, studentTeacherIds))
+    : []
+  const studentTeacherById = new Map(studentTeachers.map((child) => [child.id, child]))
+
   const eligibleSessionJobs = sessionJobs.filter(job => visibleJobs.has(job.id)).map(job => ({ ...job, eligibleGuardianIds: visibleJobs.get(job.id) || [] }))
 
   const periodBasedJobs = eligibleSessionJobs
@@ -217,15 +223,22 @@ export async function getRegistrationSchedules(sessionId: string, viewerUserId?:
 
   const enhancedSchedules = publishedSchedules.map((item) => {
     const currentHelpers = volunteerCountMap[item.schedule.id]?.filter((v) => v === 'helper').length || 0
+    const studentTeacher = item.classTeachingRequest.studentTeacherChildId ? studentTeacherById.get(item.classTeachingRequest.studentTeacherChildId) : undefined
+    const roster = rosterMap[item.schedule.id] || []
+    const parentTeacher = item.classTeachingRequest.teacherName
+      ? { id: null, firstName: item.classTeachingRequest.teacherName, lastName: '' }
+      : item.teacher || { id: null, firstName: 'Unassigned', lastName: '' }
     return {
       ...item,
-      teacher: item.classTeachingRequest.teacherName
-        ? { id: null, firstName: item.classTeachingRequest.teacherName, lastName: '' }
-        : item.teacher || { id: null, firstName: 'Unassigned', lastName: '' },
+      // Keep the parent's guardian ID for volunteer conflict/credit logic while
+      // presenting the selected child as the class teacher on schedules.
+      teacher: studentTeacher ? { id: parentTeacher.id, firstName: studentTeacher.firstName, lastName: studentTeacher.lastName } : parentTeacher,
       currentRegistrations: registrationCountMap[item.schedule.id] || 0,
       availableSpots: item.classTeachingRequest.maxStudents - (registrationCountMap[item.schedule.id] || 0),
       helpersAvailable: item.classTeachingRequest.helpersNeeded - currentHelpers,
-      roster: rosterMap[item.schedule.id] || [],
+      roster: studentTeacher
+        ? [{ ...studentTeacher, status: 'student_teacher', role: 'student_teacher' as const }, ...roster.filter((student) => student.id !== studentTeacher.id)]
+        : roster,
       volunteers: volunteersMap[item.schedule.id] || []
     }
   })

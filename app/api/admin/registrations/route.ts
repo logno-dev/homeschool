@@ -18,6 +18,7 @@ import {
 import { and, eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
+import { getStudentTeacherAssignment } from '@/lib/student-teachers'
 
 export async function GET(request: Request) {
   try {
@@ -363,6 +364,8 @@ export async function POST(request: Request) {
     }
 
     if (status === 'registered') {
+      const studentTeacherAssignment = await getStudentTeacherAssignment(sessionId, childId, scheduleData[0].schedule.period)
+      if (studentTeacherAssignment) return NextResponse.json({ error: `Child is the student teacher for ${studentTeacherAssignment.className} during this period` }, { status: 400 })
       const currentCount = await db
         .select()
         .from(classRegistrations)

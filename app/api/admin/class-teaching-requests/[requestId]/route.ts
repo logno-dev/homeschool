@@ -9,9 +9,9 @@ import {
 } from '@/lib/database'
 import { getGradeRangeFromLabel } from '@/lib/grades'
 import { db } from '@/lib/db'
-import { guardians } from '@/lib/schema'
+import { children, guardians } from '@/lib/schema'
 import { syncTeacherGroupMembership } from '@/lib/user-groups'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 export async function GET(
   request: Request,
@@ -94,6 +94,7 @@ export async function PATCH(
     } else {
       // Handle editing the request fields
       const updateData: any = {}
+      const currentRequest = await getClassTeachingRequestById(requestId)
       
       if (editData.className !== undefined) updateData.className = editData.className.trim()
       if (editData.description !== undefined) updateData.description = editData.description.trim()
@@ -126,12 +127,27 @@ export async function PATCH(
           if (!teacher) return NextResponse.json({ error: 'Teacher not found' }, { status: 404 })
           updateData.guardianId = teacher.id
           updateData.teacherName = null
+          if (teacher.id !== currentRequest?.guardianId && editData.studentTeacherChildId === undefined) updateData.studentTeacherChildId = null
         } else {
           const teacherName = String(editData.teacherName || '').trim()
           if (!teacherName) return NextResponse.json({ error: 'Enter a teacher placeholder when no assigned teacher is selected' }, { status: 400 })
           updateData.guardianId = null
           updateData.teacherName = teacherName
+          updateData.studentTeacherChildId = null
         }
+      }
+      if (editData.studentTeacherChildId !== undefined) {
+        const studentTeacherChildId = String(editData.studentTeacherChildId || '')
+        const targetGuardianId = updateData.guardianId !== undefined ? updateData.guardianId : currentRequest?.guardianId
+        if (studentTeacherChildId && !targetGuardianId) return NextResponse.json({ error: 'Select an assigned parent teacher before choosing a student teacher' }, { status: 400 })
+        if (studentTeacherChildId) {
+          const [targetGuardian] = await db.select({ familyId: guardians.familyId }).from(guardians).where(eq(guardians.id, targetGuardianId)).limit(1)
+          const [studentTeacher] = targetGuardian
+            ? await db.select({ id: children.id }).from(children).where(and(eq(children.id, studentTeacherChildId), eq(children.familyId, targetGuardian.familyId))).limit(1)
+            : []
+          if (!studentTeacher) return NextResponse.json({ error: "Student teacher must belong to the selected teacher's family" }, { status: 400 })
+        }
+        updateData.studentTeacherChildId = studentTeacherChildId || null
       }
 
       if (updateData.gradeRange && (updateData.gradeRangeFrom === undefined || updateData.gradeRangeTo === undefined)) {
@@ -153,7 +169,7 @@ export async function PATCH(
         }
       }
 
-      const previousRequest = await getClassTeachingRequestById(requestId)
+      const previousRequest = currentRequest
       updatedRequest = await updateClassTeachingRequest(requestId, updateData)
       if (updatedRequest) {
         if (updatedRequest.guardianId) await syncTeacherGroupMembership(updatedRequest.guardianId)

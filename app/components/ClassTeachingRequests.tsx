@@ -5,10 +5,10 @@ import ClassTeachingForm from './ClassTeachingForm'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 
 export default function ClassTeachingRequests() {
-  const [requests, setRequests] = useState<(ClassTeachingRequest & { session: Session })[]>([])
+  const [requests, setRequests] = useState<(ClassTeachingRequest & { session: Session; studentTeacherDisplayName?: string | null })[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [editingRequest, setEditingRequest] = useState<(ClassTeachingRequest & { session: Session }) | null>(null)
+  const [editingRequest, setEditingRequest] = useState<(ClassTeachingRequest & { session: Session; studentTeacherDisplayName?: string | null }) | null>(null)
   const formRef = useRef<HTMLDivElement | null>(null)
   const [registrationStatus, setRegistrationStatus] = useState<{
     isOpen: boolean
@@ -204,6 +204,7 @@ export default function ClassTeachingRequests() {
                           <span className="font-medium">Co-Teacher:</span> {request.coTeacher}
                         </div>
                       )}
+                      {request.studentTeacherDisplayName && <div><span className="font-medium">Student Teacher:</span> {request.studentTeacherDisplayName}</div>}
                       {request.requiresFee && (
                         <div>
                           <span className="font-medium">Supply Fee:</span> ${request.feeAmount}

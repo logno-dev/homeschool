@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { classRegistrations, schedules, classTeachingRequests } from '@/lib/schema'
 import { and, eq, or, inArray, gt } from 'drizzle-orm'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
+import { getStudentTeacherAssignment } from '@/lib/student-teachers'
 
 export async function PATCH(
   request: Request,
@@ -25,7 +26,7 @@ export async function PATCH(
 
     if (scheduleId || status === 'registered') {
       const registration = await db
-        .select({ scheduleId: classRegistrations.scheduleId })
+        .select({ scheduleId: classRegistrations.scheduleId, childId: classRegistrations.childId, sessionId: classRegistrations.sessionId })
         .from(classRegistrations)
         .where(eq(classRegistrations.id, registrationId))
         .limit(1)
@@ -48,6 +49,9 @@ export async function PATCH(
       if (!scheduleData.length) {
         return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
       }
+
+      const studentTeacherAssignment = registration[0] ? await getStudentTeacherAssignment(registration[0].sessionId, registration[0].childId, scheduleData[0].schedule.period) : null
+      if (studentTeacherAssignment) return NextResponse.json({ error: `Child is the student teacher for ${studentTeacherAssignment.className} during this period` }, { status: 400 })
 
       const { classTeachingRequest } = scheduleData[0]
       const currentCount = await db

@@ -35,7 +35,7 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
   const familyId = guardian.familyId
   const now = new Date().toISOString()
 
-  const [familyGuardians, registrationStatus, allClassRegs, allVolunteerRegs, feeRecords] = await Promise.all([
+  const [familyGuardians, registrationStatus, allClassRegs, studentTeacherRows, allVolunteerRegs, feeRecords] = await Promise.all([
     getGuardiansByFamily(familyId),
     db
       .select()
@@ -64,6 +64,13 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
         or(inArray(classRegistrations.status, ['registered', 'waitlisted', 'pending']), and(eq(classRegistrations.status, 'hold'), gt(classRegistrations.holdExpiresAt, now)))
       )),
     db
+      .select({ schedule: schedules, classTeachingRequest: classTeachingRequests, classroom: sessionClassrooms, child: children })
+      .from(schedules)
+      .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
+      .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
+      .innerJoin(children, eq(classTeachingRequests.studentTeacherChildId, children.id))
+      .where(and(eq(schedules.sessionId, sessionId), eq(schedules.status, 'published'), eq(children.familyId, familyId))),
+    db
       .select({
         assignment: volunteerAssignments,
         schedule: schedules,
@@ -85,6 +92,27 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
   ])
 
   const classRegs = allClassRegs.filter(record => record.registration.status !== 'hold')
+  const existingClassKeys = new Set(classRegs.map((record) => `${record.schedule.id}:${record.child.id}`))
+  const studentTeacherRegs = studentTeacherRows.filter((record) => !existingClassKeys.has(`${record.schedule.id}:${record.child.id}`)).map((record) => ({
+    ...record,
+    registration: {
+      id: `student-teacher:${record.schedule.id}`,
+      sessionId,
+      scheduleId: record.schedule.id,
+      childId: record.child.id,
+      familyId,
+      registeredBy: record.classTeachingRequest.guardianId || userId,
+      emergencyContact: null,
+      emergencyPhone: null,
+      status: 'registered',
+      role: 'student_teacher' as const,
+      holdExpiresAt: null,
+      registeredAt: record.schedule.createdAt,
+      createdAt: record.schedule.createdAt,
+      updatedAt: record.schedule.updatedAt
+    }
+  }))
+  const visibleClassRegs = [...classRegs, ...studentTeacherRegs]
   const volunteerRegs = allVolunteerRegs.filter(record => record.assignment.status !== 'hold')
   const visibleJobs = allVolunteerRegs.some(record => record.assignment.volunteerJobId)
     ? await getVisibleVolunteerJobs(userId, familyGuardians.map(guardian => guardian.id)) : new Map<string, string[]>()
@@ -96,7 +124,7 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
     volunteerType: 'existing_volunteer',
     className: 'Existing family volunteer commitment'
   }))
-  const hasRegistrations = classRegs.length > 0 || volunteerRegs.length > 0
+  const hasRegistrations = visibleClassRegs.length > 0 || volunteerRegs.length > 0
   const status = registrationStatus.length > 0 ? registrationStatus[0] : null
 
   let registrationState = 'not_started'
@@ -117,7 +145,7 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
   return {
     registrationState,
     hasRegistrations,
-    classRegistrations: classRegs,
+    classRegistrations: visibleClassRegs,
     volunteerAssignments: volunteerRegs.filter(canSeeAssignment).map(normalizeVolunteer),
     heldClassRegistrations: allClassRegs.filter(record => record.registration.status === 'hold'),
     heldVolunteerAssignments: allVolunteerRegs.filter(record => record.assignment.status === 'hold' && (!record.assignment.volunteerJobId || visibleJobs.get(record.assignment.volunteerJobId)?.includes(record.assignment.guardianId))).map(normalizeVolunteer),

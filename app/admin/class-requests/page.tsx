@@ -14,7 +14,8 @@ export default function AdminClassRequestsPage() {
   const [classRequests, setClassRequests] = useState<(ClassTeachingRequest & { session: Session; teacherDisplayName?: string })[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [sessions, setSessions] = useState<Session[]>([])
-  const [teachers, setTeachers] = useState<Array<{ id: string; firstName: string; lastName: string; email: string }>>([])
+  const [teachers, setTeachers] = useState<Array<{ id: string; familyId: string; firstName: string; lastName: string; email: string }>>([])
+  const [children, setChildren] = useState<Array<{ id: string; familyId: string; firstName: string; lastName: string; grade: string }>>([])
 
   useEffect(() => {
     if (loading) return
@@ -32,7 +33,8 @@ export default function AdminClassRequestsPage() {
           const data = await response.json()
            setClassRequests(data.requests || [])
            setSessions(data.sessions || [])
-           setTeachers(data.teachers || [])
+            setTeachers(data.teachers || [])
+            setChildren(data.children || [])
         }
       } catch (error) {
         console.error('Error fetching class requests:', error)
@@ -69,8 +71,8 @@ export default function AdminClassRequestsPage() {
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="space-y-6">
-            <AdminClassCreateForm sessions={sessions} teachers={teachers} onCreated={() => window.location.reload()} />
-            <ClassTeachingRequestReview initialRequests={classRequests} teachers={teachers} />
+            <AdminClassCreateForm sessions={sessions} teachers={teachers} children={children} onCreated={() => window.location.reload()} />
+            <ClassTeachingRequestReview initialRequests={classRequests} teachers={teachers} children={children} />
           </div>
         </div>
       </main>

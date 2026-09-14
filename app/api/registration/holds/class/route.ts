@@ -6,6 +6,7 @@ import { getAuthenticatedUser } from '@/lib/server-auth'
 import { getGuardianById } from '@/lib/database'
 import { classRegistrations, schedules, children, classTeachingRequests } from '@/lib/schema'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
+import { getStudentTeacherAssignment } from '@/lib/student-teachers'
 
 const HOLD_DURATION_MS = 24 * 60 * 60 * 1000
 
@@ -89,6 +90,11 @@ export async function POST(request: Request) {
 
     if (existingRegistration.length) {
       return NextResponse.json({ error: 'Child already registered for this period' }, { status: 409 })
+    }
+
+    const studentTeacherAssignment = await getStudentTeacherAssignment(sessionId, childId, scheduleRecord[0].schedule.period)
+    if (studentTeacherAssignment) {
+      return NextResponse.json({ error: `Child is the student teacher for ${studentTeacherAssignment.className} during this period` }, { status: 409 })
     }
 
     const currentRegistrations = await db

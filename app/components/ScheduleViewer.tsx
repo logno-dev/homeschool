@@ -31,6 +31,7 @@ interface ScheduleEntry {
     lastName: string
     grade: string
     status?: string
+    role?: 'student_teacher'
   }>
 }
 
@@ -100,6 +101,7 @@ export default function ScheduleViewer({
   }), [schedules])
 
   const schedulesByCell = useMemo(() => new Map(schedules.map((entry) => [`${entry.classroom.id}-${entry.schedule.period}`, entry])), [schedules])
+  const registeredStudentCount = (entry: ScheduleEntry) => entry.roster.filter((student) => student.role !== 'student_teacher').length
 
   return (
     <div className="space-y-8">
@@ -179,11 +181,12 @@ export default function ScheduleViewer({
                           <div className="mt-2 max-h-40 overflow-y-auto space-y-1">
                             {roster.map((student) => {
                               const status = student.status || 'registered'
+                              const isStudentTeacher = student.role === 'student_teacher'
                               const isReserved = status === 'hold' || status === 'pending'
                               return (
                                 <div key={student.id} className="flex items-center justify-between text-sm text-slate-700">
                                   <span>{student.lastName}, {student.firstName} (Grade {student.grade})</span>
-                                  {isReserved && (
+                                  {isStudentTeacher ? <span className="text-xs font-medium text-purple-700">Student teacher</span> : isReserved && (
                                     <span className="text-xs text-amber-600">Reserved</span>
                                   )}
                                 </div>
@@ -219,7 +222,7 @@ export default function ScheduleViewer({
                   <td className="px-4 py-3 align-top text-sm font-semibold text-slate-900">{classroom.name}</td>
                   {PERIODS.map((period) => {
                     const entry = schedulesByCell.get(`${classroom.id}-${period.id}`)
-                    return <td key={period.id} className="px-2 py-2 align-top">{entry ? <button type="button" onClick={() => setSelectedGridEntry(entry)} className="min-h-20 w-full rounded-lg border border-blue-100 bg-blue-50 p-3 text-left hover:border-blue-300 hover:bg-blue-100"><p className="truncate text-sm font-semibold text-slate-900">{entry.classTeachingRequest.className}</p><p className="truncate text-xs text-slate-600">{`${entry.teacher.firstName} ${entry.teacher.lastName}`.trim()}</p>{entry.classTeachingRequest.coTeacher && <p className="truncate text-xs text-slate-600">{entry.classTeachingRequest.coTeacher}</p>}<p className="mt-2 text-xs text-slate-500">Grade {entry.classTeachingRequest.gradeRange} • {entry.roster.length} registered</p></button> : <div className="min-h-20 rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-300">Open</div>}</td>
+                    return <td key={period.id} className="px-2 py-2 align-top">{entry ? <button type="button" onClick={() => setSelectedGridEntry(entry)} className="min-h-20 w-full rounded-lg border border-blue-100 bg-blue-50 p-3 text-left hover:border-blue-300 hover:bg-blue-100"><p className="truncate text-sm font-semibold text-slate-900">{entry.classTeachingRequest.className}</p><p className="truncate text-xs text-slate-600">{`${entry.teacher.firstName} ${entry.teacher.lastName}`.trim()}</p>{entry.classTeachingRequest.coTeacher && <p className="truncate text-xs text-slate-600">{entry.classTeachingRequest.coTeacher}</p>}<p className="mt-2 text-xs text-slate-500">Grade {entry.classTeachingRequest.gradeRange} • {registeredStudentCount(entry)} registered</p></button> : <div className="min-h-20 rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-300">Open</div>}</td>
                   })}
                 </tr>
               ))}
@@ -249,8 +252,8 @@ export default function ScheduleViewer({
               <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{selectedGridEntry.classTeachingRequest.description}</p>
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900">Roster ({selectedGridEntry.roster.length})</h4>
-              {selectedGridEntry.roster.length === 0 ? <p className="mt-2 text-sm text-slate-500">No students registered yet.</p> : <div className="mt-2 space-y-2">{[...selectedGridEntry.roster].sort((a, b) => a.lastName.localeCompare(b.lastName)).map((student) => <div key={student.id} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700"><span>{student.lastName}, {student.firstName} (Grade {student.grade})</span>{(student.status === 'hold' || student.status === 'pending') && <span className="text-xs text-amber-600">Reserved</span>}</div>)}</div>}
+              <h4 className="font-semibold text-slate-900">Roster ({registeredStudentCount(selectedGridEntry)} students{selectedGridEntry.roster.some((student) => student.role === 'student_teacher') ? ', 1 student teacher' : ''})</h4>
+              {selectedGridEntry.roster.length === 0 ? <p className="mt-2 text-sm text-slate-500">No students registered yet.</p> : <div className="mt-2 space-y-2">{[...selectedGridEntry.roster].sort((a, b) => a.lastName.localeCompare(b.lastName)).map((student) => <div key={student.id} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700"><span>{student.lastName}, {student.firstName} (Grade {student.grade})</span>{student.role === 'student_teacher' ? <span className="text-xs font-medium text-purple-700">Student teacher</span> : (student.status === 'hold' || student.status === 'pending') && <span className="text-xs text-amber-600">Reserved</span>}</div>)}</div>}
             </div>
           </div>
         )}

@@ -57,6 +57,7 @@ try {
     '@/lib/fee-calculation': { createOrUpdateFamilySessionFee: async () => {} },
     '@/lib/grades': { isGradeWithinRange: () => true },
     '@/lib/registration-events': { publishRegistrationUpdate: () => {} },
+    '@/lib/student-teachers': { getStudentTeacherAssignment: async () => null },
     '@/lib/user-groups': { getRegistrationAccess: async () => ({ isOpen: true }) },
     '@/lib/volunteer-job-access': { canSignUpForVolunteerJob: async () => true, getVisibleVolunteerJobs: async () => new Map() },
     '@/lib/email': { sendRegistrationConfirmationEmail: async () => {}, sendRegistrationOverrideNotificationEmail: async () => {} },

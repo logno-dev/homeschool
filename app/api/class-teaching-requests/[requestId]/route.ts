@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
 import { getClassTeachingRequestById, getGuardianById, updateClassTeachingRequest } from '@/lib/database'
 import { getGradeRangeFromLabel } from '@/lib/grades'
+import { db } from '@/lib/db'
+import { children } from '@/lib/schema'
+import { and, eq } from 'drizzle-orm'
 
 export async function PATCH(
   request: Request,
@@ -47,6 +50,7 @@ export async function PATCH(
       maxStudents,
       helpersNeeded,
       coTeacher,
+      studentTeacherChildId,
       classroomNeeds,
       requiresFee,
       feeAmount,
@@ -85,6 +89,11 @@ export async function PATCH(
       )
     }
 
+    if (studentTeacherChildId) {
+      const [studentTeacher] = await db.select({ id: children.id }).from(children).where(and(eq(children.id, String(studentTeacherChildId)), eq(children.familyId, guardian.familyId))).limit(1)
+      if (!studentTeacher) return NextResponse.json({ error: 'Student teacher must be a child in your family' }, { status: 400 })
+    }
+
     const updatedRequest = await updateClassTeachingRequest(requestId, {
       className: className.trim(),
       description: description.trim(),
@@ -94,6 +103,7 @@ export async function PATCH(
       maxStudents: parseInt(maxStudents, 10),
       helpersNeeded: finalHelpersNeeded,
       coTeacher: coTeacher?.trim() || null,
+      studentTeacherChildId: studentTeacherChildId ? String(studentTeacherChildId) : null,
       classroomNeeds: classroomNeeds?.trim() || null,
        requiresFee: requiresFee || false,
       feeAmount: requiresFee ? feeAmount : null,

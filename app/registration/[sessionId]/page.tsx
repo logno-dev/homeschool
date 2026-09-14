@@ -77,7 +77,8 @@ export default async function RegistrationPage({ params, searchParams }: { param
   const volunteerSelections = isIncomplete
     ? Array.from(new Map([...registrationStatus.heldVolunteerAssignments, ...registrationStatus.volunteerAssignments].map(entry => [`${entry.assignment.guardianId}:${entry.assignment.period}:${entry.assignment.scheduleId || entry.assignment.volunteerJobId}`, entry])).values())
     : registrationStatus.volunteerAssignments
-  const editableRegistrations = classSelections.map((entry) => {
+  const studentTeacherPeriods = Array.from(new Set(registrationStatus.classRegistrations.filter((entry) => (entry.registration as { role?: string }).role === 'student_teacher').map((entry) => entry.schedule.period)))
+  const editableRegistrations = classSelections.filter((entry) => (entry.registration as { role?: string }).role !== 'student_teacher').map((entry) => {
     const schedule = scheduleBundle.schedules.find((item) => item.schedule.id === entry.registration.scheduleId)
     return {
       childId: entry.registration.childId,
@@ -189,11 +190,12 @@ export default async function RegistrationPage({ params, searchParams }: { param
               </div>
             )}
 
-             <RegistrationProvider
+              <RegistrationProvider
                 teachingAssignments={scheduleBundle.teachingAssignments}
                 sessionId={sessionId}
                 modifyMode={isModifying}
                 initialRegistrations={isModifying ? editableRegistrations : scheduleBundle.initialRegistrations}
+                occupiedStudentPeriods={studentTeacherPeriods}
                initialVolunteerAssignments={isModifying ? editableVolunteerAssignments : scheduleBundle.initialVolunteerAssignments}
             >
               {/* Volunteer Hour Counter */}
@@ -333,11 +335,12 @@ export default async function RegistrationPage({ params, searchParams }: { param
               </div>
             )}
 
-             <RegistrationProvider
+              <RegistrationProvider
                teachingAssignments={scheduleBundle.teachingAssignments}
                sessionId={sessionId}
                modifyMode={isModifying}
-               initialRegistrations={isModifying ? editableRegistrations : scheduleBundle.initialRegistrations}
+                initialRegistrations={isModifying ? editableRegistrations : scheduleBundle.initialRegistrations}
+                occupiedStudentPeriods={studentTeacherPeriods}
                initialVolunteerAssignments={isModifying ? editableVolunteerAssignments : scheduleBundle.initialVolunteerAssignments}
             >
               {/* Volunteer Hour Counter */}

@@ -14,6 +14,7 @@ import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { isGradeWithinRange } from '@/lib/grades'
 import { getRegistrationAccess } from '@/lib/user-groups'
+import { getStudentTeacherAssignment } from '@/lib/student-teachers'
 
 export async function POST(request: Request) {
   try {
@@ -112,6 +113,8 @@ export async function POST(request: Request) {
     }
 
     if (!waitlist) {
+      const studentTeacherAssignment = await getStudentTeacherAssignment(sessionId, childId, schedule.period)
+      if (studentTeacherAssignment) return NextResponse.json({ error: `Child is the student teacher for ${studentTeacherAssignment.className} during this period` }, { status: 400 })
       const existingRegistration = await db
         .select()
         .from(classRegistrations)

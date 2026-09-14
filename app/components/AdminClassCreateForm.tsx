@@ -5,8 +5,9 @@ import type { Session } from '@/lib/schema'
 import { BUILT_IN_GRADE_RANGES, CHILD_GRADE_OPTIONS, getGradeIndex } from '@/lib/grades'
 import SessionOptions from './SessionOptions'
 
-interface Teacher { id: string; firstName: string; lastName: string; email: string }
-interface Props { sessions: Session[]; teachers: Teacher[]; onCreated: () => void }
+interface Teacher { id: string; familyId: string; firstName: string; lastName: string; email: string }
+interface FamilyChild { id: string; familyId: string; firstName: string; lastName: string; grade: string }
+interface Props { sessions: Session[]; teachers: Teacher[]; children: FamilyChild[]; onCreated: () => void }
 interface ScheduleDraft { id: string; name: string; updatedAt: string }
 interface DraftEntry { classTeachingRequestId: string; classroomId: string; sessionClassroomId?: string | null; period: string }
 interface SessionClassroom { id: string; name: string }
@@ -21,10 +22,10 @@ const HOURS = [
 const gradeOptions = BUILT_IN_GRADE_RANGES
 const initialForm = {
   sessionId: '', className: '', description: '', gradeRange: '', gradeRangeFrom: '', gradeRangeTo: '', maxStudents: '15', helpersNeeded: '2',
-  teacherId: '', teacherName: 'Staff Instructor', coTeacherId: '', coTeacher: '', classroomNeeds: '', registrationFeeExempt: false, requiresFee: false, feeAmount: '', schedulingRequirements: ''
+  teacherId: '', teacherName: 'Staff Instructor', coTeacherId: '', coTeacher: '', studentTeacherChildId: '', classroomNeeds: '', registrationFeeExempt: false, requiresFee: false, feeAmount: '', schedulingRequirements: ''
 }
 
-export default function AdminClassCreateForm({ sessions, teachers, onCreated }: Props) {
+export default function AdminClassCreateForm({ sessions, teachers, children, onCreated }: Props) {
   const [form, setForm] = useState(initialForm)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -101,6 +102,8 @@ export default function AdminClassCreateForm({ sessions, teachers, onCreated }: 
       (entry.sessionClassroomId || entry.classroomId) === classroom.id && entry.period === hour.id
     )
   ))
+  const selectedTeacher = teachers.find((teacher) => teacher.id === form.teacherId)
+  const availableStudentTeachers = selectedTeacher ? children.filter((child) => child.familyId === selectedTeacher.familyId) : []
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -168,9 +171,10 @@ export default function AdminClassCreateForm({ sessions, teachers, onCreated }: 
           <label className="text-sm font-medium text-gray-700">Helpers Needed<input type="number" min="0" max="10" value={form.helpersNeeded} onChange={(event) => setForm({ ...form, helpersNeeded: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm font-medium text-gray-700">Assigned Teacher<select value={form.teacherId} onChange={(event) => setForm({ ...form, teacherId: event.target.value, teacherName: '' })} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Use placeholder instead</option>{teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}</select></label>
+          <label className="text-sm font-medium text-gray-700">Assigned Teacher<select value={form.teacherId} onChange={(event) => setForm({ ...form, teacherId: event.target.value, teacherName: '', studentTeacherChildId: '' })} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Use placeholder instead</option>{teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}</select></label>
            <label className="text-sm font-medium text-gray-700">Teacher Placeholder{!form.teacherId && ' *'}<input required={!form.teacherId} value={form.teacherName} disabled={Boolean(form.teacherId)} onChange={(event) => setForm({ ...form, teacherName: event.target.value })} placeholder="e.g. Staff Instructor" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal disabled:bg-gray-100" /></label>
-        </div>
+         </div>
+         <label className="block text-sm font-medium text-gray-700">Student Teacher<select value={form.studentTeacherChildId} disabled={!selectedTeacher} onChange={(event) => setForm({ ...form, studentTeacherChildId: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal disabled:bg-gray-100"><option value="">No student teacher</option>{availableStudentTeachers.map((child) => <option key={child.id} value={child.id}>{child.firstName} {child.lastName} (Grade {child.grade})</option>)}</select><span className="mt-1 block text-xs font-normal text-gray-500">Only children in the selected teacher's family are available.</span></label>
          <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-medium text-gray-700">Co-Teacher<select value={form.coTeacherId} onChange={(event) => { const teacher = teachers.find((option) => option.id === event.target.value); setForm({ ...form, coTeacherId: event.target.value, coTeacher: teacher ? `${teacher.firstName} ${teacher.lastName}` : '' }) }} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Write in below</option>{teachers.filter((teacher) => teacher.id !== form.teacherId).map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}</select><input value={form.coTeacher} disabled={Boolean(form.coTeacherId)} onChange={(event) => setForm({ ...form, coTeacher: event.target.value })} placeholder="Write-in co-teacher name" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal disabled:bg-gray-100" /></label><label className="text-sm font-medium text-gray-700">Classroom Needs<input value={form.classroomNeeds} onChange={(event) => setForm({ ...form, classroomNeeds: event.target.value })} placeholder="TV/projector, supplies" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label></div>
         <label className="block text-sm font-medium text-gray-700">Scheduling Requirements<textarea value={form.schedulingRequirements} onChange={(event) => setForm({ ...form, schedulingRequirements: event.target.value })} rows={2} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>
          <div className="flex flex-wrap items-end gap-4"><label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.registrationFeeExempt} onChange={(event) => setForm({ ...form, registrationFeeExempt: event.target.checked })} />Exempt from registration fee</label><label className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={form.requiresFee} onChange={(event) => setForm({ ...form, requiresFee: event.target.checked })} />Requires class fee</label>{form.requiresFee && <label className="text-sm font-medium text-gray-700">Fee Amount<input required type="number" min="0" step="0.01" value={form.feeAmount} onChange={(event) => setForm({ ...form, feeAmount: event.target.value })} className="mt-1 block w-32 rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>}</div>

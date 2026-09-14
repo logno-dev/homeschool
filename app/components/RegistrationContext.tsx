@@ -82,6 +82,7 @@ interface RegistrationProviderProps {
   initialRegistrations?: PendingRegistration[]
   initialVolunteerAssignments?: PendingVolunteerAssignment[]
   modifyMode?: boolean
+  occupiedStudentPeriods?: string[]
   children: ReactNode
 }
 
@@ -91,6 +92,7 @@ export function RegistrationProvider({
   sessionId: initialSessionId,
   initialRegistrations = [],
   initialVolunteerAssignments = [],
+  occupiedStudentPeriods = [],
   modifyMode = false
 }: RegistrationProviderProps) {
   const [pendingRegistrations, setPendingRegistrations] = useState<PendingRegistration[]>(initialRegistrations)
@@ -307,12 +309,12 @@ export function RegistrationProvider({
 
   const getPeriodsWithStudents = useCallback(() => {
     const periods = new Set(
-      pendingRegistrations
+      [...pendingRegistrations
         .filter(r => r.status !== 'waitlisted')
-        .map(r => r.period)
+        .map(r => r.period), ...occupiedStudentPeriods]
     )
     return Array.from(periods).filter(period => period !== 'lunch') // Lunch doesn't count for volunteer requirements
-  }, [pendingRegistrations])
+  }, [pendingRegistrations, occupiedStudentPeriods])
 
   const getVolunteerRequirements = useCallback(() => {
     const periodsWithStudents = getPeriodsWithStudents()
