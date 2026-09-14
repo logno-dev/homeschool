@@ -14,6 +14,7 @@ interface ScheduleEntry {
     className: string
     description: string
     gradeRange: string
+    coTeacher?: string | null
   }
   classroom: {
     id: string
@@ -165,7 +166,8 @@ export default function ScheduleViewer({
                           <p className="text-sm text-slate-500">{entry.classroom.name}</p>
                         </div>
                         <div className="text-xs text-slate-500 text-right">
-                          <div>{entry.teacher.firstName} {entry.teacher.lastName}</div>
+                          <div>Teacher: {entry.teacher.firstName} {entry.teacher.lastName}</div>
+                          {entry.classTeachingRequest.coTeacher && <div>Co-teacher: {entry.classTeachingRequest.coTeacher}</div>}
                           <div className="mt-1">Grade {entry.classTeachingRequest.gradeRange}</div>
                         </div>
                       </div>
@@ -217,7 +219,7 @@ export default function ScheduleViewer({
                   <td className="px-4 py-3 align-top text-sm font-semibold text-slate-900">{classroom.name}</td>
                   {PERIODS.map((period) => {
                     const entry = schedulesByCell.get(`${classroom.id}-${period.id}`)
-                    return <td key={period.id} className="px-2 py-2 align-top">{entry ? <button type="button" onClick={() => setSelectedGridEntry(entry)} className="min-h-20 w-full rounded-lg border border-blue-100 bg-blue-50 p-3 text-left hover:border-blue-300 hover:bg-blue-100"><p className="truncate text-sm font-semibold text-slate-900">{entry.classTeachingRequest.className}</p><p className="truncate text-xs text-slate-600">{`${entry.teacher.firstName} ${entry.teacher.lastName}`.trim()}</p><p className="mt-2 text-xs text-slate-500">Grade {entry.classTeachingRequest.gradeRange} • {entry.roster.length} registered</p></button> : <div className="min-h-20 rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-300">Open</div>}</td>
+                    return <td key={period.id} className="px-2 py-2 align-top">{entry ? <button type="button" onClick={() => setSelectedGridEntry(entry)} className="min-h-20 w-full rounded-lg border border-blue-100 bg-blue-50 p-3 text-left hover:border-blue-300 hover:bg-blue-100"><p className="truncate text-sm font-semibold text-slate-900">{entry.classTeachingRequest.className}</p><p className="truncate text-xs text-slate-600">{`${entry.teacher.firstName} ${entry.teacher.lastName}`.trim()}</p>{entry.classTeachingRequest.coTeacher && <p className="truncate text-xs text-slate-600">{entry.classTeachingRequest.coTeacher}</p>}<p className="mt-2 text-xs text-slate-500">Grade {entry.classTeachingRequest.gradeRange} • {entry.roster.length} registered</p></button> : <div className="min-h-20 rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-300">Open</div>}</td>
                   })}
                 </tr>
               ))}
@@ -239,6 +241,7 @@ export default function ScheduleViewer({
             <div>
               <p className="text-sm text-slate-500">{selectedGridEntry.classroom.name} • {PERIODS.find((period) => period.id === selectedGridEntry.schedule.period)?.name}</p>
               <p className="mt-1 text-sm text-slate-700"><strong>Teacher:</strong> {`${selectedGridEntry.teacher.firstName} ${selectedGridEntry.teacher.lastName}`.trim()}</p>
+              {selectedGridEntry.classTeachingRequest.coTeacher && <p className="mt-1 text-sm text-slate-700"><strong>Co-teacher:</strong> {selectedGridEntry.classTeachingRequest.coTeacher}</p>}
               <p className="mt-1 text-sm text-slate-700"><strong>Grade range:</strong> {selectedGridEntry.classTeachingRequest.gradeRange}</p>
             </div>
             <div>
