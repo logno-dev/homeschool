@@ -183,6 +183,13 @@
       "when": 1789257600000,
       "tag": "0053_newsletter_broadcasts",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789344000000,
+      "tag": "0054_newsletter_delivery_metrics",
+      "breakpoints": true
     }
   ]
 }

@@ -247,6 +247,35 @@ export async function getNewsletterBroadcast(broadcastId: string) {
   return resendRequest<{ status: 'draft' | 'scheduled' | 'queued' | 'sent' | 'canceled'; sent_at?: string | null }>(`/broadcasts/${encodeURIComponent(broadcastId)}`, { method: 'GET' })
 }
 
+const broadcastMetricTypes = ['sent', 'delivered', 'opened', 'clicked', 'bounced', 'complained', 'unsubscribed', 'suppressed'] as const
+
+export async function getNewsletterBroadcastMetrics(broadcastId: string) {
+  const metrics: Record<(typeof broadcastMetricTypes)[number], number> = {
+    sent: 0,
+    delivered: 0,
+    opened: 0,
+    clicked: 0,
+    bounced: 0,
+    complained: 0,
+    unsubscribed: 0,
+    suppressed: 0
+  }
+  for (const [typeIndex, type] of broadcastMetricTypes.entries()) {
+    if (typeIndex) await new Promise((resolve) => setTimeout(resolve, 550))
+    let after: string | undefined
+    for (let page = 0; page < 100; page += 1) {
+      const query = new URLSearchParams({ type, limit: '100', ...(after ? { after } : {}) })
+      const result = await resendRequest<{ has_more: boolean; data: Array<{ id: string }> }>(`/broadcasts/${encodeURIComponent(broadcastId)}/recipients?${query}`, { method: 'GET' })
+      metrics[type] += result.data.length
+      if (!result.has_more || !result.data.length) break
+      after = result.data[result.data.length - 1].id
+      if (page === 99) throw new Error(`Resend ${type} metrics exceeded the supported pagination limit`)
+      await new Promise((resolve) => setTimeout(resolve, 550))
+    }
+  }
+  return metrics
+}
+
 export async function sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<void> {
   const escapedUrl = escapeHtml(input.resetUrl)
   const content = await getEmailContent('password_reset', `<div style="font-family: Arial, sans-serif; line-height: 1.5; color: #111827;"><h2>Reset your DVCLC password</h2><p>We received a request to reset your password.</p><p><a href="${escapedUrl}">Reset password</a></p><p>Use this link: ${escapedUrl}</p></div>`, `We received a request to reset your DVCLC password.\n\nUse this link to reset your password:\n${input.resetUrl}`, { resetUrl: input.resetUrl })

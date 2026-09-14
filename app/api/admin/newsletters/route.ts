@@ -6,6 +6,7 @@ import { db } from '@/lib/db'
 import { newsletterGroups, newsletters } from '@/lib/schema'
 import { snapshotNewsletterRecipients } from '@/lib/newsletters'
 import { normalizeEmailSpacing } from '@/lib/email-content'
+import { processNewsletterCampaign } from '@/lib/newsletter-broadcasts'
 
 export async function GET() {
   const auth = await getAuthenticatedAdmin('newsletters')
@@ -22,10 +23,12 @@ export async function POST(request: Request) {
     const now = new Date().toISOString()
     const groupIds: string[] = Array.isArray(body.groupIds) ? Array.from(new Set<string>(body.groupIds.map((groupId: unknown) => String(groupId)))) : []
     const schedule = body.status === 'scheduled'
+    const sendNow = body.status === 'send_now'
+    const activate = schedule || sendNow
     const scheduledAt = body.scheduledAt ? new Date(String(body.scheduledAt)) : null
     if (schedule && (!scheduledAt || Number.isNaN(scheduledAt.getTime()) || scheduledAt <= new Date())) return NextResponse.json({ error: 'Choose a future send time' }, { status: 400 })
-    if (schedule && !groupIds.length) return NextResponse.json({ error: 'Select at least one recipient group' }, { status: 400 })
-    const [newsletter] = await db.insert(newsletters).values({
+    if (activate && !groupIds.length) return NextResponse.json({ error: 'Select at least one recipient group' }, { status: 400 })
+    let [newsletter] = await db.insert(newsletters).values({
       id: randomUUID(),
       kind: body.kind === 'bulk_email' ? 'bulk_email' : 'newsletter',
       subject: String(body.subject || 'Untitled newsletter').trim(),
@@ -34,17 +37,21 @@ export async function POST(request: Request) {
       senderAlias: body.senderAlias ? String(body.senderAlias) : null,
       replyToAlias: body.replyToAlias ? String(body.replyToAlias) : null,
       includeInactive: Boolean(body.includeInactive),
-      status: schedule ? 'scheduled' : 'draft',
+      status: activate ? 'scheduled' : 'draft',
       scheduledAt: schedule ? scheduledAt!.toISOString() : null,
       createdBy: auth.session.user.id,
       createdAt: now,
       updatedAt: now
     }).returning()
     if (groupIds.length) await db.insert(newsletterGroups).values(groupIds.map((groupId) => ({ id: randomUUID(), newsletterId: newsletter.id, groupId }))).onConflictDoNothing()
-    if (schedule) {
+    if (activate) {
       const totalRecipients = await snapshotNewsletterRecipients(newsletter.id, groupIds, Boolean(body.includeInactive))
       await db.update(newsletters).set({ totalRecipients }).where(eq(newsletters.id, newsletter.id))
       newsletter.totalRecipients = totalRecipients
+    }
+    if (sendNow) {
+      await processNewsletterCampaign(newsletter)
+      ;[newsletter] = await db.select().from(newsletters).where(eq(newsletters.id, newsletter.id)).limit(1)
     }
     return NextResponse.json({ newsletter }, { status: 201 })
   } catch (error) {

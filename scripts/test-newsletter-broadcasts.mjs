@@ -53,6 +53,7 @@ try {
 
   const createNewsletter = load('app/api/admin/newsletters/route.ts', {
     '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/newsletters': newsletterHelpers, '@/lib/email-content': emailContent,
+    '@/lib/newsletter-broadcasts': { processNewsletterCampaign: async () => 'pending' },
     '@/lib/server-auth': { getAuthenticatedAdmin: async () => ({ session: { user: { id: 'user-a' } } }) }
   }).POST
   const createResponse = await createNewsletter(new Request('http://localhost/api/admin/newsletters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: 'New scheduled message', html: '<p>News</p>', text: 'News', status: 'scheduled', scheduledAt: new Date(Date.now() + 7_200_000).toISOString(), groupIds: ['group'], includeInactive: true }) }))
@@ -103,9 +104,11 @@ try {
     createNewsletterContactImport: async () => 'import-id',
     getNewsletterContactImport: async () => ({ status: importStatus, counts: { total: 2, created: 2, updated: 0, skipped: 0, failed: 0 } }),
     createNewsletterBroadcast: async () => 'broadcast-id',
-    getNewsletterBroadcast: async () => ({ status: 'sent', sent_at: new Date().toISOString() })
+    getNewsletterBroadcast: async () => ({ status: 'sent', sent_at: new Date().toISOString() }),
+    getNewsletterBroadcastMetrics: async () => ({ sent: 2, delivered: 2, opened: 1, clicked: 1, bounced: 0, complained: 0, unsubscribed: 0, suppressed: 0 })
   }
-  const cron = load('app/api/cron/newsletters/route.ts', { '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/email': cronEmail }).GET
+  const campaignProcessor = load('lib/newsletter-broadcasts.ts', { '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/email': cronEmail })
+  const cron = load('app/api/cron/newsletters/route.ts', { '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/newsletter-broadcasts': campaignProcessor }).GET
   const cronRequest = new Request('http://localhost/api/cron/newsletters', { headers: { Authorization: 'Bearer secret' } })
   const originalSecret = process.env.CRON_SECRET
   process.env.CRON_SECRET = 'secret'
@@ -123,9 +126,33 @@ try {
   ;[campaign] = await db.select().from(schema.newsletters).where(eq(schema.newsletters.id, 'campaign'))
   assert.equal(campaign.status, 'sent')
   assert.equal((await db.select().from(schema.newsletterRecipients)).filter(row => row.status === 'sent').length, 2)
+  const newsletterDetails = load('app/api/admin/newsletters/[newsletterId]/route.ts', {
+    '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/newsletters': newsletterHelpers, '@/lib/email': cronEmail, '@/lib/email-content': emailContent,
+    '@/lib/newsletter-broadcasts': campaignProcessor,
+    '@/lib/server-auth': { getAuthenticatedAdmin: async () => ({ session: { user: { id: 'user-a' } } }) }
+  }).GET
+  const detailsResponse = await newsletterDetails(new Request('http://localhost/api/admin/newsletters/campaign?refresh=1'), { params: Promise.resolve({ newsletterId: 'campaign' }) })
+  assert.equal(detailsResponse.status, 200)
+  const campaignDetails = (await detailsResponse.json()).newsletter
+  assert.equal(campaignDetails.deliveredCount, 2)
+  assert.equal(campaignDetails.openedCount, 1)
+  assert.equal(campaignDetails.clickedCount, 1)
+  assert.ok(campaignDetails.metricsUpdatedAt)
+
+  const sendNow = load('app/api/admin/newsletters/route.ts', {
+    '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/newsletters': newsletterHelpers, '@/lib/email-content': emailContent,
+    '@/lib/newsletter-broadcasts': campaignProcessor,
+    '@/lib/server-auth': { getAuthenticatedAdmin: async () => ({ session: { user: { id: 'user-a' } } }) }
+  }).POST
+  const sendNowResponse = await sendNow(new Request('http://localhost/api/admin/newsletters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: 'Immediate message', html: '<p>Now</p>', text: 'Now', status: 'send_now', groupIds: ['group'], includeInactive: true }) }))
+  assert.equal(sendNowResponse.status, 201)
+  const immediateNewsletter = (await sendNowResponse.json()).newsletter
+  assert.equal(immediateNewsletter.status, 'sent')
+  assert.equal(immediateNewsletter.scheduledAt, null)
+  assert.equal(immediateNewsletter.totalSent, 2)
   if (originalSecret === undefined) delete process.env.CRON_SECRET
   else process.env.CRON_SECRET = originalSecret
-  console.log('Recipient deduplication, contact import, unsubscribe content, Broadcast creation, provider scheduling, and status reconciliation verified.')
+  console.log('Recipient deduplication, contact import, unsubscribe content, Broadcast creation, Send now, sent history, delivery metrics, and status reconciliation verified.')
 } finally {
   client.close()
   rmSync(directory, { recursive: true, force: true })
