@@ -33,8 +33,8 @@ export async function resolveNewsletterRecipients(groupIds: string[], includeIna
   for (const row of rows) {
     if (!includeInactive && row.accountActive !== true) continue
     const email = (row.accountEmail || row.userEmail || '').trim().toLowerCase()
-    if (!email || recipients.has(row.userId)) continue
-    recipients.set(row.userId, { userId: row.userId, email, firstName: row.firstName, lastName: row.lastName })
+    if (!email || recipients.has(email)) continue
+    recipients.set(email, { userId: row.userId, email, firstName: row.firstName, lastName: row.lastName })
   }
   return [...recipients.values()].sort((a, b) => a.email.localeCompare(b.email))
 }

@@ -106,7 +106,7 @@ export const newsletters = sqliteTable('newsletters', {
   text: text('text').notNull(),
   senderAlias: text('sender_alias'),
   replyToAlias: text('reply_to_alias'),
-  status: text('status').notNull().default('draft'),
+  status: text('status').notNull().default('draft'), // draft, scheduled, processing, provider_scheduled, sent, failed
   includeInactive: integer('include_inactive', { mode: 'boolean' }).notNull().default(false),
   scheduledAt: text('scheduled_at'),
   sentAt: text('sent_at'),
@@ -115,6 +115,9 @@ export const newsletters = sqliteTable('newsletters', {
   totalSent: integer('total_sent').notNull().default(0),
   totalFailed: integer('total_failed').notNull().default(0),
   lastError: text('last_error'),
+  resendSegmentId: text('resend_segment_id'),
+  resendContactImportId: text('resend_contact_import_id'),
+  resendBroadcastId: text('resend_broadcast_id'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
@@ -132,7 +135,7 @@ export const newsletterRecipients = sqliteTable('newsletter_recipients', {
   email: text('email').notNull(),
   firstName: text('first_name').notNull(),
   lastName: text('last_name').notNull(),
-  status: text('status').notNull().default('pending'),
+  status: text('status').notNull().default('pending'), // pending, submitted, sent, failed
   resendId: text('resend_id'),
   error: text('error'),
   sentAt: text('sent_at'),

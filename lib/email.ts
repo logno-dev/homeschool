@@ -7,6 +7,7 @@ import { createFeePdf } from '@/lib/fee-pdf'
 import { put } from '@vercel/blob'
 import { userDocuments, guardians } from '@/lib/schema'
 import { randomUUID } from 'crypto'
+import { normalizeEmailSpacing } from '@/lib/email-content'
 
 async function getEmailContent(type: EmailType, fallbackHtml: string, fallbackText: string, variables: Record<string, string>, rawHtmlVariables: string[] = []) {
   const [setting] = await db.select({ value: globalSettings.value }).from(globalSettings).where(eq(globalSettings.key, `email_template_${type}`)).limit(1)
@@ -120,8 +121,8 @@ async function sendEmail(input: {
       ...(input.cc?.length ? { cc: input.cc } : {}),
       ...(input.bcc?.length ? { bcc: input.bcc } : {}),
       subject: input.subject,
-      html: input.html,
-      text: input.text
+      html: normalizeEmailSpacing(input.html),
+      text: normalizeEmailSpacing(input.text)
       , ...(input.attachments?.length ? { attachments: input.attachments } : {})
     })
   })
@@ -160,45 +161,90 @@ async function getConfiguredReplyTo(type: EmailType, overrideAlias?: string) {
   return alias ? `${alias}@${domain}` : null
 }
 
-export async function sendNewsletterBatch(input: {
+type BroadcastRecipient = { email: string; firstName: string; lastName: string }
+
+async function resendRequest<T>(path: string, init: RequestInit, idempotencyKey?: string): Promise<T> {
+  const apiKey = process.env.RESEND_API_KEY
+  if (!apiKey) throw new Error('RESEND_API_KEY must be configured in the active deployment environment')
+  const response = await fetch(`https://api.resend.com${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+      ...init.headers
+    }
+  })
+  if (!response.ok) throw new Error(`Resend Broadcast API failed (${response.status}): ${await response.text()}`)
+  return response.json() as Promise<T>
+}
+
+export async function createNewsletterSegment(newsletterId: string, name: string): Promise<string> {
+  const result = await resendRequest<{ id: string }>('/segments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: `${name.slice(0, 80)} (${newsletterId.slice(0, 8)})` })
+  }, `dvclc-newsletter-segment-${newsletterId}`)
+  return result.id
+}
+
+function csvCell(value: string) {
+  return `"${value.replaceAll('"', '""')}"`
+}
+
+export async function createNewsletterContactImport(newsletterId: string, segmentId: string, recipients: BroadcastRecipient[]): Promise<string> {
+  const csv = ['Email,First Name,Last Name', ...recipients.map((recipient) => [recipient.email, recipient.firstName, recipient.lastName].map(csvCell).join(','))].join('\n')
+  const form = new FormData()
+  form.append('file', new Blob([csv], { type: 'text/csv' }), `newsletter-${newsletterId}.csv`)
+  form.append('column_map', JSON.stringify({ email: 'Email', first_name: 'First Name', last_name: 'Last Name' }))
+  form.append('on_conflict', 'upsert')
+  form.append('segments', JSON.stringify([{ id: segmentId }]))
+  const result = await resendRequest<{ id: string }>('/contacts/imports', { method: 'POST', body: form }, `dvclc-newsletter-import-${newsletterId}`)
+  return result.id
+}
+
+export async function getNewsletterContactImport(importId: string) {
+  return resendRequest<{ status: string; counts?: { total: number; created: number; updated: number; skipped: number; failed: number } }>(`/contacts/imports/${encodeURIComponent(importId)}`, { method: 'GET' })
+}
+
+export async function createNewsletterBroadcast(input: {
+  newsletterId: string
+  segmentId: string
   subject: string
   html: string
   text: string
-  recipients: Array<{ email: string; firstName: string; lastName: string }>
+  scheduledAt: string | null
   senderAlias?: string
   replyToAlias?: string
-}): Promise<string[]> {
-  if (input.recipients.length > 100) {
-    throw new Error('Newsletter batches cannot exceed 100 recipients')
-  }
-
-  const apiKey = process.env.RESEND_API_KEY
+}): Promise<string> {
   const from = await getConfiguredSender('newsletter', input.senderAlias)
   const replyTo = await getConfiguredReplyTo('newsletter', input.replyToAlias)
-  if (!apiKey || !from) throw new Error('RESEND_API_KEY and RESEND_EMAIL_DOMAIN must be configured in the active deployment environment')
-
-  const response = await fetch('https://api.resend.com/emails/batch', {
+  if (!from) throw new Error('RESEND_EMAIL_DOMAIN must be configured in the active deployment environment')
+  const unsubscribeUrl = '{{{RESEND_UNSUBSCRIBE_URL}}}'
+  const normalizedHtml = normalizeEmailSpacing(input.html)
+  const normalizedText = normalizeEmailSpacing(input.text)
+  const html = normalizedHtml.includes('RESEND_UNSUBSCRIBE_URL') ? normalizedHtml : `${normalizedHtml}<p style="margin-top:24px;font-size:12px;color:#6b7280"><a href="${unsubscribeUrl}">Unsubscribe</a></p>`
+  const text = normalizedText.includes('RESEND_UNSUBSCRIBE_URL') ? normalizedText : `${normalizedText}\n\nUnsubscribe: ${unsubscribeUrl}`
+  const scheduledAt = input.scheduledAt && new Date(input.scheduledAt) > new Date() ? input.scheduledAt : null
+  const result = await resendRequest<{ id: string }>('/broadcasts', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      emails: input.recipients.map((recipient) => ({
-        from,
-        ...(replyTo ? { reply_to: replyTo } : {}),
-        to: [recipient.email],
-        subject: input.subject,
-        html: input.html,
-        text: input.text
-      }))
+      segment_id: input.segmentId,
+      from,
+      ...(replyTo ? { reply_to: replyTo } : {}),
+      subject: input.subject,
+      name: input.subject.slice(0, 100),
+      html,
+      text,
+      send: true,
+      ...(scheduledAt ? { scheduled_at: scheduledAt } : {})
     })
-  })
+  }, `dvclc-newsletter-broadcast-${input.newsletterId}`)
+  return result.id
+}
 
-  if (!response.ok) {
-    const payload = await response.text()
-    throw new Error(`Resend newsletter batch failed (${response.status}): ${payload}`)
-  }
-
-  const payload = await response.json() as { data?: Array<{ id?: string }> }
-  return (payload.data || []).map((entry) => entry.id || '')
+export async function getNewsletterBroadcast(broadcastId: string) {
+  return resendRequest<{ status: 'draft' | 'scheduled' | 'queued' | 'sent' | 'canceled'; sent_at?: string | null }>(`/broadcasts/${encodeURIComponent(broadcastId)}`, { method: 'GET' })
 }
 
 export async function sendPasswordResetEmail(input: PasswordResetEmailInput): Promise<void> {
