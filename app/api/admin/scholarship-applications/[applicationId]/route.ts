@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { scholarshipApplications, familySessionFees, feePayments, scholarshipFundTransactions } from '@/lib/schema'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ applicationId: string }> }) {
@@ -19,7 +19,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
       return NextResponse.json({ error: 'Missing scholarship application id.' }, { status: 400 })
     }
     const applicationId = resolvedApplicationId.trim()
-    const { action, reviewNotes } = body
+    const { action, reviewNotes, approvedAmount } = body
 
     const application = await db
       .select()
@@ -70,35 +70,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
     }
 
     const fee = feeRecord[0]
-    const remainingAmount = fee.totalFee - fee.paidAmount
-    const maximumScholarshipAmount = Math.round(fee.registrationFee * 0.8 * 100) / 100
-
+    const remainingAmount = Math.round((fee.totalFee - fee.paidAmount) * 100) / 100
     if (remainingAmount <= 0) {
       return NextResponse.json({ error: 'This family has no outstanding balance.' }, { status: 400 })
     }
 
-    const requestedAmount = record.scholarshipType === 'full' ? maximumScholarshipAmount : (record.requestedAmount || 0)
+    const fallbackAmount = record.requestedAmount || 0
+    const awardAmount = Math.round((approvedAmount === undefined ? fallbackAmount : Number(approvedAmount)) * 100) / 100
+    if (!Number.isFinite(awardAmount) || awardAmount <= 0) return NextResponse.json({ error: 'Scholarship amount must be greater than zero.' }, { status: 400 })
+    if (awardAmount > remainingAmount) return NextResponse.json({ error: 'Scholarship amount cannot exceed the family outstanding balance.' }, { status: 400 })
 
-    if (requestedAmount > maximumScholarshipAmount) {
-      return NextResponse.json({ error: 'Scholarship amount cannot exceed 80% of the registration fee.' }, { status: 400 })
-    }
-
-    if (!requestedAmount || requestedAmount <= 0) {
-      return NextResponse.json({ error: 'Invalid requested amount on application.' }, { status: 400 })
-    }
-
-    const balanceResult = await db
-      .select({
-        balance: sql<number>`COALESCE(SUM(${scholarshipFundTransactions.amount}), 0)`
-      })
-      .from(scholarshipFundTransactions)
-
-    const balance = balanceResult[0]?.balance || 0
-    if (balance < requestedAmount) {
-      return NextResponse.json({ error: 'Scholarship fund does not have enough balance for this award.' }, { status: 400 })
-    }
-
-    const newPaidAmount = fee.paidAmount + requestedAmount
+    const newPaidAmount = fee.paidAmount + awardAmount
     const newStatus = newPaidAmount >= fee.totalFee ? 'paid' : 'partial'
 
     await db
@@ -115,7 +97,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
       familySessionFeeId: fee.id,
       familyId: fee.familyId,
       sessionId: fee.sessionId,
-      amount: requestedAmount,
+      amount: awardAmount,
       paymentDate: new Date().toISOString(),
       paymentMethod: 'scholarship',
       notes: reviewNotes?.trim() || 'Scholarship fund award'
@@ -123,7 +105,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
 
     await db.insert(scholarshipFundTransactions).values({
       id: randomUUID(),
-      amount: -requestedAmount,
+      amount: -awardAmount,
       transactionType: 'award',
       source: 'admin',
       familyId: record.familyId,
@@ -138,7 +120,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
       .update(scholarshipApplications)
       .set({
         status: 'approved',
-        approvedAmount: requestedAmount,
+        approvedAmount: awardAmount,
         reviewNotes: reviewNotes?.trim() || null,
         reviewedBy: auth.session.user.id,
         reviewedAt: new Date().toISOString(),

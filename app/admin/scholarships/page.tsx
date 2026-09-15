@@ -49,6 +49,7 @@ export default function ScholarshipsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({})
+  const [approvalAmounts, setApprovalAmounts] = useState<Record<string, string>>({})
   const [donationAmount, setDonationAmount] = useState('')
   const [donationNotes, setDonationNotes] = useState('')
   const [submittingDonation, setSubmittingDonation] = useState(false)
@@ -87,6 +88,7 @@ export default function ScholarshipsPage() {
         id: application.id || application.applicationId || ''
       }))
       setApplications(loadedApplications)
+      setApprovalAmounts((current) => ({ ...Object.fromEntries(loadedApplications.filter((application: ScholarshipApplicationData) => application.status === 'pending').map((application: ScholarshipApplicationData) => [application.id, String(application.requestedAmount || application.eligibleAmount || '')])), ...current }))
       if (loadedApplications.some((application: ScholarshipApplicationData) => !application.id)) {
         setError('Some scholarship applications are missing ids. Please refresh or contact support.')
       }
@@ -151,7 +153,7 @@ export default function ScholarshipsPage() {
     }
   }
 
-  const handleApplicationAction = async (id: string, action: 'approve' | 'reject') => {
+  const handleApplicationAction = async (id: string, action: 'approve' | 'reject', approvedAmount?: number) => {
     try {
       if (!id || !id.trim()) {
         throw new Error('Missing scholarship application id.')
@@ -167,6 +169,7 @@ export default function ScholarshipsPage() {
         body: JSON.stringify({
           action,
           reviewNotes: reviewNotes[id],
+          ...(action === 'approve' ? { approvedAmount: approvedAmount ?? Number(approvalAmounts[id]) } : {}),
           applicationId: trimmedId
         })
       })
@@ -212,7 +215,8 @@ export default function ScholarshipsPage() {
         <div className="grid gap-6 md:grid-cols-3">
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <div className="text-sm text-gray-500">Fund Balance</div>
-            <div className="text-3xl font-bold text-gray-900 mt-2">{formatCurrency(balance)}</div>
+            <div className={`text-3xl font-bold mt-2 ${balance < 0 ? 'text-red-700' : 'text-gray-900'}`}>{formatCurrency(balance)}</div>
+            {balance < 0 && <div className="mt-2 text-xs text-red-600">Awards currently exceed available donations.</div>}
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
             <div className="text-sm text-gray-500">Pending Requests</div>
@@ -304,6 +308,10 @@ export default function ScholarshipsPage() {
 
                   {application.status === 'pending' && (
                     <div className="mt-4 space-y-3">
+                      <label className="block max-w-xs text-sm font-medium text-gray-700">Award amount
+                        <div className="relative mt-1"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span><input type="number" min="0.01" max={application.remainingAmount} step="0.01" value={approvalAmounts[application.id] || ''} onChange={(event) => setApprovalAmounts((current) => ({ ...current, [application.id]: event.target.value }))} className="w-full rounded-md border border-gray-300 py-2 pl-7 pr-3 text-sm" /></div>
+                        <span className="mt-1 block text-xs font-normal text-gray-500">Admins may award up to the full outstanding balance, including class fees.</span>
+                      </label>
                       <textarea
                         value={reviewNotes[application.id] || ''}
                         onChange={(event) => setReviewNotes((prev) => ({ ...prev, [application.id]: event.target.value }))}
@@ -319,6 +327,9 @@ export default function ScholarshipsPage() {
                           disabled={actionInProgress === (application.id || application.applicationId)}
                         >
                           {actionInProgress === (application.id || application.applicationId) ? 'Processing...' : 'Approve'}
+                        </Button>
+                        <Button variant="primary" type="button" onClick={() => handleApplicationAction((application.id || application.applicationId || '').trim(), 'approve', application.remainingAmount)} disabled={actionInProgress === (application.id || application.applicationId)}>
+                          Comp Remaining Balance
                         </Button>
                         <Button
                           variant="secondary"
