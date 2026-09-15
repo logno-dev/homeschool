@@ -41,15 +41,17 @@ try {
 
   await db.insert(schema.families).values({ id: 'family', name: 'Teacher Family', address: '1 Test Way', phone: '555-0100', email: 'family@example.com', sharingCode: 'teacher-family' })
   await db.insert(schema.guardians).values({ id: 'guardian', familyId: 'family', email: 'parent@example.com', firstName: 'Pat', lastName: 'Teacher' })
+  await db.insert(schema.guardians).values({ id: 'other-guardian', familyId: 'family', email: 'other@example.com', firstName: 'Other', lastName: 'Guardian' })
   await db.insert(schema.children).values([
-    { id: 'student-teacher', familyId: 'family', firstName: 'Alex', lastName: 'Teacher', grade: '8', dateOfBirth: '2012-01-01' },
-    { id: 'other-child', familyId: 'family', firstName: 'Sam', lastName: 'Teacher', grade: '6', dateOfBirth: '2014-01-01' }
+    { id: 'student-teacher', familyId: 'family', firstName: 'Alex', lastName: 'Teacher', grade: '8', dateOfBirth: '2012-01-01', allergies: 'Peanuts' },
+    { id: 'other-child', familyId: 'family', firstName: 'Sam', lastName: 'Teacher', grade: '6', dateOfBirth: '2014-01-01', allergies: 'None' }
   ])
   await db.insert(schema.sessions).values({ id: 'session', name: 'Fall', startDate: '2026-09-01', endDate: '2026-12-01', registrationStartDate: '2026-08-01', registrationEndDate: '2026-08-31' })
   await db.insert(schema.classrooms).values({ id: 'room-template', name: 'Room A' })
   await db.insert(schema.sessionClassrooms).values({ id: 'room', sessionId: 'session', classroomId: 'room-template', name: 'Room A', orderIndex: 0 })
   await db.insert(schema.classTeachingRequests).values({ id: 'class', sessionId: 'session', guardianId: 'guardian', className: 'Student-Led Science', description: 'Science', gradeRange: '6-8', maxStudents: 10, helpersNeeded: 0, status: 'approved', studentTeacherChildId: 'student-teacher' })
   await db.insert(schema.schedules).values({ id: 'schedule', sessionId: 'session', classTeachingRequestId: 'class', classroomId: 'room-template', sessionClassroomId: 'room', period: 'first', status: 'published' })
+  await db.insert(schema.classRegistrations).values({ id: 'registration', sessionId: 'session', scheduleId: 'schedule', childId: 'other-child', familyId: 'family', registeredBy: 'guardian', status: 'registered' })
 
   const studentTeacherHelpers = load('lib/student-teachers.ts', { 'server-only': {}, '@/lib/db': { db }, '@/lib/schema': schema })
   assert.deepEqual(await studentTeacherHelpers.getStudentTeacherAssignment('session', 'student-teacher', 'first'), { scheduleId: 'schedule', className: 'Student-Led Science' })
@@ -76,8 +78,26 @@ try {
   assert.equal(result.schedules[0].roster[0].role, 'student_teacher')
   assert.equal(`${result.schedules[0].teacher.firstName} ${result.schedules[0].teacher.lastName}`, 'Alex Teacher')
   assert.equal(result.schedules[0].teacher.id, 'guardian', 'The parent remains linked for volunteer credit')
-  assert.equal(result.schedules[0].availableSpots, 10, 'A student teacher does not consume a student seat')
-  console.log('Student-teacher roster role, period assignment, and seat handling verified.')
+  assert.equal(result.schedules[0].availableSpots, 9, 'Only the enrolled student consumes a student seat')
+
+  let currentUserId = 'guardian'
+  const teacherRoster = load('app/api/teacher/schedule/[sessionId]/route.ts', {
+    '@/lib/db': { db }, '@/lib/schema': schema,
+    '@/lib/server-auth': { getAuthenticatedUserSession: async () => ({ session: { user: { id: currentUserId } } }) },
+    '@/lib/database': { getGuardianById: async (id) => (await db.select().from(schema.guardians)).find((guardian) => guardian.id === id) }
+  }).GET
+  const rosterResponse = await teacherRoster(new Request('http://localhost/api/teacher/schedule/session'), { params: Promise.resolve({ sessionId: 'session' }) })
+  assert.equal(rosterResponse.status, 200)
+  const [teacherClass] = (await rosterResponse.json()).classes
+  assert.equal(teacherClass.classroomName, 'Room A')
+  assert.equal(teacherClass.period, 'first')
+  assert.equal(teacherClass.roster.length, 2)
+  assert.equal(teacherClass.roster.find((student) => student.id === 'student-teacher').allergies, 'Peanuts')
+  assert.equal(teacherClass.roster.find((student) => student.id === 'other-child').allergies, 'None')
+  currentUserId = 'other-guardian'
+  const privateRosterResponse = await teacherRoster(new Request('http://localhost/api/teacher/schedule/session'), { params: Promise.resolve({ sessionId: 'session' }) })
+  assert.deepEqual((await privateRosterResponse.json()).classes, [], 'Another guardian cannot view this class roster')
+  console.log('Student-teacher behavior and teacher-scoped roster privacy verified.')
 } finally {
   client.close()
   rmSync(directory, { recursive: true, force: true })

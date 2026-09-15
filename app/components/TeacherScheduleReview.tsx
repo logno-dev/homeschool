@@ -27,6 +27,14 @@ interface CommentWithGuardian extends ScheduleComment {
   }
 }
 
+interface TeachingClass {
+  scheduleId: string
+  className: string
+  classroomName: string
+  period: string
+  roster: Array<{ id: string; firstName: string; lastName: string; grade: string; allergies: string | null; role: 'student' | 'student_teacher' }>
+}
+
 export default function TeacherScheduleReview() {
   const [sessions, setSessions] = useState<Session[]>([])
   const [selectedSession, setSelectedSession] = useState<string>('')
@@ -37,6 +45,8 @@ export default function TeacherScheduleReview() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [classrooms, setClassrooms] = useState<any[]>([])
+  const [teachingClasses, setTeachingClasses] = useState<TeachingClass[]>([])
+  const [teachingClassesStatus, setTeachingClassesStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
 
   useEffect(() => {
     fetchSessions()
@@ -68,6 +78,23 @@ export default function TeacherScheduleReview() {
 
   const fetchScheduleData = async () => {
     if (!selectedSession) return
+
+    setTeachingClassesStatus('loading')
+    try {
+      const teachingResponse = await fetch(`/api/teacher/schedule/${selectedSession}`)
+      if (teachingResponse.ok) {
+        const teachingData = await teachingResponse.json()
+        setTeachingClasses(teachingData.classes || [])
+        setTeachingClassesStatus('loaded')
+      } else {
+        setTeachingClasses([])
+        setTeachingClassesStatus('error')
+      }
+    } catch (error) {
+      console.error('Error fetching teacher classes:', error)
+      setTeachingClasses([])
+      setTeachingClassesStatus('error')
+    }
 
     try {
       const response = await fetch(`/api/admin/schedule/${selectedSession}`)
@@ -176,6 +203,7 @@ export default function TeacherScheduleReview() {
   }
 
   const periods = ['first', 'second', 'lunch', 'third']
+  const periodNames: Record<string, string> = { first: 'First Hour', second: 'Second Hour', lunch: 'Lunch', third: 'Third Hour' }
 
   if (isLoading) {
     return (
@@ -206,6 +234,45 @@ export default function TeacherScheduleReview() {
           <SessionOptions sessions={sessions} />
         </select>
       </div>
+
+      <section className="rounded-lg bg-white shadow">
+        <div className="border-b border-gray-200 px-6 py-4">
+          <h3 className="text-lg font-medium text-gray-900">My Classes & Rosters</h3>
+          <p className="mt-1 text-sm text-gray-500">Confirmed students for classes you teach or co-teach.</p>
+        </div>
+        {teachingClassesStatus === 'loading' && <p className="px-6 py-5 text-sm text-gray-500">Loading your classes...</p>}
+        {teachingClassesStatus === 'error' && <p className="px-6 py-5 text-sm text-red-700">Unable to load your classes and rosters. Please refresh and try again.</p>}
+        {teachingClassesStatus === 'loaded' && teachingClasses.length === 0 && <p className="px-6 py-5 text-sm text-gray-500">You do not have a published or submitted class in this session.</p>}
+        {teachingClassesStatus === 'loaded' && teachingClasses.length > 0 && (
+          <div className="grid gap-5 p-5 lg:grid-cols-2">
+            {teachingClasses.map((teachingClass) => (
+              <article key={teachingClass.scheduleId} className="overflow-hidden rounded-lg border border-gray-200">
+                <div className="bg-blue-50 px-4 py-3">
+                  <h4 className="font-semibold text-blue-950">{teachingClass.className}</h4>
+                  <p className="mt-1 text-sm text-blue-800">{periodNames[teachingClass.period] || teachingClass.period} · {teachingClass.classroomName}</p>
+                </div>
+                <div className="p-4">
+                  <h5 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Roster ({teachingClass.roster.length})</h5>
+                  {teachingClass.roster.length === 0 ? <p className="mt-3 text-sm text-gray-500">No confirmed students yet.</p> : (
+                    <div className="mt-3 divide-y divide-gray-100">
+                      {teachingClass.roster.map((student) => (
+                        <div key={student.id} className="py-3 first:pt-0 last:pb-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium text-gray-900">{student.lastName}, {student.firstName}</span>
+                            <span className="text-xs text-gray-500">Grade {student.grade}</span>
+                            {student.role === 'student_teacher' && <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">Student teacher</span>}
+                          </div>
+                          <p className={`mt-1 text-sm ${student.allergies?.trim() ? 'font-medium text-red-700' : 'text-gray-500'}`}>Allergies: {student.allergies?.trim() || 'None reported'}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Schedule Grid */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
