@@ -4,7 +4,8 @@ import { db } from '@/lib/db'
 import { scholarshipApplications, familySessionFees, sessions } from '@/lib/schema'
 import { and, desc, eq, inArray } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
-import { getActiveSession, getGuardianById } from '@/lib/database'
+import { getActiveSession, getGlobalSetting, getGuardianById } from '@/lib/database'
+import { sendScholarshipRequestNotificationEmail } from '@/lib/email'
 
 export async function GET() {
   try {
@@ -56,6 +57,8 @@ export async function POST(request: Request) {
     if (!targetSessionId) {
       return NextResponse.json({ error: 'No active session available for scholarship requests.' }, { status: 400 })
     }
+    const [targetSession] = await db.select({ id: sessions.id, name: sessions.name }).from(sessions).where(eq(sessions.id, targetSessionId)).limit(1)
+    if (!targetSession) return NextResponse.json({ error: 'Session not found.' }, { status: 404 })
 
     if (!scholarshipType || !['full', 'partial'].includes(scholarshipType)) {
       return NextResponse.json({ error: 'Scholarship type must be full or partial.' }, { status: 400 })
@@ -126,6 +129,24 @@ export async function POST(request: Request) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     })
+
+    const notificationRecipients = (await getGlobalSetting('scholarship_request_notification_emails'))?.split(',').map((recipient) => recipient.trim()).filter(Boolean) || []
+    if (notificationRecipients.length) {
+      try {
+        await sendScholarshipRequestNotificationEmail({
+          recipients: notificationRecipients,
+          applicantName: `${guardian.firstName} ${guardian.lastName}`.trim(),
+          email: guardian.email,
+          sessionName: targetSession.name,
+          scholarshipType: scholarshipType === 'full' ? 'Full' : 'Partial',
+          requestedAmount: normalizedRequestedAmount,
+          reason: reason.trim(),
+          additionalInfo: additionalInfo?.trim() || null
+        })
+      } catch (notificationError) {
+        console.error('Unable to send scholarship request notification:', notificationError)
+      }
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

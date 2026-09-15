@@ -14,6 +14,7 @@ interface SettingsState {
   lastRun: string | null
   registrationNotificationEmails: string
   classRequestNotificationEmails: string
+  scholarshipRequestNotificationEmails: string
   registrationOverrideNotificationEmails: string
   appTimezone: string
   emailSenderAliases: string
@@ -52,7 +53,7 @@ export default function AdminSettingsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const { showSuccess, showError } = useToast()
-  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {}, emailCcs: {}, emailBccs: {}, emailTemplates: {}, emailSubjects: {}, supervisionFormUrl: '', supervisionFormFilename: '', invoiceOrganizationName: '', invoiceOrganizationAddress: '', invoiceOrganizationCity: '', invoiceOrganizationState: '', invoiceOrganizationPostalCode: '', invoiceOrganizationPhone: '', invoiceOrganizationEmail: '', invoiceOrganizationWebsite: '', invoicePaymentInstructions: '', invoiceDonationStatement: '' })
+  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', scholarshipRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {}, emailCcs: {}, emailBccs: {}, emailTemplates: {}, emailSubjects: {}, supervisionFormUrl: '', supervisionFormFilename: '', invoiceOrganizationName: '', invoiceOrganizationAddress: '', invoiceOrganizationCity: '', invoiceOrganizationState: '', invoiceOrganizationPostalCode: '', invoiceOrganizationPhone: '', invoiceOrganizationEmail: '', invoiceOrganizationWebsite: '', invoicePaymentInstructions: '', invoiceDonationStatement: '' })
   const [handbooks, setHandbooks] = useState<Handbook[]>([])
   const [handbookVersion, setHandbookVersion] = useState('')
   const [handbookFile, setHandbookFile] = useState<File | null>(null)
@@ -84,6 +85,7 @@ export default function AdminSettingsPage() {
           lastRun: result.lastRun || null,
           registrationNotificationEmails: result.registrationNotificationEmails || '',
           classRequestNotificationEmails: result.classRequestNotificationEmails || '',
+          scholarshipRequestNotificationEmails: result.scholarshipRequestNotificationEmails || '',
           registrationOverrideNotificationEmails: result.registrationOverrideNotificationEmails || '',
           appTimezone: result.appTimezone || DEFAULT_APP_TIMEZONE
           , emailSenderAliases: (result.emailSenderAliases || []).join(', ')
@@ -131,6 +133,7 @@ export default function AdminSettingsPage() {
           gradeIncrementDate: settings.incrementDate || null,
           registrationNotificationEmails: settings.registrationNotificationEmails,
           classRequestNotificationEmails: settings.classRequestNotificationEmails,
+          scholarshipRequestNotificationEmails: settings.scholarshipRequestNotificationEmails,
           registrationOverrideNotificationEmails: settings.registrationOverrideNotificationEmails,
           appTimezone: settings.appTimezone
           , emailSenderAliases: settings.emailSenderAliases.split(',').map((alias) => alias.trim()).filter(Boolean)

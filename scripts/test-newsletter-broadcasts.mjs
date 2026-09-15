@@ -93,6 +93,12 @@ try {
   const individualBody = JSON.parse(calls[3].init.body)
   assert.equal(individualBody.html, '<p>Wrap normally</p>')
   assert.equal(individualBody.text, 'Wrap normally')
+  await email.sendScholarshipRequestNotificationEmail({ recipients: ['admin@example.com'], applicantName: 'Alex Rivera', email: 'alex@example.com', sessionName: 'Fall', scholarshipType: 'Partial', requestedAmount: 60, reason: 'Financial need', additionalInfo: 'Please review' })
+  const scholarshipBody = JSON.parse(calls[4].init.body)
+  assert.deepEqual(scholarshipBody.to, ['admin@example.com'])
+  assert.match(scholarshipBody.subject, /scholarship request/i)
+  assert.match(scholarshipBody.html, /Alex Rivera/)
+  assert.match(scholarshipBody.html, /\$60\.00/)
   assert.ok(!calls.some(call => call.url.includes('/emails/batch')))
 
   const scheduledAt = new Date(Date.now() + 3_600_000).toISOString()

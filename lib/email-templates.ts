@@ -3,6 +3,7 @@ import type { EmailType } from './email-types'
 export const NOTIFICATION_TYPES = [
   'registration_notification',
   'class_request',
+  'scholarship_request',
   'registration_override',
   'password_reset',
   'pending_activation',
@@ -21,6 +22,7 @@ export const EMAIL_TEMPLATE_VARIABLES: Record<NotificationType, string[]> = {
   pending_activation: ['firstName'],
   account_approved: ['firstName'],
   class_request: ['applicantName', 'email', 'className', 'description', 'gradeRange', 'sessionName'],
+  scholarship_request: ['applicantName', 'email', 'sessionName', 'scholarshipType', 'requestedAmount', 'reason', 'additionalInfo'],
   registration_override: ['requesterName', 'email', 'sessionName', 'classNames', 'reason'],
   registration_confirmation: ['firstName', 'sessionName', 'classNames', 'totalAmount', 'amountPaid', 'balanceDue'],
   payment_confirmation: ['firstName', 'familyName', 'sessionName', 'billingStatement', 'totalAmount', 'amountPaid', 'balanceDue'],

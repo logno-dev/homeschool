@@ -69,6 +69,17 @@ type RegistrationOverrideNotificationEmailInput = {
   classNames: string
 }
 
+type ScholarshipRequestNotificationEmailInput = {
+  recipients: string[]
+  applicantName: string
+  email: string
+  sessionName: string
+  scholarshipType: string
+  requestedAmount: number
+  reason: string
+  additionalInfo?: string | null
+}
+
 type RegistrationConfirmationEmailInput = { to: string; firstName: string; sessionName: string; classNames: string; totalAmount: number; amountPaid: number; balanceDue: number }
 type PaymentNotificationEmailInput = { to: string; firstName: string; familyName: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; billingStatement?: string; invoice?: string; userId?: string; familyId?: string }
 type DonationConfirmationEmailInput = { to: string; firstName: string; familyName: string; donationAmount: number; billingStatement: string; userId?: string; familyId?: string }
@@ -358,6 +369,26 @@ export async function sendRegistrationOverrideNotificationEmail(input: Registrat
     html: content.html,
     text: content.text,
     type: 'registration_override'
+  })
+}
+
+export async function sendScholarshipRequestNotificationEmail(input: ScholarshipRequestNotificationEmailInput): Promise<void> {
+  const values = {
+    applicantName: input.applicantName,
+    email: input.email,
+    sessionName: input.sessionName,
+    scholarshipType: input.scholarshipType,
+    requestedAmount: `$${input.requestedAmount.toFixed(2)}`,
+    reason: input.reason,
+    additionalInfo: input.additionalInfo || 'None provided'
+  }
+  const content = await getEmailContent('scholarship_request', `<div><h2>New scholarship request</h2><p><strong>Applicant:</strong> ${escapeHtml(values.applicantName)} (${escapeHtml(values.email)})</p><p><strong>Session:</strong> ${escapeHtml(values.sessionName)}</p><p><strong>Type:</strong> ${escapeHtml(values.scholarshipType)}</p><p><strong>Requested amount:</strong> ${escapeHtml(values.requestedAmount)}</p><p><strong>Reason:</strong><br/>${escapeHtml(values.reason)}</p><p><strong>Additional information:</strong><br/>${escapeHtml(values.additionalInfo)}</p></div>`, `A new scholarship request was submitted.\n\nApplicant: ${values.applicantName} (${values.email})\nSession: ${values.sessionName}\nType: ${values.scholarshipType}\nRequested amount: ${values.requestedAmount}\n\nReason:\n${values.reason}\n\nAdditional information:\n${values.additionalInfo}`, values)
+  await sendEmail({
+    to: input.recipients,
+    subject: await getEmailSubject('scholarship_request', `New scholarship request: ${input.applicantName}`, values),
+    html: content.html,
+    text: content.text,
+    type: 'scholarship_request'
   })
 }
 
