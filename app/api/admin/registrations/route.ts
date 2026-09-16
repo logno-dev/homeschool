@@ -334,6 +334,7 @@ export async function POST(request: Request) {
     const { session } = auth
     const body = await request.json()
     const { sessionId, scheduleId, childId, status = 'registered' } = body
+    const allowOverload = body.allowOverload === true
 
     if (!sessionId || !scheduleId || !childId) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -374,8 +375,8 @@ export async function POST(request: Request) {
           eq(classRegistrations.status, 'registered')
         ))
 
-      if (currentCount.length >= scheduleData[0].classTeachingRequest.maxStudents) {
-        return NextResponse.json({ error: 'Target class is full' }, { status: 400 })
+      if (!allowOverload && currentCount.length >= scheduleData[0].classTeachingRequest.maxStudents) {
+        return NextResponse.json({ error: 'Target class is full', code: 'CLASS_FULL', currentRegistrations: currentCount.length, maxStudents: scheduleData[0].classTeachingRequest.maxStudents }, { status: 409 })
       }
 
       const existingRegistration = await db

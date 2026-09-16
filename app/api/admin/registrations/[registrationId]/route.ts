@@ -19,6 +19,7 @@ export async function PATCH(
     const { registrationId } = await params
     const body = await request.json()
     const { scheduleId, status } = body
+    const allowOverload = body.allowOverload === true
 
     if (!scheduleId && !status) {
       return NextResponse.json({ error: 'No updates provided' }, { status: 400 })
@@ -66,8 +67,8 @@ export async function PATCH(
         ))
 
       const occupiedCount = currentCount.filter((entry) => entry.id !== registrationId).length
-      if (occupiedCount >= classTeachingRequest.maxStudents && (status === 'registered' || Boolean(scheduleId))) {
-        return NextResponse.json({ error: 'Target class is full' }, { status: 400 })
+      if (!allowOverload && occupiedCount >= classTeachingRequest.maxStudents && (status === 'registered' || Boolean(scheduleId))) {
+        return NextResponse.json({ error: 'Target class is full', code: 'CLASS_FULL', currentRegistrations: occupiedCount, maxStudents: classTeachingRequest.maxStudents }, { status: 409 })
       }
     }
 

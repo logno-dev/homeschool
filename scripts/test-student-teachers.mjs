@@ -127,7 +127,36 @@ try {
   currentUserId = 'other-guardian'
   const privateRosterResponse = await teacherRoster(new Request('http://localhost/api/teacher/schedule/session'), { params: Promise.resolve({ sessionId: 'session' }) })
   assert.deepEqual((await privateRosterResponse.json()).classes, [], 'Another guardian cannot view this class roster')
-  console.log('Student-teacher behavior and teacher-scoped roster privacy verified.')
+
+  await client.execute('UPDATE class_teaching_requests SET max_students = 1 WHERE id = \'class\'')
+  await db.insert(schema.children).values([
+    { id: 'waitlisted-child', familyId: 'co-family', firstName: 'Waitlisted', lastName: 'Student', grade: '6', dateOfBirth: '2014-01-01' },
+    { id: 'admin-added-child', familyId: 'co-family', firstName: 'Admin', lastName: 'Addition', grade: '6', dateOfBirth: '2014-02-01' }
+  ])
+  await db.insert(schema.classRegistrations).values({ id: 'waitlisted-registration', sessionId: 'session', scheduleId: 'schedule', childId: 'waitlisted-child', familyId: 'co-family', registeredBy: 'guardian', status: 'waitlisted' })
+
+  const adminRegistrationMocks = {
+    '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/student-teachers': studentTeacherHelpers,
+    '@/lib/server-auth': { getAuthenticatedAdmin: async () => ({ session: { user: { id: 'guardian' } } }) },
+    '@/lib/registration-events': { publishRegistrationUpdate: () => {} }
+  }
+  const updateAdminRegistration = load('app/api/admin/registrations/[registrationId]/route.ts', adminRegistrationMocks).PATCH
+  const updateParams = { params: Promise.resolve({ registrationId: 'waitlisted-registration' }) }
+  const blockedPromotion = await updateAdminRegistration(new Request('http://localhost/api/admin/registrations/waitlisted-registration', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'registered' }) }), updateParams)
+  assert.equal(blockedPromotion.status, 409)
+  assert.equal((await blockedPromotion.json()).code, 'CLASS_FULL')
+  const overloadedPromotion = await updateAdminRegistration(new Request('http://localhost/api/admin/registrations/waitlisted-registration', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'registered', allowOverload: true }) }), updateParams)
+  assert.equal(overloadedPromotion.status, 200, 'An admin can explicitly promote a student into a full class')
+
+  const createAdminRegistration = load('app/api/admin/registrations/route.ts', adminRegistrationMocks).POST
+  const createPayload = { sessionId: 'session', scheduleId: 'schedule', childId: 'admin-added-child', status: 'registered' }
+  const blockedAddition = await createAdminRegistration(new Request('http://localhost/api/admin/registrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(createPayload) }))
+  assert.equal(blockedAddition.status, 409)
+  assert.equal((await blockedAddition.json()).code, 'CLASS_FULL')
+  const overloadedAddition = await createAdminRegistration(new Request('http://localhost/api/admin/registrations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...createPayload, allowOverload: true }) }))
+  assert.equal(overloadedAddition.status, 200, 'An admin can explicitly add a student to a full class')
+
+  console.log('Student-teacher behavior, teacher-scoped roster privacy, and admin class overloads verified.')
 } finally {
   client.close()
   rmSync(directory, { recursive: true, force: true })

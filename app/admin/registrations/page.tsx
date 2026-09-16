@@ -275,8 +275,32 @@ export default function AdminRegistrationsPage() {
     if (!selectedSessionId) return
     const refreshed = await fetch(`/api/admin/registrations?sessionId=${selectedSessionId}`)
     if (refreshed.ok) {
-      setData(await refreshed.json())
+      const refreshedData: RegistrationsResponse = await refreshed.json()
+      setData(refreshedData)
+      setSelectedSchedule((current) => current ? refreshedData.schedules.find((schedule) => schedule.id === current.id) || current : null)
     }
+  }
+
+  const requestWithOverloadConfirmation = async (url: string, method: 'POST' | 'PATCH', payload: Record<string, unknown>) => {
+    const send = (allowOverload = false) => fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, ...(allowOverload ? { allowOverload: true } : {}) })
+    })
+
+    let response = await send()
+    let result = await response.json()
+    if (!response.ok && result.code === 'CLASS_FULL') {
+      const confirmed = window.confirm(
+        `This class is full (${result.currentRegistrations}/${result.maxStudents}). Place this student in the class anyway?`
+      )
+      if (!confirmed) return null
+      response = await send(true)
+      result = await response.json()
+    }
+
+    if (!response.ok) throw new Error(result.error || 'Unable to update registration')
+    return result
   }
 
   const openMoveModal = (registration: RegistrationRow) => {
@@ -288,15 +312,8 @@ export default function AdminRegistrationsPage() {
   const handleMoveRegistration = async () => {
     if (!selectedRegistration || !targetScheduleId) return
     try {
-      const response = await fetch(`/api/admin/registrations/${selectedRegistration.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scheduleId: targetScheduleId })
-      })
-      const result = await response.json()
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to move registration')
-      }
+      const result = await requestWithOverloadConfirmation(`/api/admin/registrations/${selectedRegistration.id}`, 'PATCH', { scheduleId: targetScheduleId })
+      if (!result) return
       showSuccess('Registration updated', 'Student moved to new class.')
       setShowMoveModal(false)
       setSelectedRegistration(null)
@@ -309,15 +326,8 @@ export default function AdminRegistrationsPage() {
 
   const updateRegistrationStatus = async (registrationId: string, status: string) => {
     try {
-      const response = await fetch(`/api/admin/registrations/${registrationId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      })
-      const result = await response.json()
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to update registration')
-      }
+      const result = await requestWithOverloadConfirmation(`/api/admin/registrations/${registrationId}`, 'PATCH', { status })
+      if (!result) return
       showSuccess('Registration updated', 'Status updated successfully.')
       await refreshData()
     } catch (error) {
@@ -328,20 +338,13 @@ export default function AdminRegistrationsPage() {
   const handleAddStudent = async () => {
     if (!selectedSchedule || !newRegistration.childId) return
     try {
-      const response = await fetch('/api/admin/registrations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: selectedSessionId,
-          scheduleId: selectedSchedule.id,
-          childId: newRegistration.childId,
-          status: newRegistration.status
-        })
+      const result = await requestWithOverloadConfirmation('/api/admin/registrations', 'POST', {
+        sessionId: selectedSessionId,
+        scheduleId: selectedSchedule.id,
+        childId: newRegistration.childId,
+        status: newRegistration.status
       })
-      const result = await response.json()
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to add student')
-      }
+      if (!result) return
       showSuccess('Student added', 'Registration created successfully.')
       setNewRegistration({ childId: '', status: 'registered' })
       await refreshData()
@@ -516,6 +519,7 @@ export default function AdminRegistrationsPage() {
                               </td>
                             )
                           }
+                          const isOverCapacity = schedule.currentRegistrations > schedule.maxStudents
                           const capacity = `${schedule.currentRegistrations}/${schedule.maxStudents}`
                           return (
                             <td key={`${classroom.id}-${period.id}`} className="px-4 py-4">
@@ -525,7 +529,9 @@ export default function AdminRegistrationsPage() {
                               >
                                 <div className="font-medium text-gray-900">{schedule.className}</div>
                                 <div className="text-xs text-gray-600">{schedule.teacher}</div>
-                                <div className="mt-2 text-xs text-gray-500">{capacity} registered</div>
+                                <div className={`mt-2 text-xs ${isOverCapacity ? 'font-semibold text-red-600' : 'text-gray-500'}`}>
+                                  {capacity} registered{isOverCapacity ? ` (over by ${schedule.currentRegistrations - schedule.maxStudents})` : ''}
+                                </div>
                               </button>
                             </td>
                           )
@@ -695,7 +701,12 @@ export default function AdminRegistrationsPage() {
               </div>
               <div>
                 <p className="font-medium text-gray-900">Capacity</p>
-                <p>{selectedSchedule.currentRegistrations}/{selectedSchedule.maxStudents}</p>
+                <p className={selectedSchedule.currentRegistrations > selectedSchedule.maxStudents ? 'font-semibold text-red-600' : ''}>
+                  {selectedSchedule.currentRegistrations}/{selectedSchedule.maxStudents}
+                  {selectedSchedule.currentRegistrations > selectedSchedule.maxStudents
+                    ? ` (over by ${selectedSchedule.currentRegistrations - selectedSchedule.maxStudents})`
+                    : ''}
+                </p>
               </div>
             </div>
 
@@ -893,7 +904,7 @@ export default function AdminRegistrationsPage() {
             <option value="">Select class</option>
             {scheduleOptions.map((option) => (
               <option key={option.id} value={option.id}>
-                {option.className} • {PERIODS.find((period) => period.id === option.period)?.name || option.period} • {option.classroom}
+                {option.className} • {PERIODS.find((period) => period.id === option.period)?.name || option.period} • {option.classroom} • {option.currentRegistrations}/{option.maxStudents}
               </option>
             ))}
           </select>
