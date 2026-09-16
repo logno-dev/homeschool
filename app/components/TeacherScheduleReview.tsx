@@ -36,7 +36,7 @@ interface TeachingClass {
   roster: Array<{ id: string; firstName: string; lastName: string; grade: string; allergies: string | null; role: 'student' | 'student_teacher' | 'student_co_teacher' }>
 }
 
-export default function TeacherScheduleReview() {
+export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibilityChange?: (visible: boolean) => void }) {
   const [sessions, setSessions] = useState<Session[]>([])
   const [selectedSession, setSelectedSession] = useState<string>('')
   const [scheduleData, setScheduleData] = useState<ScheduleData>({})
@@ -61,6 +61,16 @@ export default function TeacherScheduleReview() {
       fetchComments()
     }
   }, [selectedSession])
+
+  useEffect(() => {
+    if (isLoading) return
+    if (sessions.length === 0) {
+      onVisibilityChange?.(false)
+      return
+    }
+    if (teachingClassesStatus === 'loaded') onVisibilityChange?.(scheduleAvailable || registrationStarted)
+    if (teachingClassesStatus === 'error') onVisibilityChange?.(true)
+  }, [isLoading, onVisibilityChange, registrationStarted, scheduleAvailable, sessions.length, teachingClassesStatus])
 
   const fetchSessions = async () => {
     try {
@@ -179,6 +189,8 @@ export default function TeacherScheduleReview() {
     return null
   }
 
+  if (teachingClassesStatus === 'error') return <div className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm text-red-800">Unable to load your teaching schedule right now. Please refresh and try again.</div>
+
   if (teachingClassesStatus === 'loaded' && !scheduleAvailable && !registrationStarted) return null
 
   return (
@@ -200,7 +212,6 @@ export default function TeacherScheduleReview() {
           <p className="mt-1 text-sm text-gray-500">Confirmed students for classes you teach or co-teach.</p>
         </div>
         {teachingClassesStatus === 'loading' && <p className="px-6 py-5 text-sm text-gray-500">Loading your classes...</p>}
-        {teachingClassesStatus === 'error' && <p className="px-6 py-5 text-sm text-red-700">Unable to load your classes and rosters. Please refresh and try again.</p>}
         {teachingClassesStatus === 'loaded' && teachingClasses.length === 0 && <p className="px-6 py-5 text-sm text-gray-500">You do not have a published or submitted class in this session.</p>}
         {teachingClassesStatus === 'loaded' && teachingClasses.length > 0 && (
           <div className="grid gap-5 p-5 lg:grid-cols-2">

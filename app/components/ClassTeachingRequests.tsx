@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import ClassTeachingForm from './ClassTeachingForm'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 
-export default function ClassTeachingRequests({ openOnly = false }: { openOnly?: boolean }) {
+export default function ClassTeachingRequests({ openOnly = false, onVisibilityChange }: { openOnly?: boolean; onVisibilityChange?: (visible: boolean) => void }) {
   const [requests, setRequests] = useState<(ClassTeachingRequest & { session: Session; studentTeacherDisplayName?: string | null })[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -20,6 +20,10 @@ export default function ClassTeachingRequests({ openOnly = false }: { openOnly?:
     fetchRequests()
     checkRegistrationStatus()
   }, [])
+
+  useEffect(() => {
+    if (!isLoading && !registrationStatusLoading) onVisibilityChange?.(!openOnly || registrationStatus.isOpen)
+  }, [isLoading, openOnly, onVisibilityChange, registrationStatus.isOpen, registrationStatusLoading])
 
   const fetchRequests = async () => {
     try {
