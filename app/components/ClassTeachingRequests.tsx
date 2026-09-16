@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import ClassTeachingForm from './ClassTeachingForm'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 
-export default function ClassTeachingRequests() {
+export default function ClassTeachingRequests({ openOnly = false }: { openOnly?: boolean }) {
   const [requests, setRequests] = useState<(ClassTeachingRequest & { session: Session; studentTeacherDisplayName?: string | null })[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -14,6 +14,7 @@ export default function ClassTeachingRequests() {
     isOpen: boolean
     reason?: string
   }>({ isOpen: false })
+  const [registrationStatusLoading, setRegistrationStatusLoading] = useState(true)
 
   useEffect(() => {
     fetchRequests()
@@ -43,6 +44,8 @@ export default function ClassTeachingRequests() {
       }
     } catch (error) {
       console.error('Error checking registration status:', error)
+    } finally {
+      setRegistrationStatusLoading(false)
     }
   }
 
@@ -92,7 +95,9 @@ export default function ClassTeachingRequests() {
     return new Date(dateString).toLocaleDateString()
   }
 
-  if (isLoading) {
+  if (openOnly && (isLoading || registrationStatusLoading || !registrationStatus.isOpen)) return null
+
+  if (isLoading || registrationStatusLoading) {
     return (
       <div className="text-center py-8">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>

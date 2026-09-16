@@ -25,7 +25,7 @@ const db = drizzle(client, { schema })
 
 try {
   const dialect = new SQLiteSyncDialect()
-  const tables = [schema.families, schema.guardians, schema.children, schema.sessions, schema.classrooms, schema.sessionClassrooms, schema.classTeachingRequests, schema.schedules, schema.classRegistrations, schema.volunteerJobs, schema.sessionVolunteerJobs, schema.volunteerAssignments]
+  const tables = [schema.families, schema.guardians, schema.children, schema.sessions, schema.sessionRegistrationWindows, schema.classrooms, schema.sessionClassrooms, schema.classTeachingRequests, schema.schedules, schema.classRegistrations, schema.volunteerJobs, schema.sessionVolunteerJobs, schema.volunteerAssignments]
   for (const table of tables) {
     const { name, columns } = getTableConfig(table)
     const definitions = columns.map((column) => {
@@ -84,11 +84,16 @@ try {
   const teacherRoster = load('app/api/teacher/schedule/[sessionId]/route.ts', {
     '@/lib/db': { db }, '@/lib/schema': schema,
     '@/lib/server-auth': { getAuthenticatedUserSession: async () => ({ session: { user: { id: currentUserId } } }) },
-    '@/lib/database': { getGuardianById: async (id) => (await db.select().from(schema.guardians)).find((guardian) => guardian.id === id) }
+    '@/lib/database': { getGuardianById: async (id) => (await db.select().from(schema.guardians)).find((guardian) => guardian.id === id) },
+    '@/lib/app-time': { getAppTimezone: async () => 'America/New_York', parseAppDate: (value) => new Date(`${value}T00:00:00Z`) }
   }).GET
   const rosterResponse = await teacherRoster(new Request('http://localhost/api/teacher/schedule/session'), { params: Promise.resolve({ sessionId: 'session' }) })
   assert.equal(rosterResponse.status, 200)
-  const [teacherClass] = (await rosterResponse.json()).classes
+  const rosterPayload = await rosterResponse.json()
+  const [teacherClass] = rosterPayload.classes
+  assert.equal(rosterPayload.reviewSchedule[0].teacherName, 'Alex Teacher')
+  assert.equal(rosterPayload.classrooms[0].name, 'Room A')
+  assert.equal(rosterPayload.registrationStarted, true)
   assert.equal(teacherClass.classroomName, 'Room A')
   assert.equal(teacherClass.period, 'first')
   assert.equal(teacherClass.roster.length, 2)

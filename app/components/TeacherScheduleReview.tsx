@@ -8,7 +8,6 @@ interface ScheduleEntry {
   id: string
   classroomId: string
   period: string
-  classTeachingRequestId: string
   className: string
   teacherName: string
   gradeRange: string
@@ -47,6 +46,8 @@ export default function TeacherScheduleReview() {
   const [classrooms, setClassrooms] = useState<any[]>([])
   const [teachingClasses, setTeachingClasses] = useState<TeachingClass[]>([])
   const [teachingClassesStatus, setTeachingClassesStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
+  const [scheduleAvailable, setScheduleAvailable] = useState(false)
+  const [registrationStarted, setRegistrationStarted] = useState(false)
 
   useEffect(() => {
     fetchSessions()
@@ -85,66 +86,29 @@ export default function TeacherScheduleReview() {
       if (teachingResponse.ok) {
         const teachingData = await teachingResponse.json()
         setTeachingClasses(teachingData.classes || [])
+        setClassrooms(teachingData.classrooms || [])
+        setRegistrationStarted(Boolean(teachingData.registrationStarted))
+
+        const scheduleMap: ScheduleData = {}
+        for (const entry of teachingData.reviewSchedule || []) {
+          if (!scheduleMap[entry.classroomId]) scheduleMap[entry.classroomId] = {}
+          scheduleMap[entry.classroomId][entry.period] = entry
+        }
+        setScheduleData(scheduleMap)
+        setScheduleAvailable((teachingData.reviewSchedule || []).length > 0)
         setTeachingClassesStatus('loaded')
       } else {
         setTeachingClasses([])
+        setScheduleAvailable(false)
+        setRegistrationStarted(false)
         setTeachingClassesStatus('error')
       }
     } catch (error) {
       console.error('Error fetching teacher classes:', error)
       setTeachingClasses([])
+      setScheduleAvailable(false)
+      setRegistrationStarted(false)
       setTeachingClassesStatus('error')
-    }
-
-    try {
-      const response = await fetch(`/api/admin/schedule/${selectedSession}`)
-        if (response.ok) {
-          const data = await response.json()
-          setClassrooms(data.classrooms || [])
-        
-        // Create a map of class teaching request ID to teacher info
-        const teacherMap: { [key: string]: { name: string, gradeRange: string, className: string } } = {}
-        if (data.approvedClasses) {
-          data.approvedClasses.forEach((classRequest: any) => {
-            teacherMap[classRequest.id] = {
-               name: classRequest.teacherName || `${classRequest.guardian.firstName} ${classRequest.guardian.lastName}`,
-              gradeRange: classRequest.gradeRange,
-              className: classRequest.className
-            }
-          })
-        }
-        
-        // Transform the schedule entries into a nested object for easy lookup
-        const scheduleMap: ScheduleData = {}
-        
-        if (data.scheduleEntries) {
-          data.scheduleEntries.forEach((entry: any) => {
-            if (!scheduleMap[entry.classroomId]) {
-              scheduleMap[entry.classroomId] = {}
-            }
-            
-            const teacherInfo = teacherMap[entry.classTeachingRequestId] || {
-              name: 'Unknown Teacher',
-              gradeRange: 'Unknown',
-              className: 'Unknown Class'
-            }
-            
-            scheduleMap[entry.classroomId][entry.period] = {
-              id: entry.id,
-              classroomId: entry.classroomId,
-              period: entry.period,
-              classTeachingRequestId: entry.classTeachingRequestId,
-              className: teacherInfo.className,
-              teacherName: teacherInfo.name,
-              gradeRange: teacherInfo.gradeRange
-            }
-          })
-        }
-        
-        setScheduleData(scheduleMap)
-      }
-    } catch (error) {
-      console.error('Error fetching schedule data:', error)
     }
   }
 
@@ -206,26 +170,19 @@ export default function TeacherScheduleReview() {
   const periodNames: Record<string, string> = { first: 'First Hour', second: 'Second Hour', lunch: 'Lunch', third: 'Third Hour' }
 
   if (isLoading) {
-    return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-2 text-gray-600">Loading...</p>
-      </div>
-    )
+    return null
   }
 
   if (sessions.length === 0) {
-    return (
-      <div className="text-center py-8 bg-gray-50 rounded-lg">
-        <p className="text-gray-600">No active sessions found.</p>
-      </div>
-    )
+    return null
   }
+
+  if (teachingClassesStatus === 'loaded' && !scheduleAvailable && !registrationStarted) return null
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Schedule Review</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Teaching Schedule</h2>
         <select
           value={selectedSession}
           onChange={(e) => setSelectedSession(e.target.value)}
@@ -235,7 +192,7 @@ export default function TeacherScheduleReview() {
         </select>
       </div>
 
-      <section className="rounded-lg bg-white shadow">
+      {registrationStarted && <section className="rounded-lg bg-white shadow">
         <div className="border-b border-gray-200 px-6 py-4">
           <h3 className="text-lg font-medium text-gray-900">My Classes & Rosters</h3>
           <p className="mt-1 text-sm text-gray-500">Confirmed students for classes you teach or co-teach.</p>
@@ -272,10 +229,10 @@ export default function TeacherScheduleReview() {
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
       {/* Schedule Grid */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      {scheduleAvailable && <><div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Current Schedule</h3>
         </div>
@@ -433,7 +390,7 @@ export default function TeacherScheduleReview() {
             </div>
           )}
         </div>
-      </div>
+      </div></>}
     </div>
   )
 }
