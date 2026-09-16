@@ -15,7 +15,7 @@ const require = createRequire(import.meta.url)
 function load(path, mocks = {}, globals = {}) {
   const { outputText } = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } })
   const module = { exports: {} }
-  vm.runInNewContext(outputText, { module, exports: module.exports, console, Request, Response, URL, Blob, FormData, fetch, process, ...globals, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name) })
+  vm.runInNewContext(outputText, { module, exports: module.exports, console, Request, Response, URL, Blob, FormData, fetch, process, setTimeout, ...globals, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name) })
   return module.exports
 }
 
@@ -105,10 +105,15 @@ try {
   await db.insert(schema.newsletters).values({ id: 'campaign', subject: 'Campaign', html: '<p>News</p>', text: 'News', createdBy: 'user-a', status: 'scheduled', scheduledAt, totalRecipients: 2 })
   await db.insert(schema.newsletterRecipients).values(recipients.map((recipient, index) => ({ id: `recipient-${index}`, newsletterId: 'campaign', ...recipient })))
   let importStatus = 'processing'
+  let importChecks = 0
+  let completeAfterChecks = Number.POSITIVE_INFINITY
   const cronEmail = {
     createNewsletterSegment: async () => 'segment-id',
     createNewsletterContactImport: async () => 'import-id',
-    getNewsletterContactImport: async () => ({ status: importStatus, counts: { total: 2, created: 2, updated: 0, skipped: 0, failed: 0 } }),
+    getNewsletterContactImport: async () => {
+      importChecks += 1
+      return { status: importChecks >= completeAfterChecks ? 'completed' : importStatus, counts: { total: 2, created: 2, updated: 0, skipped: 0, failed: 0 } }
+    },
     createNewsletterBroadcast: async () => 'broadcast-id',
     getNewsletterBroadcast: async () => ({ status: 'sent', sent_at: new Date().toISOString() }),
     getNewsletterBroadcastMetrics: async () => ({ sent: 2, delivered: 2, opened: 1, clicked: 1, bounced: 0, complained: 0, unsubscribed: 0, suppressed: 0 })
@@ -150,12 +155,16 @@ try {
     '@/lib/newsletter-broadcasts': campaignProcessor,
     '@/lib/server-auth': { getAuthenticatedAdmin: async () => ({ session: { user: { id: 'user-a' } } }) }
   }).POST
+  importStatus = 'processing'
+  importChecks = 0
+  completeAfterChecks = 3
   const sendNowResponse = await sendNow(new Request('http://localhost/api/admin/newsletters', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: 'Immediate message', html: '<p>Now</p>', text: 'Now', status: 'send_now', groupIds: ['group'], includeInactive: true }) }))
   assert.equal(sendNowResponse.status, 201)
   const immediateNewsletter = (await sendNowResponse.json()).newsletter
   assert.equal(immediateNewsletter.status, 'sent')
   assert.equal(immediateNewsletter.scheduledAt, null)
   assert.equal(immediateNewsletter.totalSent, 2)
+  assert.equal(importChecks, 3, 'Send now waits for the asynchronous contact import before creating the Broadcast')
   if (originalSecret === undefined) delete process.env.CRON_SECRET
   else process.env.CRON_SECRET = originalSecret
   console.log('Recipient deduplication, contact import, unsubscribe content, Broadcast creation, Send now, sent history, delivery metrics, and status reconciliation verified.')

@@ -49,8 +49,8 @@ export async function POST(request: Request) {
       await db.update(newsletters).set({ totalRecipients }).where(eq(newsletters.id, newsletter.id))
       newsletter.totalRecipients = totalRecipients
     }
-    if (sendNow) {
-      await processNewsletterCampaign(newsletter)
+    if (activate) {
+      await processNewsletterCampaign(newsletter, { waitForImport: true })
       ;[newsletter] = await db.select().from(newsletters).where(eq(newsletters.id, newsletter.id)).limit(1)
     }
     return NextResponse.json({ newsletter }, { status: 201 })

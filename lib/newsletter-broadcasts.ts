@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { newsletterRecipients, newsletters } from '@/lib/schema'
 import { createNewsletterBroadcast, createNewsletterContactImport, createNewsletterSegment, getNewsletterBroadcast, getNewsletterContactImport } from '@/lib/email'
 
-export async function processNewsletterCampaign(newsletter: typeof newsletters.$inferSelect): Promise<'pending' | 'prepared' | 'sent' | 'failed'> {
+export async function processNewsletterCampaign(newsletter: typeof newsletters.$inferSelect, options: { waitForImport?: boolean } = {}): Promise<'pending' | 'prepared' | 'sent' | 'failed'> {
   try {
     if (newsletter.resendBroadcastId) {
       const broadcast = await getNewsletterBroadcast(newsletter.resendBroadcastId)
@@ -47,7 +47,11 @@ export async function processNewsletterCampaign(newsletter: typeof newsletters.$
       await db.update(newsletters).set({ resendContactImportId: contactImportId, updatedAt: new Date().toISOString() }).where(eq(newsletters.id, newsletter.id))
     }
 
-    const contactImport = await getNewsletterContactImport(contactImportId)
+    let contactImport = await getNewsletterContactImport(contactImportId)
+    for (let attempt = 0; options.waitForImport && !['completed', 'failed', 'canceled'].includes(contactImport.status) && attempt < 12; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      contactImport = await getNewsletterContactImport(contactImportId)
+    }
     if (contactImport.status !== 'completed') {
       if (['failed', 'canceled'].includes(contactImport.status)) throw new Error(`Resend contact import ${contactImport.status}`)
       return 'pending'

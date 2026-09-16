@@ -91,9 +91,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ne
       await db.update(newsletters).set({ totalRecipients, totalSent: 0, totalFailed: 0, updatedAt: now }).where(eq(newsletters.id, newsletterId))
     }
     let newsletter = existing
-    if (sendNow) {
+    if (activate) {
       ;[newsletter] = await db.select().from(newsletters).where(eq(newsletters.id, newsletterId)).limit(1)
-      await processNewsletterCampaign(newsletter)
+      await processNewsletterCampaign(newsletter, { waitForImport: true })
     }
     ;[newsletter] = await db.select().from(newsletters).where(eq(newsletters.id, newsletterId)).limit(1)
     return NextResponse.json({ success: true, newsletter })
@@ -101,6 +101,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ne
     console.error('Error updating newsletter:', error)
     return NextResponse.json({ error: 'Failed to update newsletter' }, { status: 500 })
   }
+}
+
+export async function POST(_request: Request, { params }: { params: Promise<{ newsletterId: string }> }) {
+  const auth = await getAuthenticatedAdmin('newsletters')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const { newsletterId } = await params
+  let [newsletter] = await db.select().from(newsletters).where(eq(newsletters.id, newsletterId)).limit(1)
+  if (!newsletter) return NextResponse.json({ error: 'Newsletter not found' }, { status: 404 })
+  if (newsletter.status !== 'processing') return NextResponse.json({ error: 'Only a message still preparing its recipients can be continued' }, { status: 400 })
+  await processNewsletterCampaign(newsletter, { waitForImport: true })
+  ;[newsletter] = await db.select().from(newsletters).where(eq(newsletters.id, newsletterId)).limit(1)
+  return NextResponse.json({ newsletter })
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ newsletterId: string }> }) {
