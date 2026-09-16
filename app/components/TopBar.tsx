@@ -15,6 +15,7 @@ export default function TopBar() {
   const [showMore, setShowMore] = useState(false)
   const [showAdminLinks, setShowAdminLinks] = useState(false)
   const moreMenuRef = useRef<HTMLDivElement>(null)
+  const mobileMenuRef = useRef<HTMLElement>(null)
 
   const userName = user
     ? [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
@@ -48,6 +49,15 @@ export default function TopBar() {
     return () => document.removeEventListener('mousedown', handleOutsideClick)
   }, [showMore])
 
+  useEffect(() => {
+    if (!showMenu) return
+    const handleOutsidePress = (event: PointerEvent) => {
+      if (!mobileMenuRef.current?.contains(event.target as Node)) setShowMenu(false)
+    }
+    document.addEventListener('pointerdown', handleOutsidePress)
+    return () => document.removeEventListener('pointerdown', handleOutsidePress)
+  }, [showMenu])
+
   // Don't show the top bar on auth pages or if no session
   if (!user || pathname === '/signin' || pathname === '/register' || pathname === '/forgot-password' || pathname === '/reset-password') {
     return null
@@ -77,7 +87,7 @@ export default function TopBar() {
         <button onClick={exitEmulation} className="font-semibold underline whitespace-nowrap">Exit emulation</button>
       </div>
     )}
-    <nav className="print:hidden sticky top-0 z-50 bg-white shadow">
+    <nav ref={mobileMenuRef} className="print:hidden sticky top-0 z-50 bg-white shadow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 gap-4">
           <div className="flex items-center gap-4 min-w-0">
@@ -85,12 +95,13 @@ export default function TopBar() {
               onClick={() => setShowMenu((prev) => !prev)}
               className="sm:hidden p-2 rounded-md border border-gray-200 text-gray-600"
               aria-label="Toggle navigation"
+              aria-expanded={showMenu}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
-            <Link href="/" className="shrink-0">
+            <Link href="/" onClick={() => setShowMenu(false)} className="shrink-0">
               <BrandLogo variant="horizontal" width={150} alt="DVCLC home" />
             </Link>
             <div className="hidden sm:flex items-center gap-2">
@@ -163,6 +174,7 @@ export default function TopBar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => setShowMenu(false)}
                 className="px-3 py-2 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-100"
               >
                 {item.label}
@@ -173,6 +185,7 @@ export default function TopBar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  onClick={() => setShowMenu(false)}
                   className="block px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md"
                 >
                   {item.label}
