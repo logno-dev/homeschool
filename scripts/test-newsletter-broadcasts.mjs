@@ -107,6 +107,7 @@ try {
   let importStatus = 'processing'
   let importChecks = 0
   let completeAfterChecks = Number.POSITIVE_INFINITY
+  let broadcastMetrics = { sent: 0, delivered: 0, opened: 0, clicked: 0, bounced: 0, complained: 0, unsubscribed: 0, suppressed: 0 }
   const cronEmail = {
     createNewsletterSegment: async () => 'segment-id',
     createNewsletterContactImport: async () => 'import-id',
@@ -116,7 +117,7 @@ try {
     },
     createNewsletterBroadcast: async () => 'broadcast-id',
     getNewsletterBroadcast: async () => ({ status: 'sent', sent_at: new Date().toISOString() }),
-    getNewsletterBroadcastMetrics: async () => ({ sent: 2, delivered: 2, opened: 1, clicked: 1, bounced: 0, complained: 0, unsubscribed: 0, suppressed: 0 })
+    getNewsletterBroadcastMetrics: async () => broadcastMetrics
   }
   const campaignProcessor = load('lib/newsletter-broadcasts.ts', { '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/email': cronEmail })
   const cron = load('app/api/cron/newsletters/route.ts', { '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/newsletter-broadcasts': campaignProcessor }).GET
@@ -137,6 +138,7 @@ try {
   ;[campaign] = await db.select().from(schema.newsletters).where(eq(schema.newsletters.id, 'campaign'))
   assert.equal(campaign.status, 'sent')
   assert.equal((await db.select().from(schema.newsletterRecipients)).filter(row => row.status === 'sent').length, 2)
+  await db.update(schema.newsletters).set({ sentAt: new Date(Date.now() - 20 * 60 * 1000).toISOString() }).where(eq(schema.newsletters.id, 'campaign'))
   const newsletterDetails = load('app/api/admin/newsletters/[newsletterId]/route.ts', {
     '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/newsletters': newsletterHelpers, '@/lib/email': cronEmail, '@/lib/email-content': emailContent,
     '@/lib/newsletter-broadcasts': campaignProcessor,
@@ -144,7 +146,11 @@ try {
   }).GET
   const detailsResponse = await newsletterDetails(new Request('http://localhost/api/admin/newsletters/campaign?refresh=1'), { params: Promise.resolve({ newsletterId: 'campaign' }) })
   assert.equal(detailsResponse.status, 200)
-  const campaignDetails = (await detailsResponse.json()).newsletter
+  let campaignDetails = (await detailsResponse.json()).newsletter
+  assert.equal(campaignDetails.totalSent, 2, 'A temporarily empty metrics response does not erase the accepted send count')
+  broadcastMetrics = { sent: 2, delivered: 2, opened: 1, clicked: 1, bounced: 0, complained: 0, unsubscribed: 0, suppressed: 0 }
+  const refreshedDetailsResponse = await newsletterDetails(new Request('http://localhost/api/admin/newsletters/campaign?refresh=1'), { params: Promise.resolve({ newsletterId: 'campaign' }) })
+  campaignDetails = (await refreshedDetailsResponse.json()).newsletter
   assert.equal(campaignDetails.deliveredCount, 2)
   assert.equal(campaignDetails.openedCount, 1)
   assert.equal(campaignDetails.clickedCount, 1)

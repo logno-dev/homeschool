@@ -66,6 +66,15 @@ export default function AdminNewslettersPage() {
     load().catch((error) => setMessage(error instanceof Error ? error.message : 'Unable to load messages'))
   }, [loading, user, router])
 
+  useEffect(() => {
+    if (!selectedDetails?.resendBroadcastId || selectedDetails.status !== 'sent') return
+    const refreshFrom = selectedDetails.metricsUpdatedAt || selectedDetails.sentAt
+    if (!refreshFrom) return
+    const delay = Math.max(0, new Date(refreshFrom).getTime() + 15 * 60 * 1000 + 5000 - Date.now())
+    const timer = window.setTimeout(() => selectMessage(selectedDetails.id, true), delay)
+    return () => window.clearTimeout(timer)
+  }, [selectedDetails?.id, selectedDetails?.status, selectedDetails?.resendBroadcastId, selectedDetails?.sentAt, selectedDetails?.metricsUpdatedAt])
+
   const newMessage = (nextMode: Mode) => {
     setSelectedId(null)
     setSelectedDetails(null)
@@ -139,7 +148,7 @@ export default function AdminNewslettersPage() {
   const modeTitle = mode === 'newsletter' ? 'Newsletter' : mode === 'bulk_email' ? 'Bulk email' : 'Individual email'
   const activeMessages = messages.filter((entry) => entry.status !== 'sent')
   const sentMessages = messages.filter((entry) => entry.status === 'sent')
-  const metricRate = (count: number) => selectedDetails?.totalSent ? `${Math.round(count / selectedDetails.totalSent * 100)}%` : '0%'
+  const metricRate = (count: number) => metricsError.includes('15 minutes') ? 'Pending' : selectedDetails?.totalSent ? `${Math.round(count / selectedDetails.totalSent * 100)}%` : '0%'
   const messageButton = (entry: Newsletter) => <button key={entry.id} onClick={() => selectMessage(entry.id)} className={`w-full rounded-md border px-3 py-3 text-left ${selectedId === entry.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}><p className="truncate text-sm font-medium text-gray-900">{entry.subject || 'Untitled message'}</p><p className="mt-1 text-xs capitalize text-gray-500">{entry.kind === 'bulk_email' ? 'Bulk email' : 'Newsletter'} · {entry.status.replaceAll('_', ' ')}</p>{entry.sentAt && <p className="mt-1 text-xs text-gray-400">{new Date(entry.sentAt).toLocaleString()}</p>}</button>
 
   return <AdminLayout userName={userName} activeTab="newsletters">

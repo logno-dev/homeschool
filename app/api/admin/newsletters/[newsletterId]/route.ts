@@ -16,14 +16,22 @@ export async function GET(request: Request, { params }: { params: Promise<{ news
   let [newsletter] = await db.select().from(newsletters).where(eq(newsletters.id, newsletterId)).limit(1)
   if (!newsletter) return NextResponse.json({ error: 'Newsletter not found' }, { status: 404 })
   let metricsError: string | null = null
+  if (newsletter.status === 'sent' && newsletter.resendBroadcastId) {
+    const knownSent = Math.max(newsletter.totalSent, newsletter.totalRecipients - newsletter.totalFailed)
+    if (knownSent !== newsletter.totalSent) {
+      await db.update(newsletters).set({ totalSent: knownSent }).where(eq(newsletters.id, newsletterId))
+      newsletter = { ...newsletter, totalSent: knownSent }
+    }
+  }
   const forceMetrics = new URL(request.url).searchParams.get('refresh') === '1'
   const metricsAreStale = !newsletter.metricsUpdatedAt || Date.now() - new Date(newsletter.metricsUpdatedAt).getTime() >= 15 * 60 * 1000
-  if (newsletter.status === 'sent' && newsletter.resendBroadcastId && (forceMetrics || metricsAreStale)) {
+  const metricsReady = !newsletter.sentAt || Date.now() - new Date(newsletter.sentAt).getTime() >= 15 * 60 * 1000
+  if (newsletter.status === 'sent' && newsletter.resendBroadcastId && metricsReady && (forceMetrics || metricsAreStale)) {
     try {
       const metrics = await getNewsletterBroadcastMetrics(newsletter.resendBroadcastId)
       const metricsUpdatedAt = new Date().toISOString()
       await db.update(newsletters).set({
-        totalSent: metrics.sent,
+        totalSent: Math.max(newsletter.totalSent, metrics.sent),
         deliveredCount: metrics.delivered,
         openedCount: metrics.opened,
         clickedCount: metrics.clicked,
@@ -39,6 +47,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ news
       metricsError = error instanceof Error ? error.message : 'Unable to refresh Resend delivery details'
       console.error('Error refreshing newsletter delivery metrics:', error)
     }
+  } else if (newsletter.status === 'sent' && newsletter.resendBroadcastId && !metricsReady) {
+    metricsError = 'Resend delivery details can take up to 15 minutes to become available.'
   }
   const groupIds = await getNewsletterGroupIds(newsletterId)
   const recipients = await db.select().from(newsletterRecipients).where(eq(newsletterRecipients.newsletterId, newsletterId))
