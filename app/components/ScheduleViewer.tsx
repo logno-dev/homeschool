@@ -15,6 +15,7 @@ interface ScheduleEntry {
     description: string
     gradeRange: string
     coTeacher?: string | null
+    studentCoTeacherChildId?: string | null
   }
   classroom: {
     id: string
@@ -31,7 +32,7 @@ interface ScheduleEntry {
     lastName: string
     grade: string
     status?: string
-    role?: 'student_teacher'
+    role?: 'student_teacher' | 'student_co_teacher'
   }>
 }
 
@@ -101,7 +102,7 @@ export default function ScheduleViewer({
   }), [schedules])
 
   const schedulesByCell = useMemo(() => new Map(schedules.map((entry) => [`${entry.classroom.id}-${entry.schedule.period}`, entry])), [schedules])
-  const registeredStudentCount = (entry: ScheduleEntry) => entry.roster.filter((student) => student.role !== 'student_teacher').length
+  const registeredStudentCount = (entry: ScheduleEntry) => entry.roster.filter((student) => student.role !== 'student_teacher' && student.role !== 'student_co_teacher').length
 
   return (
     <div className="space-y-8">
@@ -169,7 +170,7 @@ export default function ScheduleViewer({
                         </div>
                         <div className="text-xs text-slate-500 text-right">
                           <div>Teacher: {entry.teacher.firstName} {entry.teacher.lastName}</div>
-                          {entry.classTeachingRequest.coTeacher && <div>Co-teacher: {entry.classTeachingRequest.coTeacher}</div>}
+                           {entry.classTeachingRequest.coTeacher && <div>{entry.classTeachingRequest.studentCoTeacherChildId ? 'Student co-teacher' : 'Co-teacher'}: {entry.classTeachingRequest.coTeacher}</div>}
                           <div className="mt-1">Grade {entry.classTeachingRequest.gradeRange}</div>
                         </div>
                       </div>
@@ -181,12 +182,12 @@ export default function ScheduleViewer({
                           <div className="mt-2 max-h-40 overflow-y-auto space-y-1">
                             {roster.map((student) => {
                               const status = student.status || 'registered'
-                              const isStudentTeacher = student.role === 'student_teacher'
+                               const isStudentTeacher = student.role === 'student_teacher' || student.role === 'student_co_teacher'
                               const isReserved = status === 'hold' || status === 'pending'
                               return (
                                 <div key={student.id} className="flex items-center justify-between text-sm text-slate-700">
                                   <span>{student.lastName}, {student.firstName} (Grade {student.grade})</span>
-                                  {isStudentTeacher ? <span className="text-xs font-medium text-purple-700">Student teacher</span> : isReserved && (
+                                   {isStudentTeacher ? <span className="text-xs font-medium text-purple-700">{student.role === 'student_co_teacher' ? 'Student co-teacher' : 'Student teacher'}</span> : isReserved && (
                                     <span className="text-xs text-amber-600">Reserved</span>
                                   )}
                                 </div>
@@ -244,7 +245,7 @@ export default function ScheduleViewer({
             <div>
               <p className="text-sm text-slate-500">{selectedGridEntry.classroom.name} • {PERIODS.find((period) => period.id === selectedGridEntry.schedule.period)?.name}</p>
               <p className="mt-1 text-sm text-slate-700"><strong>Teacher:</strong> {`${selectedGridEntry.teacher.firstName} ${selectedGridEntry.teacher.lastName}`.trim()}</p>
-              {selectedGridEntry.classTeachingRequest.coTeacher && <p className="mt-1 text-sm text-slate-700"><strong>Co-teacher:</strong> {selectedGridEntry.classTeachingRequest.coTeacher}</p>}
+               {selectedGridEntry.classTeachingRequest.coTeacher && <p className="mt-1 text-sm text-slate-700"><strong>{selectedGridEntry.classTeachingRequest.studentCoTeacherChildId ? 'Student co-teacher' : 'Co-teacher'}:</strong> {selectedGridEntry.classTeachingRequest.coTeacher}</p>}
               <p className="mt-1 text-sm text-slate-700"><strong>Grade range:</strong> {selectedGridEntry.classTeachingRequest.gradeRange}</p>
             </div>
             <div>
@@ -252,8 +253,8 @@ export default function ScheduleViewer({
               <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{selectedGridEntry.classTeachingRequest.description}</p>
             </div>
             <div>
-              <h4 className="font-semibold text-slate-900">Roster ({registeredStudentCount(selectedGridEntry)} students{selectedGridEntry.roster.some((student) => student.role === 'student_teacher') ? ', 1 student teacher' : ''})</h4>
-              {selectedGridEntry.roster.length === 0 ? <p className="mt-2 text-sm text-slate-500">No students registered yet.</p> : <div className="mt-2 space-y-2">{[...selectedGridEntry.roster].sort((a, b) => a.lastName.localeCompare(b.lastName)).map((student) => <div key={student.id} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700"><span>{student.lastName}, {student.firstName} (Grade {student.grade})</span>{student.role === 'student_teacher' ? <span className="text-xs font-medium text-purple-700">Student teacher</span> : (student.status === 'hold' || student.status === 'pending') && <span className="text-xs text-amber-600">Reserved</span>}</div>)}</div>}
+              <h4 className="font-semibold text-slate-900">Roster ({registeredStudentCount(selectedGridEntry)} students)</h4>
+              {selectedGridEntry.roster.length === 0 ? <p className="mt-2 text-sm text-slate-500">No students registered yet.</p> : <div className="mt-2 space-y-2">{[...selectedGridEntry.roster].sort((a, b) => a.lastName.localeCompare(b.lastName)).map((student) => <div key={student.id} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-700"><span>{student.lastName}, {student.firstName} (Grade {student.grade})</span>{student.role === 'student_teacher' || student.role === 'student_co_teacher' ? <span className="text-xs font-medium text-purple-700">{student.role === 'student_co_teacher' ? 'Student co-teacher' : 'Student teacher'}</span> : (student.status === 'hold' || student.status === 'pending') && <span className="text-xs text-amber-600">Reserved</span>}</div>)}</div>}
             </div>
           </div>
         )}

@@ -197,6 +197,13 @@
       "when": 1789430400000,
       "tag": "0055_class_student_teacher",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1789516800000,
+      "tag": "0056_class_student_co_teacher",
+      "breakpoints": true
     }
   ]
 }

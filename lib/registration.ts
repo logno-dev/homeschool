@@ -73,15 +73,17 @@ function buildTeachingAssignments(schedules: any[], guardians: any[]): TeachingA
 
   const guardianIds = new Set(guardians.map((guardian) => guardian.id))
 
-  return schedules
-    .filter((schedule) => schedule.teacher?.id && guardianIds.has(schedule.teacher.id))
-    .map((schedule) => ({
-      guardianId: schedule.teacher.id,
+  return schedules.flatMap((schedule) => {
+    const assignedGuardianIds = [schedule.teacher?.id, schedule.classTeachingRequest.coTeacherId]
+      .filter((id): id is string => Boolean(id) && guardianIds.has(id))
+    return Array.from(new Set(assignedGuardianIds)).map((guardianId) => ({
+      guardianId,
       period: schedule.schedule.period,
       className: schedule.classTeachingRequest.className,
       volunteerType: 'teacher',
-      guardianName: guardianLookup[schedule.teacher.id] || 'Unknown'
+      guardianName: guardianLookup[guardianId] || 'Unknown'
     }))
+  })
 }
 
 async function getFamilyHoldSelections(sessionId: string, userId: string, visibleJobs: Map<string, string[]>) {

@@ -23,7 +23,7 @@ export async function GET() {
     ])
     const teacherNames = new Map(teachers.map((teacher) => [teacher.id, `${teacher.firstName} ${teacher.lastName}`.trim()]))
     const studentTeacherNames = new Map(studentTeachers.map((child) => [child.id, `${child.firstName} ${child.lastName}`.trim()]))
-    return NextResponse.json({ requests: requests.map((request) => ({ ...request, teacherDisplayName: request.teacherName || (request.guardianId ? teacherNames.get(request.guardianId) : null) || 'Unassigned', studentTeacherDisplayName: request.studentTeacherChildId ? studentTeacherNames.get(request.studentTeacherChildId) || null : null })), sessions: sessionsList, teachers, children: studentTeachers })
+    return NextResponse.json({ requests: requests.map((request) => ({ ...request, teacherDisplayName: request.teacherName || (request.guardianId ? teacherNames.get(request.guardianId) : null) || 'Unassigned', studentTeacherDisplayName: request.studentTeacherChildId ? studentTeacherNames.get(request.studentTeacherChildId) || null : null, studentCoTeacherDisplayName: request.studentCoTeacherChildId ? studentTeacherNames.get(request.studentCoTeacherChildId) || null : null })), sessions: sessionsList, teachers, children: studentTeachers })
   } catch (error) {
     console.error('Error fetching class teaching requests:', error)
     return NextResponse.json(
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     if (requestedTeacherId && !selectedTeacher) return NextResponse.json({ error: 'Teacher not found' }, { status: 404 })
     const guardianId = selectedTeacher?.id || null
     const [selectedCoTeacher] = requestedCoTeacherId
-      ? await db.select({ id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName }).from(guardians).where(eq(guardians.id, requestedCoTeacherId)).limit(1)
+      ? await db.select({ id: guardians.id, familyId: guardians.familyId, firstName: guardians.firstName, lastName: guardians.lastName }).from(guardians).where(eq(guardians.id, requestedCoTeacherId)).limit(1)
       : []
     if (requestedCoTeacherId && !selectedCoTeacher) return NextResponse.json({ error: 'Co-teacher not found' }, { status: 404 })
     if (selectedTeacher?.id && selectedCoTeacher?.id === selectedTeacher.id) return NextResponse.json({ error: 'A teacher cannot also be the co-teacher' }, { status: 400 })
@@ -74,6 +74,13 @@ export async function POST(request: Request) {
       : []
     if (studentTeacherChildId && !selectedTeacher) return NextResponse.json({ error: 'Select an assigned parent teacher before choosing a student teacher' }, { status: 400 })
     if (studentTeacherChildId && !studentTeacher) return NextResponse.json({ error: "Student teacher must belong to the selected teacher's family" }, { status: 400 })
+    const studentCoTeacherChildId = String(body.studentCoTeacherChildId || '')
+    const [studentCoTeacher] = studentCoTeacherChildId && selectedCoTeacher
+      ? await db.select({ id: children.id }).from(children).where(and(eq(children.id, studentCoTeacherChildId), eq(children.familyId, selectedCoTeacher.familyId))).limit(1)
+      : []
+    if (studentCoTeacherChildId && !selectedCoTeacher) return NextResponse.json({ error: 'Select the student co-teacher parent first' }, { status: 400 })
+    if (studentCoTeacherChildId && !studentCoTeacher) return NextResponse.json({ error: "Student co-teacher must belong to the selected co-teacher parent's family" }, { status: 400 })
+    if (studentTeacher?.id && studentTeacher.id === studentCoTeacher?.id) return NextResponse.json({ error: 'The same child cannot be both student teacher and student co-teacher' }, { status: 400 })
 
     const now = new Date().toISOString()
     const [created] = await db.insert(classTeachingRequests).values({
@@ -91,6 +98,7 @@ export async function POST(request: Request) {
       coTeacher: selectedCoTeacher ? `${selectedCoTeacher.firstName} ${selectedCoTeacher.lastName}`.trim() : requestedCoTeacherName || null,
       coTeacherId: selectedCoTeacher?.id || null,
       studentTeacherChildId: studentTeacher?.id || null,
+      studentCoTeacherChildId: studentCoTeacher?.id || null,
       classroomNeeds: String(body.classroomNeeds || '').trim() || null,
       registrationFeeExempt: Boolean(body.registrationFeeExempt),
       requiresFee: Boolean(body.requiresFee),

@@ -24,10 +24,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
       classroomDescription: sessionClassrooms.description,
       guardianId: classTeachingRequests.guardianId,
       coTeacherId: classTeachingRequests.coTeacherId,
+      coTeacherName: classTeachingRequests.coTeacher,
       teacherName: classTeachingRequests.teacherName,
       guardianFirstName: guardians.firstName,
       guardianLastName: guardians.lastName,
       studentTeacherChildId: classTeachingRequests.studentTeacherChildId,
+      studentCoTeacherChildId: classTeachingRequests.studentCoTeacherChildId,
     })
     .from(schedules)
     .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
@@ -41,7 +43,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
   const teachingClasses = reviewSchedule.filter((entry) => entry.guardianId === guardian.id || entry.coTeacherId === guardian.id)
   if (!teachingClasses.length) return NextResponse.json({ classes: [], reviewSchedule: [], classrooms: [], registrationStarted: false })
   const scheduleIds = teachingClasses.map((entry) => entry.scheduleId)
-  const studentTeacherIds = reviewSchedule.map((entry) => entry.studentTeacherChildId).filter((id): id is string => Boolean(id))
+  const studentTeacherIds = reviewSchedule.flatMap((entry) => [entry.studentTeacherChildId, entry.studentCoTeacherChildId]).filter((id): id is string => Boolean(id))
   const [registeredStudents, studentTeachers, sessionRows, registrationWindows] = await Promise.all([
     db
       .select({ scheduleId: classRegistrations.scheduleId, id: children.id, firstName: children.firstName, lastName: children.lastName, grade: children.grade, allergies: children.allergies })
@@ -66,6 +68,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
     classrooms,
     reviewSchedule: reviewSchedule.map((entry) => {
       const studentTeacher = entry.studentTeacherChildId ? studentTeacherById.get(entry.studentTeacherChildId) : undefined
+      const studentCoTeacher = entry.studentCoTeacherChildId ? studentTeacherById.get(entry.studentCoTeacherChildId) : undefined
       return {
         id: entry.scheduleId,
         classroomId: entry.classroomId,
@@ -74,20 +77,25 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
         gradeRange: entry.gradeRange,
         teacherName: studentTeacher
           ? `${studentTeacher.firstName} ${studentTeacher.lastName}`
-          : entry.teacherName || [entry.guardianFirstName, entry.guardianLastName].filter(Boolean).join(' ') || 'Teacher'
+          : entry.teacherName || [entry.guardianFirstName, entry.guardianLastName].filter(Boolean).join(' ') || 'Teacher',
+        coTeacherName: studentCoTeacher ? `${studentCoTeacher.firstName} ${studentCoTeacher.lastName}` : entry.coTeacherName,
+        isStudentCoTeacher: Boolean(studentCoTeacher)
       }
     }),
     classes: teachingClasses.map((entry) => {
       const roster = registeredStudents.filter((student) => student.scheduleId === entry.scheduleId).map(({ scheduleId: _scheduleId, ...student }) => ({ ...student, role: 'student' }))
       const studentTeacher = entry.studentTeacherChildId ? studentTeacherById.get(entry.studentTeacherChildId) : undefined
+      const studentCoTeacher = entry.studentCoTeacherChildId ? studentTeacherById.get(entry.studentCoTeacherChildId) : undefined
       return {
         scheduleId: entry.scheduleId,
         className: entry.className,
         classroomName: entry.classroomName,
         period: entry.period,
-        roster: studentTeacher
-          ? [{ ...studentTeacher, role: 'student_teacher' }, ...roster.filter((student) => student.id !== studentTeacher.id)]
-          : roster
+        roster: [
+          ...(studentTeacher ? [{ ...studentTeacher, role: 'student_teacher' }] : []),
+          ...(studentCoTeacher ? [{ ...studentCoTeacher, role: 'student_co_teacher' }] : []),
+          ...roster.filter((student) => student.id !== studentTeacher?.id && student.id !== studentCoTeacher?.id)
+        ]
       }
     })
   })

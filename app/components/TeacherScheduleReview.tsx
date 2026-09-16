@@ -10,6 +10,8 @@ interface ScheduleEntry {
   period: string
   className: string
   teacherName: string
+  coTeacherName?: string | null
+  isStudentCoTeacher?: boolean
   gradeRange: string
 }
 
@@ -31,7 +33,7 @@ interface TeachingClass {
   className: string
   classroomName: string
   period: string
-  roster: Array<{ id: string; firstName: string; lastName: string; grade: string; allergies: string | null; role: 'student' | 'student_teacher' }>
+  roster: Array<{ id: string; firstName: string; lastName: string; grade: string; allergies: string | null; role: 'student' | 'student_teacher' | 'student_co_teacher' }>
 }
 
 export default function TeacherScheduleReview() {
@@ -217,7 +219,7 @@ export default function TeacherScheduleReview() {
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-medium text-gray-900">{student.lastName}, {student.firstName}</span>
                             <span className="text-xs text-gray-500">Grade {student.grade}</span>
-                            {student.role === 'student_teacher' && <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">Student teacher</span>}
+                            {(student.role === 'student_teacher' || student.role === 'student_co_teacher') && <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">{student.role === 'student_co_teacher' ? 'Student co-teacher' : 'Student teacher'}</span>}
                           </div>
                           <p className={`mt-1 text-sm ${student.allergies?.trim() ? 'font-medium text-red-700' : 'text-gray-500'}`}>Allergies: {student.allergies?.trim() || 'None reported'}</p>
                         </div>
@@ -264,7 +266,8 @@ export default function TeacherScheduleReview() {
                         {entry ? (
                           <div className="space-y-1">
                             <div className="font-medium text-gray-900">{entry.className}</div>
-                            <div className="text-xs text-gray-500">{entry.teacherName}</div>
+                             <div className="text-xs text-gray-500">{entry.teacherName}</div>
+                             {entry.coTeacherName && <div className="text-xs text-gray-500">{entry.isStudentCoTeacher ? 'Student co-teacher' : 'Co-teacher'}: {entry.coTeacherName}</div>}
                             <div className="text-xs text-gray-500">{entry.gradeRange}</div>
                           </div>
                         ) : (
@@ -304,7 +307,8 @@ export default function TeacherScheduleReview() {
                         {entry ? (
                           <div className="space-y-1 text-sm text-gray-700">
                             <div className="font-medium text-gray-900">{entry.className}</div>
-                            <div>Teacher: {entry.teacherName}</div>
+                             <div>Teacher: {entry.teacherName}</div>
+                             {entry.coTeacherName && <div>{entry.isStudentCoTeacher ? 'Student co-teacher' : 'Co-teacher'}: {entry.coTeacherName}</div>}
                             <div>Grade Range: {entry.gradeRange}</div>
                           </div>
                         ) : (

@@ -14,7 +14,7 @@ interface ClassRegistration {
     id: string
     childId: string
     status: string
-    role?: 'student_teacher'
+    role?: 'student_teacher' | 'student_co_teacher'
   }
   schedule: {
     id: string
@@ -157,7 +157,7 @@ export default function ReadonlyScheduleView({
                               <p className="text-xs text-blue-700">
                                 {reg.child.firstName} {reg.child.lastName} (Grade {reg.child.grade})
                               </p>
-                              {reg.registration.role === 'student_teacher' && <p className="text-xs font-medium text-purple-700">Student teacher</p>}
+                              {(reg.registration.role === 'student_teacher' || reg.registration.role === 'student_co_teacher') && <p className="text-xs font-medium text-purple-700">{reg.registration.role === 'student_co_teacher' ? 'Student co-teacher' : 'Student teacher'}</p>}
                               <p className="text-xs text-blue-700">
                                 Room: {reg.classroom.name}
                               </p>
@@ -233,7 +233,7 @@ export default function ReadonlyScheduleView({
                               <p className="text-xs text-blue-700">
                                 {reg.child.firstName} {reg.child.lastName} (Grade {reg.child.grade})
                               </p>
-                              {reg.registration.role === 'student_teacher' && <p className="text-xs font-medium text-purple-700">Student teacher</p>}
+                              {(reg.registration.role === 'student_teacher' || reg.registration.role === 'student_co_teacher') && <p className="text-xs font-medium text-purple-700">{reg.registration.role === 'student_co_teacher' ? 'Student co-teacher' : 'Student teacher'}</p>}
                               <p className="text-xs text-blue-700">Room: {reg.classroom.name}</p>
                               <p className="text-xs text-blue-600">Grade Range: {reg.classTeachingRequest.gradeRange}</p>
                               {reg.registration.status === 'hold' && <p className="mt-1 text-xs font-semibold text-amber-700">Reserved in cart — not yet confirmed</p>}

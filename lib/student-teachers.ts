@@ -1,5 +1,5 @@
 import 'server-only'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, or } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { classTeachingRequests, schedules } from '@/lib/schema'
 
@@ -12,7 +12,7 @@ export async function getStudentTeacherAssignment(sessionId: string, childId: st
       eq(schedules.sessionId, sessionId),
       eq(schedules.status, 'published'),
       eq(schedules.period, period),
-      eq(classTeachingRequests.studentTeacherChildId, childId)
+      or(eq(classTeachingRequests.studentTeacherChildId, childId), eq(classTeachingRequests.studentCoTeacherChildId, childId))
     ))
     .limit(1)
   return assignment || null

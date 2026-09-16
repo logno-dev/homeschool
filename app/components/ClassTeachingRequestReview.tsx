@@ -5,16 +5,16 @@ import type { ClassTeachingRequest, Session } from '@/lib/schema'
 import { BUILT_IN_GRADE_RANGES } from '@/lib/grades'
 import SessionOptions from './SessionOptions'
 
-type ReviewRequest = ClassTeachingRequest & { session?: Session; teacherDisplayName?: string; studentTeacherDisplayName?: string | null }
+type ReviewRequest = ClassTeachingRequest & { session?: Session; teacherDisplayName?: string; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
 
 interface ClassTeachingRequestReviewProps {
-  initialRequests: (ClassTeachingRequest & { session: Session; teacherDisplayName?: string; studentTeacherDisplayName?: string | null })[]
+  initialRequests: (ClassTeachingRequest & { session: Session; teacherDisplayName?: string; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null })[]
   teachers?: Array<{ id: string; familyId: string; firstName: string; lastName: string; email: string }>
   children?: Array<{ id: string; familyId: string; firstName: string; lastName: string; grade: string }>
 }
 
 export default function ClassTeachingRequestReview({ initialRequests, teachers = [], children = [] }: ClassTeachingRequestReviewProps) {
-  const [requests, setRequests] = useState<(ClassTeachingRequest & { session: Session; teacherDisplayName?: string; studentTeacherDisplayName?: string | null })[]>(initialRequests)
+  const [requests, setRequests] = useState<(ClassTeachingRequest & { session: Session; teacherDisplayName?: string; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null })[]>(initialRequests)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<ReviewRequest | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
@@ -84,8 +84,13 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
       }
 
       const data = await response.json()
-       setRequests(requests.map(r => r.id === selectedRequest.id ? { ...r, ...data.request, session: r.session } : r))
-       setSelectedRequest({ ...selectedRequest, ...data.request }) // Update the selected request with new data
+      const updatedDisplay = {
+        ...data.request,
+        studentTeacherDisplayName: children.find((child) => child.id === data.request.studentTeacherChildId) ? `${children.find((child) => child.id === data.request.studentTeacherChildId)?.firstName} ${children.find((child) => child.id === data.request.studentTeacherChildId)?.lastName}` : null,
+        studentCoTeacherDisplayName: children.find((child) => child.id === data.request.studentCoTeacherChildId) ? `${children.find((child) => child.id === data.request.studentCoTeacherChildId)?.firstName} ${children.find((child) => child.id === data.request.studentCoTeacherChildId)?.lastName}` : null
+      }
+       setRequests(requests.map(r => r.id === selectedRequest.id ? { ...r, ...updatedDisplay, session: r.session } : r))
+       setSelectedRequest({ ...selectedRequest, ...updatedDisplay }) // Update the selected request with new data
       setIsEditMode(false)
     } catch (error) {
       console.error('Error updating request:', error)
@@ -143,6 +148,8 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
   const counts = getStatusCounts()
   const selectedEditTeacher = teachers.find((teacher) => teacher.id === editTeacherId)
   const availableStudentTeachers = selectedEditTeacher ? children.filter((child) => child.familyId === selectedEditTeacher.familyId) : []
+  const selectedEditCoTeacher = teachers.find((teacher) => teacher.id === editFormData.coTeacherId)
+  const availableStudentCoTeachers = selectedEditCoTeacher ? children.filter((child) => child.familyId === selectedEditCoTeacher.familyId) : []
 
   return (
     <div className="space-y-6">
@@ -218,8 +225,9 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                                 maxStudents: request.maxStudents,
                                  helpersNeeded: request.helpersNeeded,
                                  coTeacherId: request.coTeacherId || '',
-                                  coTeacher: request.coTeacher,
-                                  studentTeacherChildId: request.studentTeacherChildId,
+                                   coTeacher: request.coTeacher,
+                                   studentTeacherChildId: request.studentTeacherChildId,
+                                   studentCoTeacherChildId: request.studentCoTeacherChildId,
                                  classroomNeeds: request.classroomNeeds,
                                  registrationFeeExempt: request.registrationFeeExempt,
                                  requiresFee: request.requiresFee,
@@ -252,6 +260,7 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                         </div>
                       )}
                       {request.studentTeacherDisplayName && <div><span className="font-medium">Student Teacher:</span> {request.studentTeacherDisplayName}</div>}
+                      {request.studentCoTeacherDisplayName && <div><span className="font-medium">Student Co-Teacher:</span> {request.studentCoTeacherDisplayName}</div>}
                       {request.requiresFee && (
                         <div>
                           <span className="font-medium">Supply Fee:</span> ${request.feeAmount}
@@ -322,7 +331,9 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                         maxStudents: selectedRequest.maxStudents,
                         helpersNeeded: selectedRequest.helpersNeeded,
                         coTeacher: selectedRequest.coTeacher,
+                        coTeacherId: selectedRequest.coTeacherId,
                         studentTeacherChildId: selectedRequest.studentTeacherChildId,
+                        studentCoTeacherChildId: selectedRequest.studentCoTeacherChildId,
                         classroomNeeds: selectedRequest.classroomNeeds,
                         requiresFee: selectedRequest.requiresFee,
                         feeAmount: selectedRequest.feeAmount,
@@ -471,13 +482,22 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                        value={editFormData.coTeacherId || ''}
                        onChange={(e) => {
                          const teacher = teachers.find((option) => option.id === e.target.value)
-                         setEditFormData({ ...editFormData, coTeacherId: e.target.value, coTeacher: teacher ? `${teacher.firstName} ${teacher.lastName}` : '' })
+                          setEditFormData({ ...editFormData, coTeacherId: e.target.value, coTeacher: teacher ? `${teacher.firstName} ${teacher.lastName}` : '', studentCoTeacherChildId: null })
                        }}
                        className="mt-2 w-full border border-gray-300 rounded-md px-3 py-2"
                      >
                        <option value="">Write in above</option>
                        {teachers.filter((teacher) => teacher.id !== editTeacherId).map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}
                      </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Student Co-Teacher (Optional)</label>
+                    <select value={editFormData.studentCoTeacherChildId || ''} disabled={!selectedEditCoTeacher} onChange={(event) => setEditFormData({ ...editFormData, studentCoTeacherChildId: event.target.value || null })} className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white disabled:bg-gray-100">
+                      <option value="">No student co-teacher</option>
+                      {availableStudentCoTeachers.map((child) => <option key={child.id} value={child.id}>{child.firstName} {child.lastName} (Grade {child.grade})</option>)}
+                    </select>
+                    <p className="mt-1 text-xs text-gray-500">Select the co-teacher parent first, then choose a child from that family.</p>
                   </div>
 
                   <div>
@@ -572,6 +592,7 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                       </div>
                     )}
                     {selectedRequest.studentTeacherDisplayName && <div><span className="font-medium text-gray-700">Student Teacher:</span><p className="text-gray-600">{selectedRequest.studentTeacherDisplayName}</p></div>}
+                    {selectedRequest.studentCoTeacherDisplayName && <div><span className="font-medium text-gray-700">Student Co-Teacher:</span><p className="text-gray-600">{selectedRequest.studentCoTeacherDisplayName}</p></div>}
                   </div>
                   
                   <div>

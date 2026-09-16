@@ -577,7 +577,7 @@ export async function hasFamilyTeachingAssignments(guardianId: string): Promise<
     // Check if any guardian in the family has approved teaching assignments for this session
     const teachingAssignments = await db.select({ id: classTeachingRequests.id })
       .from(classTeachingRequests)
-      .innerJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
+      .innerJoin(guardians, or(eq(classTeachingRequests.guardianId, guardians.id), eq(classTeachingRequests.coTeacherId, guardians.id)))
       .where(
         and(
           eq(guardians.familyId, guardian[0].familyId),
@@ -672,6 +672,7 @@ export async function getClassTeachingRequestsWithSession(): Promise<(ClassTeach
       coTeacher: classTeachingRequests.coTeacher,
       coTeacherId: classTeachingRequests.coTeacherId,
       studentTeacherChildId: classTeachingRequests.studentTeacherChildId,
+      studentCoTeacherChildId: classTeachingRequests.studentCoTeacherChildId,
        classroomNeeds: classTeachingRequests.classroomNeeds,
        registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
        requiresFee: classTeachingRequests.requiresFee,
@@ -708,7 +709,7 @@ export async function getClassTeachingRequestsBySession(sessionId: string): Prom
 }
 
 export async function getClassTeachingRequestsByGuardian(guardianId: string): Promise<ClassTeachingRequest[]> {
-  return await db.select().from(classTeachingRequests).where(eq(classTeachingRequests.guardianId, guardianId))
+  return await db.select().from(classTeachingRequests).where(or(eq(classTeachingRequests.guardianId, guardianId), eq(classTeachingRequests.coTeacherId, guardianId)))
 }
 
 export async function getClassTeachingRequestsByGuardianWithSession(guardianId: string): Promise<(ClassTeachingRequest & { session: Session })[]> {
@@ -726,6 +727,7 @@ export async function getClassTeachingRequestsByGuardianWithSession(guardianId: 
        coTeacher: classTeachingRequests.coTeacher,
        coTeacherId: classTeachingRequests.coTeacherId,
        studentTeacherChildId: classTeachingRequests.studentTeacherChildId,
+       studentCoTeacherChildId: classTeachingRequests.studentCoTeacherChildId,
        maxStudents: classTeachingRequests.maxStudents,
        helpersNeeded: classTeachingRequests.helpersNeeded,
        classroomNeeds: classTeachingRequests.classroomNeeds,
@@ -755,7 +757,7 @@ export async function getClassTeachingRequestsByGuardianWithSession(guardianId: 
     })
     .from(classTeachingRequests)
     .leftJoin(sessions, eq(classTeachingRequests.sessionId, sessions.id))
-    .where(eq(classTeachingRequests.guardianId, guardianId))
+    .where(or(eq(classTeachingRequests.guardianId, guardianId), eq(classTeachingRequests.coTeacherId, guardianId)))
   
   return result as (ClassTeachingRequest & { session: Session })[]
 }
@@ -1047,6 +1049,7 @@ export async function getScheduleWithDetails(sessionId: string): Promise<(Schedu
          coTeacher: classTeachingRequests.coTeacher,
          coTeacherId: classTeachingRequests.coTeacherId,
          studentTeacherChildId: classTeachingRequests.studentTeacherChildId,
+         studentCoTeacherChildId: classTeachingRequests.studentCoTeacherChildId,
         classroomNeeds: classTeachingRequests.classroomNeeds,
         registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
         requiresFee: classTeachingRequests.requiresFee,
@@ -1121,6 +1124,7 @@ export async function getApprovedClassesForSession(sessionId: string): Promise<(
       coTeacher: classTeachingRequests.coTeacher,
       coTeacherId: classTeachingRequests.coTeacherId,
       studentTeacherChildId: classTeachingRequests.studentTeacherChildId,
+      studentCoTeacherChildId: classTeachingRequests.studentCoTeacherChildId,
         classroomNeeds: classTeachingRequests.classroomNeeds,
         registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
         requiresFee: classTeachingRequests.requiresFee,

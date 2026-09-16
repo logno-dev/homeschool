@@ -402,7 +402,7 @@ async function validateRegistration(
       .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
       .where(and(
         eq(schedules.sessionId, sessionId),
-        inArray(classTeachingRequests.guardianId, familyGuardianIdsForValidation)
+        or(inArray(classTeachingRequests.guardianId, familyGuardianIdsForValidation), inArray(classTeachingRequests.coTeacherId, familyGuardianIdsForValidation))
       ))
   }
 
@@ -410,7 +410,7 @@ async function validateRegistration(
     .select({ period: schedules.period })
     .from(schedules)
     .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-    .innerJoin(children, eq(classTeachingRequests.studentTeacherChildId, children.id))
+    .innerJoin(children, or(eq(classTeachingRequests.studentTeacherChildId, children.id), eq(classTeachingRequests.studentCoTeacherChildId, children.id)))
     .where(and(eq(schedules.sessionId, sessionId), eq(schedules.status, 'published'), eq(children.familyId, familyId)))
 
   // Calculate volunteer requirements

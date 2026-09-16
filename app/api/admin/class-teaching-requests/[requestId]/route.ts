@@ -112,6 +112,7 @@ export async function PATCH(
         }
         updateData.coTeacherId = coTeacherId || null
         if (!coTeacherId) updateData.coTeacher = editData.coTeacher?.trim() || null
+        if (coTeacherId !== currentRequest?.coTeacherId && editData.studentCoTeacherChildId === undefined) updateData.studentCoTeacherChildId = null
       } else if (editData.coTeacher !== undefined) {
         updateData.coTeacher = editData.coTeacher?.trim() || null
       }
@@ -149,6 +150,22 @@ export async function PATCH(
         }
         updateData.studentTeacherChildId = studentTeacherChildId || null
       }
+      if (editData.studentCoTeacherChildId !== undefined) {
+        const studentCoTeacherChildId = String(editData.studentCoTeacherChildId || '')
+        const targetCoTeacherId = updateData.coTeacherId !== undefined ? updateData.coTeacherId : currentRequest?.coTeacherId
+        if (studentCoTeacherChildId && !targetCoTeacherId) return NextResponse.json({ error: 'Select the student co-teacher parent first' }, { status: 400 })
+        if (studentCoTeacherChildId) {
+          const [targetCoTeacher] = await db.select({ familyId: guardians.familyId }).from(guardians).where(eq(guardians.id, targetCoTeacherId)).limit(1)
+          const [studentCoTeacher] = targetCoTeacher
+            ? await db.select({ id: children.id }).from(children).where(and(eq(children.id, studentCoTeacherChildId), eq(children.familyId, targetCoTeacher.familyId))).limit(1)
+            : []
+          if (!studentCoTeacher) return NextResponse.json({ error: "Student co-teacher must belong to the selected co-teacher parent's family" }, { status: 400 })
+        }
+        updateData.studentCoTeacherChildId = studentCoTeacherChildId || null
+      }
+      const effectiveStudentTeacherId = updateData.studentTeacherChildId !== undefined ? updateData.studentTeacherChildId : currentRequest?.studentTeacherChildId
+      const effectiveStudentCoTeacherId = updateData.studentCoTeacherChildId !== undefined ? updateData.studentCoTeacherChildId : currentRequest?.studentCoTeacherChildId
+      if (effectiveStudentTeacherId && effectiveStudentTeacherId === effectiveStudentCoTeacherId) return NextResponse.json({ error: 'The same child cannot be both student teacher and student co-teacher' }, { status: 400 })
 
       if (updateData.gradeRange && (updateData.gradeRangeFrom === undefined || updateData.gradeRangeTo === undefined)) {
         const fallbackRange = getGradeRangeFromLabel(updateData.gradeRange)
