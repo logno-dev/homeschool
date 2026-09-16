@@ -5,8 +5,14 @@ import { descriptionEditorHtml, isCalendarDate } from './calendar'
 export function sanitizeEventDescription(value: string): string {
   return sanitizeHtml(descriptionEditorHtml(value), {
     allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 's', 'h2', 'h3', 'h4', 'ol', 'ul', 'li', 'blockquote', 'a', 'span'],
-    allowedAttributes: { a: ['href', 'target', 'rel'], '*': ['class'], li: ['class', 'data-list'] },
+    allowedAttributes: { a: ['href', 'target', 'rel'], '*': ['class', 'style'], li: ['class', 'data-list'] },
     allowedClasses: { '*': [/^ql-align-(center|right|justify)$/, /^ql-indent-[1-8]$/, 'ql-ui'] },
+    allowedStyles: {
+      '*': {
+        color: [/^#[0-9a-f]{3,8}$/i, /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i],
+        'background-color': [/^#[0-9a-f]{3,8}$/i, /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(?:\s*,\s*(?:0|1|0?\.\d+))?\s*\)$/i]
+      }
+    },
     allowedSchemes: ['https', 'http', 'mailto', 'tel'],
     allowProtocolRelative: false,
     transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer' }) },

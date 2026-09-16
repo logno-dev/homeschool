@@ -10,10 +10,9 @@ import Toast from './Toast'
 import SessionOptions from './SessionOptions'
 import { descriptionEditorHtml, descriptionPreview, eventHref, formatEventDate } from '@/lib/calendar'
 import { EVENT_IMAGE_TYPES, MAX_EVENT_IMAGE_SIZE } from '@/lib/event-images'
+import { RICH_TEXT_EDITOR_FORMATS, RICH_TEXT_EDITOR_MODULES } from '@/lib/rich-text-editor'
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false, loading: () => <p className="p-3 text-sm text-gray-500">Loading editor…</p> })
-const editorModules = { toolbar: [[{ header: [2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ list: 'ordered' }, { list: 'bullet' }], ['blockquote', 'link'], ['clean']] }
-const editorFormats = ['header', 'bold', 'italic', 'underline', 'strike', 'list', 'blockquote', 'link']
 
 interface EventWithCreator extends Event {
   creatorName?: string
@@ -357,8 +356,8 @@ export default function EventManagement() {
                 theme="snow"
                 value={formData.description}
                 onChange={description => setFormData(current => ({ ...current, description }))}
-                modules={editorModules}
-                formats={editorFormats}
+                modules={RICH_TEXT_EDITOR_MODULES}
+                formats={RICH_TEXT_EDITOR_FORMATS}
                 placeholder="Share the details, what to bring, and any helpful links…"
                 className="event-editor bg-white"
                 readOnly={isSaving}

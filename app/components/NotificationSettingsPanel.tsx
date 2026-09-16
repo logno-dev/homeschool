@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic'
 import { Fragment, useState } from 'react'
 import { EMAIL_TEMPLATE_VARIABLES, NOTIFICATION_TYPES, type NotificationType } from '@/lib/email-templates'
+import { RICH_TEXT_EDITOR_FORMATS, RICH_TEXT_EDITOR_MODULES } from '@/lib/rich-text-editor'
 
 const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false })
 
@@ -114,7 +115,7 @@ export default function NotificationSettingsPanel({ settings, setSettings, onSav
           </label>
           <div>
             <label className="block text-sm font-medium text-gray-700">Message template</label>
-            <div className="mt-1"><ReactQuill theme="snow" value={settings.emailTemplates[type] || ''} onChange={(value) => updateMap('emailTemplates', type, value)} /></div>
+            <div className="mt-1"><ReactQuill theme="snow" value={settings.emailTemplates[type] || ''} onChange={(value) => updateMap('emailTemplates', type, value)} modules={RICH_TEXT_EDITOR_MODULES} formats={RICH_TEXT_EDITOR_FORMATS} /></div>
             <p className="mt-2 text-xs text-gray-500">Available variables: {EMAIL_TEMPLATE_VARIABLES[type].map((key) => `{{${key}}}`).join(', ')}</p>
           </div>
           <div className="flex flex-wrap gap-2 pt-1">

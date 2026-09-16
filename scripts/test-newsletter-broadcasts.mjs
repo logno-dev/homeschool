@@ -80,7 +80,7 @@ try {
   }, { fetch: providerFetch, process: { env: { RESEND_API_KEY: 'test-key', RESEND_EMAIL_DOMAIN: 'example.com' } } })
   assert.equal(await email.createNewsletterSegment('newsletter', 'Test campaign'), 'segment-id')
   assert.equal(await email.createNewsletterContactImport('newsletter', 'segment-id', recipients), 'import-id')
-  assert.equal(await email.createNewsletterBroadcast({ newsletterId: 'newsletter', segmentId: 'segment-id', subject: 'Subject', html: '<p>Hello&nbsp;world</p>', text: 'Hello\u00a0world', scheduledAt: null }), 'broadcast-id')
+  assert.equal(await email.createNewsletterBroadcast({ newsletterId: 'newsletter', segmentId: 'segment-id', subject: 'Subject', html: '<p><span style="color:#e60000;background-color:#ffff00">Hello&nbsp;world</span></p>', text: 'Hello\u00a0world', scheduledAt: null }), 'broadcast-id')
   const importBody = calls[1].init.body
   assert.equal(importBody.get('on_conflict'), 'upsert')
   assert.equal(importBody.get('segments'), '[{"id":"segment-id"}]')
@@ -88,6 +88,8 @@ try {
   assert.equal(broadcastBody.segment_id, 'segment-id')
   assert.equal(broadcastBody.send, true)
   assert.match(broadcastBody.html, /RESEND_UNSUBSCRIBE_URL/)
+  assert.match(broadcastBody.html, /color:#e60000/)
+  assert.match(broadcastBody.html, /background-color:#ffff00/)
   assert.ok(!/nbsp|\u00a0/.test(broadcastBody.html))
   await email.sendIndividualEmail({ to: 'person@example.com', subject: 'Individual', html: '<p>Wrap&nbsp;normally</p>', text: 'Wrap\u00a0normally' })
   const individualBody = JSON.parse(calls[3].init.body)
