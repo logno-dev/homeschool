@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { sanitizeEmailHtml } from '@/lib/email-content'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { getGlobalSetting, getGradeIncrementSettings, incrementAllStudentGrades, setGlobalSetting, setGradeIncrementDate, setGradeIncrementLastRun } from '@/lib/database'
 import { DEFAULT_APP_TIMEZONE, isAppTimezone } from '@/lib/timezones'
@@ -187,7 +188,7 @@ export async function POST(request: Request) {
     if (emailReplyTos !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_reply_to_${type}`, emailReplyTos[type] || null)))
     if (emailCcs !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_cc_${type}`, emailCcs[type] || null)))
     if (emailBccs !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_bcc_${type}`, emailBccs[type] || null)))
-    if (emailTemplates !== undefined) await Promise.all(NOTIFICATION_TYPES.map((type) => setGlobalSetting(`email_template_${type}`, emailTemplates[type] || null)))
+    if (emailTemplates !== undefined) await Promise.all(NOTIFICATION_TYPES.map((type) => setGlobalSetting(`email_template_${type}`, emailTemplates[type] ? sanitizeEmailHtml(emailTemplates[type]) : null)))
      if (emailSubjects !== undefined) await Promise.all(NOTIFICATION_TYPES.map((type) => setGlobalSetting(`email_subject_${type}`, emailSubjects[type] || null)))
      await Promise.all(invoiceKeys.filter((key) => body[key] !== undefined).map((key) => setGlobalSetting(key, body[key] || null)))
     return NextResponse.json({ success: true })

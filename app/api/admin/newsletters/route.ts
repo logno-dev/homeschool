@@ -5,7 +5,7 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { newsletterGroups, newsletters } from '@/lib/schema'
 import { snapshotNewsletterRecipients } from '@/lib/newsletters'
-import { normalizeEmailSpacing } from '@/lib/email-content'
+import { normalizeEmailSpacing, sanitizeEmailHtml } from '@/lib/email-content'
 import { processNewsletterCampaign } from '@/lib/newsletter-broadcasts'
 
 export async function GET() {
@@ -32,7 +32,7 @@ export async function POST(request: Request) {
       id: randomUUID(),
       kind: body.kind === 'bulk_email' ? 'bulk_email' : 'newsletter',
       subject: String(body.subject || 'Untitled newsletter').trim(),
-      html: normalizeEmailSpacing(String(body.html || '')),
+      html: sanitizeEmailHtml(String(body.html || '')),
       text: normalizeEmailSpacing(String(body.text || '')),
       senderAlias: body.senderAlias ? String(body.senderAlias) : null,
       replyToAlias: body.replyToAlias ? String(body.replyToAlias) : null,

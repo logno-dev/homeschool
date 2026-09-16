@@ -5,7 +5,7 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { newsletterGroups, newsletterRecipients, newsletters } from '@/lib/schema'
 import { getNewsletterGroupIds, snapshotNewsletterRecipients } from '@/lib/newsletters'
-import { normalizeEmailSpacing } from '@/lib/email-content'
+import { normalizeEmailSpacing, sanitizeEmailHtml } from '@/lib/email-content'
 import { getNewsletterBroadcastMetrics } from '@/lib/email'
 import { processNewsletterCampaign } from '@/lib/newsletter-broadcasts'
 
@@ -81,7 +81,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ne
     await db.update(newsletters).set({
       kind: body.kind === 'bulk_email' ? 'bulk_email' : body.kind === 'newsletter' ? 'newsletter' : existing.kind,
       subject: body.subject === undefined ? existing.subject : String(body.subject).trim(),
-      html: body.html === undefined ? existing.html : normalizeEmailSpacing(String(body.html)),
+      html: body.html === undefined ? existing.html : sanitizeEmailHtml(String(body.html)),
       text: body.text === undefined ? existing.text : normalizeEmailSpacing(String(body.text)),
       senderAlias: body.senderAlias === undefined ? existing.senderAlias : (body.senderAlias ? String(body.senderAlias) : null),
       replyToAlias: body.replyToAlias === undefined ? existing.replyToAlias : (body.replyToAlias ? String(body.replyToAlias) : null),

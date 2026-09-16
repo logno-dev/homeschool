@@ -4,6 +4,7 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { authAccounts, users } from '@/lib/schema'
 import { sendIndividualEmail } from '@/lib/email'
+import { sanitizeEmailHtml } from '@/lib/email-content'
 
 export async function POST(request: Request) {
   const auth = await getAuthenticatedAdmin('newsletters')
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
   if ([...cc, ...bcc].some((email) => !/^\S+@\S+\.\S+$/.test(email))) return NextResponse.json({ error: 'CC and BCC addresses must be valid email addresses' }, { status: 400 })
   if (!to || !/^\S+@\S+\.\S+$/.test(to) || !String(body.subject || '').trim() || !String(body.html || '').trim()) return NextResponse.json({ error: 'Recipient, subject, and message are required' }, { status: 400 })
   try {
-    await sendIndividualEmail({ to, cc, bcc, subject: String(body.subject).trim(), html: String(body.html), text: String(body.text || ''), senderAlias: body.senderAlias || undefined, replyToAlias: body.replyToAlias || undefined })
+    await sendIndividualEmail({ to, cc, bcc, subject: String(body.subject).trim(), html: sanitizeEmailHtml(String(body.html)), text: String(body.text || ''), senderAlias: body.senderAlias || undefined, replyToAlias: body.replyToAlias || undefined })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error sending individual email:', error)
