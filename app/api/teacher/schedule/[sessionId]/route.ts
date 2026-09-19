@@ -62,8 +62,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
     : []
   const parentEmailsByFamily = new Map<string, string[]>()
   parentRows.forEach((parent) => {
+    const normalizedEmail = parent.email.trim()
+    if (!normalizedEmail) return
     const emails = parentEmailsByFamily.get(parent.familyId) || []
-    if (!emails.some((email) => email.toLowerCase() === parent.email.toLowerCase())) emails.push(parent.email)
+    if (!emails.some((email) => email.toLowerCase() === normalizedEmail.toLowerCase())) emails.push(normalizedEmail)
     parentEmailsByFamily.set(parent.familyId, emails)
   })
   const studentTeacherById = new Map(studentTeachers.map((student) => [student.id, student]))

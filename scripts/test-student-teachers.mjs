@@ -44,6 +44,7 @@ try {
   await db.insert(schema.guardians).values({ id: 'guardian', familyId: 'family', email: 'parent@example.com', firstName: 'Pat', lastName: 'Teacher' })
   await db.insert(schema.guardians).values({ id: 'other-guardian', familyId: 'family', email: 'other@example.com', firstName: 'Other', lastName: 'Guardian' })
   await db.insert(schema.guardians).values({ id: 'co-guardian', familyId: 'co-family', email: 'co-parent@example.com', firstName: 'Casey', lastName: 'Parent' })
+  await db.insert(schema.guardians).values({ id: 'blank-email-guardian', familyId: 'family', email: '   ', firstName: 'No', lastName: 'Email' })
   await db.insert(schema.children).values([
     { id: 'student-teacher', familyId: 'family', firstName: 'Alex', lastName: 'Teacher', grade: '8', dateOfBirth: '2012-01-01', allergies: 'Peanuts' },
     { id: 'other-child', familyId: 'family', firstName: 'Sam', lastName: 'Teacher', grade: '6', dateOfBirth: '2014-01-01', allergies: 'None' },

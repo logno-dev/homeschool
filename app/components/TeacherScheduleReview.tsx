@@ -181,7 +181,11 @@ export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibi
   }
 
   const getRosterParentEmails = (teachingClass: TeachingClass) => Array.from(new Map(
-    teachingClass.roster.flatMap((student) => student.parentEmails).map((email) => [email.toLowerCase(), email])
+    teachingClass.roster
+      .flatMap((student) => student.parentEmails)
+      .map((email) => email.trim())
+      .filter(Boolean)
+      .map((email) => [email.toLowerCase(), email])
   ).values())
 
   const copyRosterParentEmails = async (teachingClass: TeachingClass) => {
