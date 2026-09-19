@@ -43,6 +43,7 @@ export default async function ClassroomAttendancePrintPage({ params, searchParam
         period: schedules.period,
         className: classTeachingRequests.className,
         classroomName: sessionClassrooms.name,
+        classroomOrder: sessionClassrooms.orderIndex,
         teacherId: guardians.id,
         teacherName: classTeachingRequests.teacherName,
         teacherFirstName: guardians.firstName,
@@ -121,7 +122,9 @@ export default async function ClassroomAttendancePrintPage({ params, searchParam
 
   const periodOrder: Record<string, number> = { first: 0, second: 1, lunch: 2, third: 3 }
   const sortedSchedules = [...scheduleRows].sort((a, b) => {
-    const roomCompare = a.classroomName.localeCompare(b.classroomName)
+    const configuredRoomCompare = a.classroomOrder - b.classroomOrder
+    if (configuredRoomCompare !== 0) return configuredRoomCompare
+    const roomCompare = a.classroomName.localeCompare(b.classroomName, undefined, { numeric: true, sensitivity: 'base' })
     if (roomCompare !== 0) return roomCompare
     const periodCompare = (periodOrder[a.period] ?? 99) - (periodOrder[b.period] ?? 99)
     if (periodCompare !== 0) return periodCompare

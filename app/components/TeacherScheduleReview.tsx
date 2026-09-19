@@ -33,7 +33,8 @@ interface TeachingClass {
   className: string
   classroomName: string
   period: string
-  roster: Array<{ id: string; firstName: string; lastName: string; grade: string; allergies: string | null; role: 'student' | 'student_teacher' | 'student_co_teacher' }>
+  roster: Array<{ id: string; firstName: string; lastName: string; grade: string; allergies: string | null; parentEmails: string[]; role: 'student' | 'student_teacher' | 'student_co_teacher' }>
+  waitlist: Array<{ id: string; firstName: string; lastName: string; grade: string; parentEmails: string[] }>
 }
 
 export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibilityChange?: (visible: boolean) => void }) {
@@ -50,6 +51,7 @@ export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibi
   const [teachingClassesStatus, setTeachingClassesStatus] = useState<'loading' | 'loaded' | 'error'>('loading')
   const [scheduleAvailable, setScheduleAvailable] = useState(false)
   const [registrationStarted, setRegistrationStarted] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<{ scheduleId: string; status: 'copied' | 'error' } | null>(null)
 
   useEffect(() => {
     fetchSessions()
@@ -178,6 +180,22 @@ export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibi
     })
   }
 
+  const getRosterParentEmails = (teachingClass: TeachingClass) => Array.from(new Map(
+    teachingClass.roster.flatMap((student) => student.parentEmails).map((email) => [email.toLowerCase(), email])
+  ).values())
+
+  const copyRosterParentEmails = async (teachingClass: TeachingClass) => {
+    const emails = getRosterParentEmails(teachingClass)
+    if (!emails.length) return
+    try {
+      await navigator.clipboard.writeText(emails.join(', '))
+      setCopyStatus({ scheduleId: teachingClass.scheduleId, status: 'copied' })
+    } catch (error) {
+      console.error('Unable to copy parent emails:', error)
+      setCopyStatus({ scheduleId: teachingClass.scheduleId, status: 'error' })
+    }
+  }
+
   const periods = ['first', 'second', 'lunch', 'third']
   const periodNames: Record<string, string> = { first: 'First Hour', second: 'Second Hour', lunch: 'Lunch', third: 'Third Hour' }
 
@@ -222,7 +240,21 @@ export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibi
                   <p className="mt-1 text-sm text-blue-800">{periodNames[teachingClass.period] || teachingClass.period} · {teachingClass.classroomName}</p>
                 </div>
                 <div className="p-4">
-                  <h5 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Roster ({teachingClass.roster.length})</h5>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <h5 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Roster ({teachingClass.roster.length})</h5>
+                    <button
+                      type="button"
+                      onClick={() => void copyRosterParentEmails(teachingClass)}
+                      disabled={getRosterParentEmails(teachingClass).length === 0}
+                      className="inline-flex items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                    >
+                      {copyStatus?.scheduleId === teachingClass.scheduleId && copyStatus.status === 'copied'
+                        ? 'Emails copied'
+                        : copyStatus?.scheduleId === teachingClass.scheduleId && copyStatus.status === 'error'
+                          ? 'Unable to copy'
+                          : 'Copy roster parent emails'}
+                    </button>
+                  </div>
                   {teachingClass.roster.length === 0 ? <p className="mt-3 text-sm text-gray-500">No confirmed students yet.</p> : (
                     <div className="mt-3 divide-y divide-gray-100">
                       {teachingClass.roster.map((student) => (
@@ -233,10 +265,35 @@ export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibi
                             {(student.role === 'student_teacher' || student.role === 'student_co_teacher') && <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">{student.role === 'student_co_teacher' ? 'Student co-teacher' : 'Student teacher'}</span>}
                           </div>
                           <p className={`mt-1 text-sm ${student.allergies?.trim() ? 'font-medium text-red-700' : 'text-gray-500'}`}>Allergies: {student.allergies?.trim() || 'None reported'}</p>
+                          <p className="mt-1 text-sm text-gray-600">
+                            Parent emails: {student.parentEmails.length > 0
+                              ? student.parentEmails.map((email, index) => <span key={email}>{index > 0 ? ', ' : ''}<a href={`mailto:${email}`} className="text-blue-700 hover:underline">{email}</a></span>)
+                              : 'None available'}
+                          </p>
                         </div>
                       ))}
                     </div>
                   )}
+                  <div className="mt-5 border-t border-amber-200 pt-4">
+                    <h5 className="text-xs font-semibold uppercase tracking-wide text-amber-700">Waitlist ({teachingClass.waitlist.length})</h5>
+                    {teachingClass.waitlist.length === 0 ? <p className="mt-2 text-sm text-gray-500">No students are waitlisted.</p> : (
+                      <div className="mt-2 divide-y divide-amber-100 rounded-md bg-amber-50 px-3">
+                        {teachingClass.waitlist.map((student) => (
+                          <div key={student.id} className="py-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-gray-900">{student.lastName}, {student.firstName}</span>
+                              <span className="text-xs text-gray-500">Grade {student.grade}</span>
+                            </div>
+                            <p className="mt-1 text-sm text-gray-600">
+                              Parent emails: {student.parentEmails.length > 0
+                                ? student.parentEmails.map((email, index) => <span key={email}>{index > 0 ? ', ' : ''}<a href={`mailto:${email}`} className="text-blue-700 hover:underline">{email}</a></span>)
+                                : 'None available'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </article>
             ))}

@@ -47,14 +47,18 @@ try {
   await db.insert(schema.children).values([
     { id: 'student-teacher', familyId: 'family', firstName: 'Alex', lastName: 'Teacher', grade: '8', dateOfBirth: '2012-01-01', allergies: 'Peanuts' },
     { id: 'other-child', familyId: 'family', firstName: 'Sam', lastName: 'Teacher', grade: '6', dateOfBirth: '2014-01-01', allergies: 'None' },
-    { id: 'student-co-teacher', familyId: 'co-family', firstName: 'Riley', lastName: 'Helper', grade: '7', dateOfBirth: '2013-01-01', allergies: 'Dairy' }
+    { id: 'student-co-teacher', familyId: 'co-family', firstName: 'Riley', lastName: 'Helper', grade: '7', dateOfBirth: '2013-01-01', allergies: 'Dairy' },
+    { id: 'waitlisted-child', familyId: 'co-family', firstName: 'Waitlisted', lastName: 'Student', grade: '6', dateOfBirth: '2014-01-01' }
   ])
   await db.insert(schema.sessions).values({ id: 'session', name: 'Fall', startDate: '2026-09-01', endDate: '2026-12-01', registrationStartDate: '2026-08-01', registrationEndDate: '2026-08-31' })
   await db.insert(schema.classrooms).values({ id: 'room-template', name: 'Room A' })
   await db.insert(schema.sessionClassrooms).values({ id: 'room', sessionId: 'session', classroomId: 'room-template', name: 'Room A', orderIndex: 0 })
   await db.insert(schema.classTeachingRequests).values({ id: 'class', sessionId: 'session', guardianId: 'guardian', coTeacherId: 'co-guardian', coTeacher: 'Casey Parent', className: 'Student-Led Science', description: 'Science', gradeRange: '6-8', maxStudents: 10, helpersNeeded: 0, status: 'approved', studentTeacherChildId: 'student-teacher', studentCoTeacherChildId: 'student-co-teacher' })
   await db.insert(schema.schedules).values({ id: 'schedule', sessionId: 'session', classTeachingRequestId: 'class', classroomId: 'room-template', sessionClassroomId: 'room', period: 'first', status: 'published' })
-  await db.insert(schema.classRegistrations).values({ id: 'registration', sessionId: 'session', scheduleId: 'schedule', childId: 'other-child', familyId: 'family', registeredBy: 'guardian', status: 'registered' })
+  await db.insert(schema.classRegistrations).values([
+    { id: 'registration', sessionId: 'session', scheduleId: 'schedule', childId: 'other-child', familyId: 'family', registeredBy: 'guardian', status: 'registered' },
+    { id: 'waitlisted-registration', sessionId: 'session', scheduleId: 'schedule', childId: 'waitlisted-child', familyId: 'co-family', registeredBy: 'guardian', status: 'waitlisted' }
+  ])
 
   const createAdminClass = load('app/api/admin/class-teaching-requests/route.ts', {
     '@/lib/db': { db }, '@/lib/schema': schema,
@@ -121,6 +125,12 @@ try {
   assert.equal(teacherClass.roster.find((student) => student.id === 'student-teacher').allergies, 'Peanuts')
   assert.equal(teacherClass.roster.find((student) => student.id === 'student-co-teacher').allergies, 'Dairy')
   assert.equal(teacherClass.roster.find((student) => student.id === 'other-child').allergies, 'None')
+  assert.deepEqual(teacherClass.roster.find((student) => student.id === 'other-child').parentEmails.sort(), ['other@example.com', 'parent@example.com'])
+  assert.deepEqual(teacherClass.roster.find((student) => student.id === 'student-co-teacher').parentEmails, ['co-parent@example.com'])
+  assert.equal(teacherClass.waitlist.length, 1)
+  assert.equal(teacherClass.waitlist[0].id, 'waitlisted-child')
+  assert.deepEqual(teacherClass.waitlist[0].parentEmails, ['co-parent@example.com'])
+  assert.equal(Object.hasOwn(teacherClass.waitlist[0], 'allergies'), false, 'Waitlist contacts do not expose student medical details')
   currentUserId = 'co-guardian'
   const coTeacherRosterResponse = await teacherRoster(new Request('http://localhost/api/teacher/schedule/session'), { params: Promise.resolve({ sessionId: 'session' }) })
   assert.equal((await coTeacherRosterResponse.json()).classes.length, 1, 'The student co-teacher parent retains roster access')
@@ -129,11 +139,7 @@ try {
   assert.deepEqual((await privateRosterResponse.json()).classes, [], 'Another guardian cannot view this class roster')
 
   await client.execute('UPDATE class_teaching_requests SET max_students = 1 WHERE id = \'class\'')
-  await db.insert(schema.children).values([
-    { id: 'waitlisted-child', familyId: 'co-family', firstName: 'Waitlisted', lastName: 'Student', grade: '6', dateOfBirth: '2014-01-01' },
-    { id: 'admin-added-child', familyId: 'co-family', firstName: 'Admin', lastName: 'Addition', grade: '6', dateOfBirth: '2014-02-01' }
-  ])
-  await db.insert(schema.classRegistrations).values({ id: 'waitlisted-registration', sessionId: 'session', scheduleId: 'schedule', childId: 'waitlisted-child', familyId: 'co-family', registeredBy: 'guardian', status: 'waitlisted' })
+  await db.insert(schema.children).values({ id: 'admin-added-child', familyId: 'co-family', firstName: 'Admin', lastName: 'Addition', grade: '6', dateOfBirth: '2014-02-01' })
 
   const adminRegistrationMocks = {
     '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/student-teachers': studentTeacherHelpers,
