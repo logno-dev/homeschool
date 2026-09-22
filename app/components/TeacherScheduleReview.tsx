@@ -35,6 +35,7 @@ interface TeachingClass {
   period: string
   roster: Array<{ id: string; firstName: string; lastName: string; grade: string; allergies: string | null; parentEmails: string[]; role: 'student' | 'student_teacher' | 'student_co_teacher' }>
   waitlist: Array<{ id: string; firstName: string; lastName: string; grade: string; parentEmails: string[] }>
+  helpers: Array<{ id: string; firstName: string; lastName: string; email: string }>
 }
 
 export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibilityChange?: (visible: boolean) => void }) {
@@ -278,6 +279,19 @@ export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibi
                       ))}
                     </div>
                   )}
+                  <div className="mt-5 border-t border-green-200 pt-4">
+                    <h5 className="text-xs font-semibold uppercase tracking-wide text-green-700">Helpers ({teachingClass.helpers.length})</h5>
+                    {teachingClass.helpers.length === 0 ? <p className="mt-2 text-sm text-gray-500">No helpers are assigned.</p> : (
+                      <div className="mt-2 divide-y divide-green-100 rounded-md bg-green-50 px-3">
+                        {teachingClass.helpers.map((helper) => (
+                          <div key={helper.id} className="py-3">
+                            <p className="font-medium text-gray-900">{helper.firstName} {helper.lastName}</p>
+                            <a href={`mailto:${helper.email}`} className="mt-1 block text-sm text-blue-700 hover:underline">{helper.email}</a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <div className="mt-5 border-t border-amber-200 pt-4">
                     <h5 className="text-xs font-semibold uppercase tracking-wide text-amber-700">Waitlist ({teachingClass.waitlist.length})</h5>
                     {teachingClass.waitlist.length === 0 ? <p className="mt-2 text-sm text-gray-500">No students are waitlisted.</p> : (

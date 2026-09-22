@@ -34,6 +34,14 @@ interface ScheduleEntry {
     status?: string
     role?: 'student_teacher' | 'student_co_teacher'
   }>
+  volunteers: Array<{
+    guardian: {
+      id: string
+      firstName: string
+      lastName: string
+    }
+    volunteerType: string
+  }>
 }
 
 type ClassRegistrations = Parameters<typeof ReadonlyScheduleView>[0]['classRegistrations']
@@ -103,6 +111,8 @@ export default function ScheduleViewer({
 
   const schedulesByCell = useMemo(() => new Map(schedules.map((entry) => [`${entry.classroom.id}-${entry.schedule.period}`, entry])), [schedules])
   const registeredStudentCount = (entry: ScheduleEntry) => entry.roster.filter((student) => student.role !== 'student_teacher' && student.role !== 'student_co_teacher').length
+  const helpersFor = (entry: ScheduleEntry) => entry.volunteers.filter((volunteer) => volunteer.volunteerType === 'helper')
+  const helperNames = (entry: ScheduleEntry) => helpersFor(entry).map(({ guardian }) => `${guardian.firstName} ${guardian.lastName}`.trim()).join(', ')
 
   return (
     <div className="space-y-8">
@@ -171,6 +181,7 @@ export default function ScheduleViewer({
                         <div className="text-xs text-slate-500 text-right">
                           <div>Teacher: {entry.teacher.firstName} {entry.teacher.lastName}</div>
                            {entry.classTeachingRequest.coTeacher && <div>{entry.classTeachingRequest.studentCoTeacherChildId ? 'Student co-teacher' : 'Co-teacher'}: {entry.classTeachingRequest.coTeacher}</div>}
+                          <div>Helpers: {helperNames(entry) || 'None assigned'}</div>
                           <div className="mt-1">Grade {entry.classTeachingRequest.gradeRange}</div>
                         </div>
                       </div>
@@ -223,7 +234,7 @@ export default function ScheduleViewer({
                   <td className="px-4 py-3 align-top text-sm font-semibold text-slate-900">{classroom.name}</td>
                   {PERIODS.map((period) => {
                     const entry = schedulesByCell.get(`${classroom.id}-${period.id}`)
-                    return <td key={period.id} className="px-2 py-2 align-top">{entry ? <button type="button" onClick={() => setSelectedGridEntry(entry)} className="min-h-20 w-full rounded-lg border border-blue-100 bg-blue-50 p-3 text-left hover:border-blue-300 hover:bg-blue-100"><p className="truncate text-sm font-semibold text-slate-900">{entry.classTeachingRequest.className}</p><p className="truncate text-xs text-slate-600">{`${entry.teacher.firstName} ${entry.teacher.lastName}`.trim()}</p>{entry.classTeachingRequest.coTeacher && <p className="truncate text-xs text-slate-600">{entry.classTeachingRequest.coTeacher}</p>}<p className="mt-2 text-xs text-slate-500">Grade {entry.classTeachingRequest.gradeRange} • {registeredStudentCount(entry)} registered</p></button> : <div className="min-h-20 rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-300">Open</div>}</td>
+                    return <td key={period.id} className="px-2 py-2 align-top">{entry ? <button type="button" onClick={() => setSelectedGridEntry(entry)} className="min-h-20 w-full rounded-lg border border-blue-100 bg-blue-50 p-3 text-left hover:border-blue-300 hover:bg-blue-100"><p className="truncate text-sm font-semibold text-slate-900">{entry.classTeachingRequest.className}</p><p className="truncate text-xs text-slate-600">{`${entry.teacher.firstName} ${entry.teacher.lastName}`.trim()}</p>{entry.classTeachingRequest.coTeacher && <p className="truncate text-xs text-slate-600">{entry.classTeachingRequest.coTeacher}</p>}<p className="truncate text-xs text-slate-600">Helpers: {helperNames(entry) || 'None assigned'}</p><p className="mt-2 text-xs text-slate-500">Grade {entry.classTeachingRequest.gradeRange} • {registeredStudentCount(entry)} registered</p></button> : <div className="min-h-20 rounded-lg border border-dashed border-slate-200 p-3 text-sm text-slate-300">Open</div>}</td>
                   })}
                 </tr>
               ))}
@@ -245,8 +256,9 @@ export default function ScheduleViewer({
             <div>
               <p className="text-sm text-slate-500">{selectedGridEntry.classroom.name} • {PERIODS.find((period) => period.id === selectedGridEntry.schedule.period)?.name}</p>
               <p className="mt-1 text-sm text-slate-700"><strong>Teacher:</strong> {`${selectedGridEntry.teacher.firstName} ${selectedGridEntry.teacher.lastName}`.trim()}</p>
-               {selectedGridEntry.classTeachingRequest.coTeacher && <p className="mt-1 text-sm text-slate-700"><strong>{selectedGridEntry.classTeachingRequest.studentCoTeacherChildId ? 'Student co-teacher' : 'Co-teacher'}:</strong> {selectedGridEntry.classTeachingRequest.coTeacher}</p>}
-              <p className="mt-1 text-sm text-slate-700"><strong>Grade range:</strong> {selectedGridEntry.classTeachingRequest.gradeRange}</p>
+                {selectedGridEntry.classTeachingRequest.coTeacher && <p className="mt-1 text-sm text-slate-700"><strong>{selectedGridEntry.classTeachingRequest.studentCoTeacherChildId ? 'Student co-teacher' : 'Co-teacher'}:</strong> {selectedGridEntry.classTeachingRequest.coTeacher}</p>}
+               <p className="mt-1 text-sm text-slate-700"><strong>Helpers:</strong> {helperNames(selectedGridEntry) || 'None assigned'}</p>
+               <p className="mt-1 text-sm text-slate-700"><strong>Grade range:</strong> {selectedGridEntry.classTeachingRequest.gradeRange}</p>
             </div>
             <div>
               <h4 className="font-semibold text-slate-900">Class Description</h4>

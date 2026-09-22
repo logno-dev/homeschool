@@ -1,7 +1,7 @@
 import { and, eq, inArray, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { children, classRegistrations, classTeachingRequests, guardians, schedules, sessionClassrooms, sessionRegistrationWindows, sessions } from '@/lib/schema'
+import { children, classRegistrations, classTeachingRequests, guardians, schedules, sessionClassrooms, sessionRegistrationWindows, sessions, volunteerAssignments } from '@/lib/schema'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
 import { getGuardianById } from '@/lib/database'
 import { getAppTimezone, parseAppDate } from '@/lib/app-time'
@@ -44,7 +44,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
   if (!teachingClasses.length) return NextResponse.json({ classes: [], reviewSchedule: [], classrooms: [], registrationStarted: false })
   const scheduleIds = teachingClasses.map((entry) => entry.scheduleId)
   const studentTeacherIds = reviewSchedule.flatMap((entry) => [entry.studentTeacherChildId, entry.studentCoTeacherChildId]).filter((id): id is string => Boolean(id))
-  const [registeredStudents, studentTeachers, sessionRows, registrationWindows] = await Promise.all([
+  const [registeredStudents, studentTeachers, classHelpers, sessionRows, registrationWindows] = await Promise.all([
     db
       .select({ scheduleId: classRegistrations.scheduleId, status: classRegistrations.status, id: children.id, familyId: children.familyId, firstName: children.firstName, lastName: children.lastName, grade: children.grade, allergies: children.allergies })
       .from(classRegistrations)
@@ -53,6 +53,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
     studentTeacherIds.length
       ? db.select({ id: children.id, familyId: children.familyId, firstName: children.firstName, lastName: children.lastName, grade: children.grade, allergies: children.allergies }).from(children).where(inArray(children.id, studentTeacherIds))
       : [],
+    db
+      .select({ scheduleId: volunteerAssignments.scheduleId, id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName, email: guardians.email })
+      .from(volunteerAssignments)
+      .innerJoin(guardians, eq(volunteerAssignments.guardianId, guardians.id))
+      .where(and(
+        inArray(volunteerAssignments.scheduleId, scheduleIds),
+        eq(volunteerAssignments.volunteerType, 'helper'),
+        eq(volunteerAssignments.status, 'assigned')
+      )),
     db.select({ registrationStartDate: sessions.registrationStartDate, teacherRegistrationStartDate: sessions.teacherRegistrationStartDate }).from(sessions).where(eq(sessions.id, sessionId)).limit(1),
     db.select({ startDate: sessionRegistrationWindows.startDate }).from(sessionRegistrationWindows).where(eq(sessionRegistrationWindows.sessionId, sessionId))
   ])
@@ -114,7 +123,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
           ...(studentCoTeacher ? [withParentEmails(studentCoTeacher, 'student_co_teacher')] : []),
           ...roster.filter((student) => student.id !== studentTeacher?.id && student.id !== studentCoTeacher?.id)
         ],
-        waitlist
+        waitlist,
+        helpers: classHelpers
+          .filter((helper) => helper.scheduleId === entry.scheduleId)
+          .map(({ scheduleId: _scheduleId, ...helper }) => helper)
       }
     })
   })
