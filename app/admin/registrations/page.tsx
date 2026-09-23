@@ -485,7 +485,7 @@ export default function AdminRegistrationsPage() {
               <p className="mt-2 text-gray-600">Loading registrations...</p>
             </div>
           ) : viewMode === 'list' ? (
-            <FamilyRegistrationList families={familyRegistrations} />
+            <FamilyRegistrationList families={familyRegistrations} sessionId={selectedSessionId} onRefresh={refreshData} />
           ) : (
             <>
             <div className="bg-white shadow rounded-lg overflow-hidden">

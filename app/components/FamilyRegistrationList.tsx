@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import Modal from './Modal'
+import { formatPhoneNumber, isValidPhoneNumber, PHONE_PATTERN } from '@/lib/phone'
 
 interface Person {
   id: string
@@ -102,7 +103,86 @@ function itemStatus(status: string, holdExpiresAt: string | null) {
   return status.replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase())
 }
 
-export default function FamilyRegistrationList({ families }: { families: FamilyRegistrationSummary[] }) {
+function EmergencyContactEditor({ family, sessionId, onUpdated }: { family: FamilyRegistrationSummary; sessionId: string; onUpdated: (contact: { name: string; phone: string }) => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(family.emergencyContact || '')
+  const [phone, setPhone] = useState(family.emergencyPhone || '')
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const cancel = () => {
+    setName(family.emergencyContact || '')
+    setPhone(family.emergencyPhone || '')
+    setMessage('')
+    setEditing(false)
+  }
+
+  const save = async () => {
+    if (!name.trim() || !phone.trim()) {
+      setMessage('Contact name and phone are required.')
+      return
+    }
+    if (!isValidPhoneNumber(phone)) {
+      setMessage('Use the phone format (555) 123-4567.')
+      return
+    }
+
+    setSaving(true)
+    setMessage('')
+    try {
+      const response = await fetch('/api/admin/registrations', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ familyId: family.familyId, sessionId, emergencyContact: { name: name.trim(), phone } })
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'Unable to update emergency contact.')
+      await onUpdated({ name: result.emergencyContact, phone: result.emergencyPhone })
+      setEditing(false)
+      setMessage('Emergency contact updated.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to update emergency contact.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!family.classes.length) {
+    return <div className="sm:col-span-2"><div className="font-semibold text-gray-900">Emergency contact</div><p className="mt-1 text-gray-500">Add a class registration before setting a session emergency contact.</p></div>
+  }
+
+  if (!editing) {
+    return (
+      <div className="sm:col-span-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="font-semibold text-gray-900">Emergency contact</div>
+            <div className="mt-1 text-gray-600">{family.emergencyContact || 'Not provided'}{family.emergencyPhone ? ` · ${family.emergencyPhone}` : ''}</div>
+          </div>
+          <button type="button" onClick={() => { setEditing(true); setMessage('') }} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">Edit</button>
+        </div>
+        {message && <p className="mt-2 text-sm text-green-700">{message}</p>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="sm:col-span-2">
+      <div className="font-semibold text-gray-900">Emergency contact</div>
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        <label className="text-xs font-medium text-gray-700">Name<input value={name} onChange={(event) => setName(event.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900" /></label>
+        <label className="text-xs font-medium text-gray-700">Phone<input type="tel" inputMode="tel" pattern={PHONE_PATTERN} maxLength={14} value={phone} onChange={(event) => setPhone(formatPhoneNumber(event.target.value))} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-normal text-gray-900" /></label>
+      </div>
+      {message && <p className="mt-2 text-sm text-red-700">{message}</p>}
+      <div className="mt-3 flex gap-2">
+        <button type="button" onClick={() => void save()} disabled={saving} className="rounded-md bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">{saving ? 'Saving...' : 'Save contact'}</button>
+        <button type="button" onClick={cancel} disabled={saving} className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+export default function FamilyRegistrationList({ families, sessionId, onRefresh }: { families: FamilyRegistrationSummary[]; sessionId: string; onRefresh: () => Promise<void> }) {
   const [selectedFamily, setSelectedFamily] = useState<FamilyRegistrationSummary | null>(null)
   const [query, setQuery] = useState('')
   const filteredFamilies = useMemo(() => {
@@ -164,7 +244,10 @@ export default function FamilyRegistrationList({ families }: { families: FamilyR
             <section className="grid gap-3 rounded-lg bg-gray-50 p-4 text-sm sm:grid-cols-2">
               <div><div className="font-semibold text-gray-900">Family contact</div><div className="mt-1 text-gray-600">{selectedFamily.email}</div><div className="text-gray-600">{selectedFamily.phone}</div></div>
               <div><div className="font-semibold text-gray-900">Guardians</div><div className="mt-1 text-gray-600">{selectedFamily.guardians.map((guardian) => `${guardian.firstName} ${guardian.lastName}${guardian.email ? ` (${guardian.email})` : ''}`).join(', ') || 'None listed'}</div></div>
-              {(selectedFamily.emergencyContact || selectedFamily.emergencyPhone) && <div className="sm:col-span-2"><div className="font-semibold text-gray-900">Emergency contact</div><div className="mt-1 text-gray-600">{selectedFamily.emergencyContact}{selectedFamily.emergencyPhone ? ` · ${selectedFamily.emergencyPhone}` : ''}</div></div>}
+              <EmergencyContactEditor key={`${selectedFamily.familyId}:${sessionId}`} family={selectedFamily} sessionId={sessionId} onUpdated={async (contact) => {
+                setSelectedFamily((current) => current ? { ...current, emergencyContact: contact.name, emergencyPhone: contact.phone } : current)
+                await onRefresh()
+              }} />
             </section>
 
             {selectedFamily.status?.adminOverride && (

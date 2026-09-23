@@ -19,6 +19,7 @@ import { and, eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
 import { getStudentTeacherAssignment } from '@/lib/student-teachers'
+import { isValidPhoneNumber } from '@/lib/phone'
 
 export async function GET(request: Request) {
   try {
@@ -270,6 +271,9 @@ export async function GET(request: Request) {
         : fee.paidAmount > 0 ? 'partial'
         : 'unpaid'
 
+      const emergencyContactRow = familyClasses.find((row) => row.emergencyContact && row.emergencyPhone)
+        || familyClasses.find((row) => row.emergencyContact || row.emergencyPhone)
+
       return {
         familyId: family.id,
         familyName: family.name,
@@ -281,8 +285,8 @@ export async function GET(request: Request) {
         needsResolution,
         status,
         fee: fee ? { ...fee, remainingBalance: Math.max(0, fee.totalFee - fee.paidAmount) } : null,
-        emergencyContact: familyClasses.find((row) => row.emergencyContact)?.emergencyContact || null,
-        emergencyPhone: familyClasses.find((row) => row.emergencyPhone)?.emergencyPhone || null,
+        emergencyContact: emergencyContactRow?.emergencyContact || null,
+        emergencyPhone: emergencyContactRow?.emergencyPhone || null,
         guardians: guardianRows.filter((guardian) => guardian.familyId === family.id),
         classes: familyClasses.map((row) => ({
           id: row.id,
@@ -324,6 +328,42 @@ export async function GET(request: Request) {
   }
 }
 
+export async function PATCH(request: Request) {
+  try {
+    const auth = await getAuthenticatedAdmin('registrations')
+    if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+    const body = await request.json()
+    const familyId = typeof body.familyId === 'string' ? body.familyId.trim() : ''
+    const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : ''
+    const name = typeof body.emergencyContact?.name === 'string' ? body.emergencyContact.name.trim() : ''
+    const phone = typeof body.emergencyContact?.phone === 'string' ? body.emergencyContact.phone.trim() : ''
+
+    if (!familyId || !sessionId || !name || !phone) {
+      return NextResponse.json({ error: 'Family, session, emergency contact name, and phone are required.' }, { status: 400 })
+    }
+    if (!isValidPhoneNumber(phone)) {
+      return NextResponse.json({ error: 'Use the phone format (555) 123-4567.' }, { status: 400 })
+    }
+
+    const updated = await db
+      .update(classRegistrations)
+      .set({ emergencyContact: name, emergencyPhone: phone, updatedAt: new Date().toISOString() })
+      .where(and(eq(classRegistrations.familyId, familyId), eq(classRegistrations.sessionId, sessionId)))
+      .returning({ id: classRegistrations.id })
+
+    if (!updated.length) {
+      return NextResponse.json({ error: 'This family has no class registrations in the selected session.' }, { status: 404 })
+    }
+
+    publishRegistrationUpdate(sessionId)
+    return NextResponse.json({ emergencyContact: name, emergencyPhone: phone, updatedCount: updated.length })
+  } catch (error) {
+    console.error('Error updating family emergency contact:', error)
+    return NextResponse.json({ error: 'Failed to update emergency contact' }, { status: 500 })
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const auth = await getAuthenticatedAdmin('registrations')
@@ -349,6 +389,13 @@ export async function POST(request: Request) {
     if (!child.length) {
       return NextResponse.json({ error: 'Child not found' }, { status: 404 })
     }
+
+    const existingContactRows = await db
+      .select({ emergencyContact: classRegistrations.emergencyContact, emergencyPhone: classRegistrations.emergencyPhone })
+      .from(classRegistrations)
+      .where(and(eq(classRegistrations.familyId, child[0].familyId), eq(classRegistrations.sessionId, sessionId)))
+    const existingEmergencyContact = existingContactRows.find((row) => row.emergencyContact && row.emergencyPhone)
+      || existingContactRows.find((row) => row.emergencyContact || row.emergencyPhone)
 
     const scheduleData = await db
       .select({
@@ -405,6 +452,8 @@ export async function POST(request: Request) {
         childId,
         familyId: child[0].familyId,
         registeredBy: session.user.id,
+        emergencyContact: existingEmergencyContact?.emergencyContact || null,
+        emergencyPhone: existingEmergencyContact?.emergencyPhone || null,
         status
       })
       .returning()
