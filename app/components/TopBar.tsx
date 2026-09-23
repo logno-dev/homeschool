@@ -118,11 +118,11 @@ export default function TopBar() {
     )}
     <nav ref={mobileMenuRef} className="print:hidden sticky top-0 z-50 bg-white shadow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
-          <div className="flex items-center gap-4 min-w-0">
+        <div className="flex items-center justify-between h-16 gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 min-w-0 sm:gap-4">
             <button
               onClick={() => setShowMenu((prev) => !prev)}
-              className="sm:hidden p-2 rounded-md border border-gray-200 text-gray-600"
+              className="lg:hidden p-2 rounded-md border border-gray-200 text-gray-600"
               aria-label="Toggle navigation"
               aria-expanded={showMenu}
             >
@@ -131,9 +131,9 @@ export default function TopBar() {
               </svg>
             </button>
             <Link href="/" onClick={() => setShowMenu(false)} className="shrink-0">
-              <BrandLogo variant="horizontal" width={150} alt="DVCLC home" />
+              <BrandLogo variant="horizontal" width={150} className="h-auto w-[120px] sm:w-[150px]" alt="DVCLC home" />
             </Link>
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="hidden lg:flex items-center gap-2">
               {mainNav.map((item) => {
                 const active = pathname.startsWith(item.href)
                 return (
@@ -179,7 +179,7 @@ export default function TopBar() {
               {cartCount > 0 && <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-orange-600 px-1 text-[11px] font-bold leading-none text-white">{cartCount > 99 ? '99+' : cartCount}</span>}
             </Link>
             {userName && (
-              <span className="text-gray-600 text-xs sm:text-sm truncate max-w-24 sm:max-w-none">
+              <span className="hidden max-w-40 truncate text-sm text-gray-600 xl:inline">
                 {userName}
               </span>
             )}
@@ -201,7 +201,7 @@ export default function TopBar() {
         </div>
       </div>
       {showMenu && (
-        <div className="sm:hidden border-t border-gray-200 px-4 pb-4">
+        <div className="lg:hidden border-t border-gray-200 px-4 pb-4">
           <div className="grid gap-2 pt-3">
             {mainNav.map((item) => (
               <Link
