@@ -37,11 +37,11 @@ interface EmergencyContact {
 }
 
 export default function RegistrationCart({ sessionId, children, costBreakdown, modifyRegistration = false, preserveAdminOverride = false, initialEmergencyContact = { name: '', phone: '' } }: RegistrationCartProps) {
-  const { 
-    pendingRegistrations, 
-    pendingVolunteerAssignments, 
+  const {
+    pendingRegistrations,
+    pendingVolunteerAssignments,
     conflicts,
-    removeChildRegistration, 
+    removeChildRegistration,
     removeVolunteerAssignment,
     clearAllRegistrations,
     getTotalPendingRegistrations,
@@ -49,7 +49,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
     isVolunteerRequirementsMet,
     setConflicts
   } = useRegistration()
-  
+
   const { showSuccess, showError } = useToast()
   const initialSelections = useRef({
     registrations: pendingRegistrations,
@@ -133,7 +133,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
     setConflicts([])
     setVolunteerHoursInfo(null)
     setCanRequestOverride(false)
-    
+
     try {
       // Submit all registrations in batch
       const response = await fetch('/api/registration/batch-register', {
@@ -145,7 +145,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
           sessionId,
           registrations: pendingRegistrations,
           volunteerAssignments: pendingVolunteerAssignments,
-           emergencyContact,
+          emergencyContact,
           requestAdminOverride: requestAdminOverride || preserveAdminOverride,
           modifyRegistration,
           overrideReason: requestAdminOverride ? overrideReason.trim() : undefined
@@ -170,7 +170,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
             canRequestOverride: result.canRequestOverride
           })
         }
-        
+
         if (result.canRequestOverride) {
           const gradeConflicts = Array.isArray(result.conflicts)
             ? result.conflicts.filter((conflict: { type?: string; className?: string }) => conflict.type === 'grade_range')
@@ -203,12 +203,12 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
         showSuccess('Admin Override Requested', result.message)
       } else {
         showSuccess(
-          'Registration Complete!', 
+          'Registration Complete!',
           `${result.registeredCount ? `Successfully registered ${result.registeredCount} child${result.registeredCount === 1 ? '' : 'ren'}.` : ''}${result.waitlistedCount ? ` ${result.waitlistedCount} child${result.waitlistedCount === 1 ? ' was' : 'ren were'} added to the waitlist.` : ''} ${result.volunteerCount} volunteer${result.volunteerCount === 1 ? '' : 's'}.`
         )
         if (result.registeredCount > 0) await loadPaymentPrompt()
       }
-      
+
       // Clear the cart and close modal
       await clearAllRegistrations(false)
       setShowCart(false)
@@ -217,7 +217,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
       if (result.adminOverrideRequested) {
         window.location.reload()
       }
-      
+
     } catch (error) {
       console.error('Error submitting registrations:', error)
       showError('Registration failed', error instanceof Error ? error.message : 'Unknown error occurred')
@@ -237,23 +237,23 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
       const payload = await response.json()
       const fee = (payload.fees || []).find((entry: { sessionId: string }) => entry.sessionId === sessionId)
 
-       if (!fee) {
-         window.location.reload()
-         return
-       }
+      if (!fee) {
+        window.location.reload()
+        return
+      }
 
-       setPendingPaymentFee(fee)
-       if (fee.overpaymentAmount > 0 && fee.overpaymentStatus === 'pending') {
-         setShowOverpaymentModal(true)
-         return
-       }
+      setPendingPaymentFee(fee)
+      if (fee.overpaymentAmount > 0 && fee.overpaymentStatus === 'pending') {
+        setShowOverpaymentModal(true)
+        return
+      }
 
-       if (fee.remainingAmount <= 0) {
-         window.location.reload()
-         return
-       }
+      if (fee.remainingAmount <= 0) {
+        window.location.reload()
+        return
+      }
 
-       setShowPaymentModal(true)
+      setShowPaymentModal(true)
     } catch (error) {
       console.error('Failed to load payment data:', error)
       window.location.reload()
@@ -304,7 +304,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
       showError('Reason required', 'Please provide a reason for the admin override request.')
       return
     }
-    
+
     await submitAllRegistrations(true)
   }
 
@@ -461,7 +461,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
           {registeredChildren.length > 0 && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
               <h3 className="font-semibold text-amber-900 mb-1">Family Emergency Contact</h3>
-              <p className="mb-4 text-sm text-amber-800">Provide one emergency contact name and phone number for your family. This applies to all children in this session.</p>
+              <p className="mb-4 text-sm text-amber-800">Provide one <span className="underline font-bold">OFFSITE</span> emergency contact name and phone number for your family. This applies to all children in this session.</p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Emergency contact name *</label>
@@ -476,12 +476,12 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-1">Emergency contact phone *</label>
                   <input
-                     type="tel"
-                     inputMode="tel"
-                     pattern={PHONE_PATTERN}
-                     maxLength={14}
-                     value={emergencyContact.phone}
-                     onChange={(event) => setEmergencyContact((current) => ({ ...current, phone: formatPhoneNumber(event.target.value) }))}
+                    type="tel"
+                    inputMode="tel"
+                    pattern={PHONE_PATTERN}
+                    maxLength={14}
+                    value={emergencyContact.phone}
+                    onChange={(event) => setEmergencyContact((current) => ({ ...current, phone: formatPhoneNumber(event.target.value) }))}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900"
                     placeholder="Phone number"
                   />
@@ -556,7 +556,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
           {/* Child Registrations */}
           {addedRegistrations.length > 0 && (
             <div>
-               <h4 className="font-semibold text-gray-900 mb-3">{modifyRegistration ? 'Added or Changed Classes' : 'Selected Classes'}</h4>
+              <h4 className="font-semibold text-gray-900 mb-3">{modifyRegistration ? 'Added or Changed Classes' : 'Selected Classes'}</h4>
               <div className="space-y-3">
                 {addedRegistrations.map((registration, index) => (
                   <div key={index} className="border rounded-lg p-3 bg-gray-50">
@@ -569,19 +569,19 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
                         <p className="text-sm text-gray-600">
                           {registration.teacher} • {registration.classroom}
                         </p>
-                         <p className={`text-xs font-medium ${registration.status === 'waitlisted' ? 'text-yellow-700' : 'text-blue-700'}`}>{registration.status === 'waitlisted' ? 'Waitlisted - not enrolled unless a place opens' : 'Reserved for registration'}</p>
+                        <p className={`text-xs font-medium ${registration.status === 'waitlisted' ? 'text-yellow-700' : 'text-blue-700'}`}>{registration.status === 'waitlisted' ? 'Waitlisted - not enrolled unless a place opens' : 'Reserved for registration'}</p>
                         {registration.holdExpiresAt && (
                           <p className="text-xs text-amber-600 mt-1">
                             {formatHoldCountdown(registration.holdExpiresAt)}
                           </p>
                         )}
                       </div>
-                        <button
-                          onClick={async () => {
-                            await removeChildRegistration(registration.childId, registration.period, registration.scheduleId)
-                          }}
-                          className="text-red-600 hover:text-red-800 text-sm"
-                        >
+                      <button
+                        onClick={async () => {
+                          await removeChildRegistration(registration.childId, registration.period, registration.scheduleId)
+                        }}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                      >
                         Remove
                       </button>
                     </div>
@@ -691,7 +691,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
               ) : (
                 <button
                   onClick={() => submitAllRegistrations()}
-                   disabled={submitting || (!modifyRegistration && totalItems === 0) || conflicts.length > 0}
+                  disabled={submitting || (!modifyRegistration && totalItems === 0) || conflicts.length > 0}
                   className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors w-full sm:w-auto"
                 >
                   {submitting ? 'Submitting...' : `${modifyRegistration ? 'Save Registration Changes' : 'Submit Registration'} (${totalItems} items)`}
