@@ -14,6 +14,7 @@ export default function TopBar() {
   const [showMenu, setShowMenu] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showAdminLinks, setShowAdminLinks] = useState(false)
+  const [cartCount, setCartCount] = useState(0)
   const moreMenuRef = useRef<HTMLDivElement>(null)
   const mobileMenuRef = useRef<HTMLElement>(null)
 
@@ -39,6 +40,34 @@ export default function TopBar() {
       isActive = false
     }
   }, [user])
+
+  useEffect(() => {
+    if (!user) {
+      setCartCount(0)
+      return
+    }
+
+    let isActive = true
+    const refreshCart = () => {
+      fetch('/api/registration/cart', { cache: 'no-store' })
+        .then((response) => response.ok ? response.json() : { totalItems: 0 })
+        .then((cart) => {
+          if (isActive) setCartCount(Number(cart.totalItems) || 0)
+        })
+        .catch(() => {
+          if (isActive) setCartCount(0)
+        })
+    }
+
+    refreshCart()
+    window.addEventListener('registration-cart-updated', refreshCart)
+    window.addEventListener('focus', refreshCart)
+    return () => {
+      isActive = false
+      window.removeEventListener('registration-cart-updated', refreshCart)
+      window.removeEventListener('focus', refreshCart)
+    }
+  }, [pathname, user])
 
   useEffect(() => {
     if (!showMore) return
@@ -145,6 +174,10 @@ export default function TopBar() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/cart" aria-label={`Registration cart with ${cartCount} item${cartCount === 1 ? '' : 's'}`} title="Registration cart" className={`relative rounded-md p-2 ${pathname === '/cart' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l2 12h10l3-8H6m2 12a1 1 0 100 2 1 1 0 000-2zm8 0a1 1 0 100 2 1 1 0 000-2z" /></svg>
+              {cartCount > 0 && <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-orange-600 px-1 text-[11px] font-bold leading-none text-white">{cartCount > 99 ? '99+' : cartCount}</span>}
+            </Link>
             {userName && (
               <span className="text-gray-600 text-xs sm:text-sm truncate max-w-24 sm:max-w-none">
                 {userName}

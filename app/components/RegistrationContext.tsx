@@ -3,6 +3,8 @@
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react'
 
+const notifyCartUpdated = () => window.dispatchEvent(new Event('registration-cart-updated'))
+
 interface PendingRegistration {
   childId: string
   period: string
@@ -169,6 +171,7 @@ export function RegistrationProvider({
       })
       return [...filtered, registrationWithHold]
     })
+    notifyCartUpdated()
   }, [sessionId, pendingRegistrations, modifyMode])
 
   const removeChildRegistration = useCallback(async (childId: string, period: string, scheduleId?: string) => {
@@ -191,6 +194,7 @@ export function RegistrationProvider({
       if (scheduleId) return r.scheduleId !== scheduleId
       return false
     }))
+    notifyCartUpdated()
   }, [pendingRegistrations])
 
   const addVolunteerAssignment = useCallback(async (assignment: PendingVolunteerAssignment) => {
@@ -244,6 +248,7 @@ export function RegistrationProvider({
       const filtered = prev.filter(a => a.period !== assignment.period)
       return [...filtered, assignmentWithHold]
     })
+    notifyCartUpdated()
   }, [sessionId, pendingVolunteerAssignments, modifyMode])
 
   const removeVolunteerAssignment = useCallback(async (period: string) => {
@@ -258,6 +263,7 @@ export function RegistrationProvider({
     }
 
     setPendingVolunteerAssignments(prev => prev.filter(a => a.period !== period))
+    notifyCartUpdated()
   }, [pendingVolunteerAssignments])
 
   const isChildRegisteredInPeriod = useCallback((childId: string, period: string) => {
@@ -301,6 +307,7 @@ export function RegistrationProvider({
 
     setPendingRegistrations([])
     setPendingVolunteerAssignments([])
+    notifyCartUpdated()
   }, [pendingRegistrations, pendingVolunteerAssignments])
 
   const getTotalPendingRegistrations = useCallback(() => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRegistration } from './RegistrationContext'
 import { useToast } from './ToastContainer'
 import { formatPhoneNumber, isValidPhoneNumber, PHONE_PATTERN } from '@/lib/phone'
@@ -51,6 +51,10 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
   } = useRegistration()
   
   const { showSuccess, showError } = useToast()
+  const initialSelections = useRef({
+    registrations: pendingRegistrations,
+    volunteerAssignments: pendingVolunteerAssignments
+  })
   const [showCart, setShowCart] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [showOverpaymentModal, setShowOverpaymentModal] = useState(false)
@@ -90,6 +94,10 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
     const interval = setInterval(() => setTimeReference(Date.now()), 60000)
     return () => clearInterval(interval)
   }, [showCart])
+
+  useEffect(() => {
+    if (window.location.hash === '#registration-cart') setShowCart(true)
+  }, [])
 
   const formatHoldCountdown = (expiresAt?: string | null) => {
     if (!expiresAt) return null
@@ -305,9 +313,21 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
     return child ? `${child.firstName} ${child.lastName}` : 'Unknown Child'
   }
 
+  const registrationKey = (registration: typeof pendingRegistrations[number]) => `${registration.childId}:${registration.scheduleId}:${registration.status || 'registered'}`
+  const volunteerAssignmentKey = (assignment: typeof pendingVolunteerAssignments[number]) => [assignment.guardianId, assignment.period, assignment.volunteerType, assignment.scheduleId || '', assignment.volunteerJobId || ''].join(':')
+  const initialRegistrationKeys = new Set(initialSelections.current.registrations.map(registrationKey))
+  const currentRegistrationKeys = new Set(pendingRegistrations.map(registrationKey))
+  const initialVolunteerAssignmentKeys = new Set(initialSelections.current.volunteerAssignments.map(volunteerAssignmentKey))
+  const currentVolunteerAssignmentKeys = new Set(pendingVolunteerAssignments.map(volunteerAssignmentKey))
+  const addedRegistrations = modifyRegistration ? pendingRegistrations.filter((registration) => !initialRegistrationKeys.has(registrationKey(registration))) : pendingRegistrations
+  const removedRegistrations = modifyRegistration ? initialSelections.current.registrations.filter((registration) => !currentRegistrationKeys.has(registrationKey(registration))) : []
+  const addedVolunteerAssignments = modifyRegistration ? pendingVolunteerAssignments.filter((assignment) => !initialVolunteerAssignmentKeys.has(volunteerAssignmentKey(assignment))) : pendingVolunteerAssignments
+  const removedVolunteerAssignments = modifyRegistration ? initialSelections.current.volunteerAssignments.filter((assignment) => !currentVolunteerAssignmentKeys.has(volunteerAssignmentKey(assignment))) : []
   const registeredChildren = Array.from(new Set(pendingRegistrations.map((registration) => registration.childId)))
 
-  const totalItems = getTotalPendingRegistrations() + pendingVolunteerAssignments.length
+  const totalItems = modifyRegistration
+    ? addedRegistrations.length + removedRegistrations.length + addedVolunteerAssignments.length + removedVolunteerAssignments.length
+    : getTotalPendingRegistrations() + pendingVolunteerAssignments.length
 
   return (
     <>
@@ -349,7 +369,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
       )}
 
       {/* Floating Cart Button */}
-      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
+      {(!modifyRegistration || totalItems > 0) && <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
         <button
           onClick={() => setShowCart(true)}
           className="bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
@@ -359,7 +379,7 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
           </svg>
           <span className="font-medium">{totalItems}</span>
         </button>
-      </div>
+      </div>}
 
       {/* Cart Modal */}
       <Modal
@@ -373,8 +393,17 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
           <div className="bg-blue-50 rounded-lg p-4">
             <h3 className="font-semibold text-blue-900 mb-2">Registration Summary</h3>
             <div className="text-sm text-blue-800">
-              <p>{pendingRegistrations.length} class registration{pendingRegistrations.length === 1 ? '' : 's'}</p>
-              <p>{pendingVolunteerAssignments.length} volunteer assignment{pendingVolunteerAssignments.length === 1 ? '' : 's'}</p>
+              {modifyRegistration ? (
+                <>
+                  <p>{addedRegistrations.length + addedVolunteerAssignments.length} added or changed item{addedRegistrations.length + addedVolunteerAssignments.length === 1 ? '' : 's'}</p>
+                  <p>{removedRegistrations.length + removedVolunteerAssignments.length} removed item{removedRegistrations.length + removedVolunteerAssignments.length === 1 ? '' : 's'}</p>
+                </>
+              ) : (
+                <>
+                  <p>{pendingRegistrations.length} class registration{pendingRegistrations.length === 1 ? '' : 's'}</p>
+                  <p>{pendingVolunteerAssignments.length} volunteer assignment{pendingVolunteerAssignments.length === 1 ? '' : 's'}</p>
+                </>
+              )}
             </div>
           </div>
 
@@ -525,11 +554,11 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
           )}
 
           {/* Child Registrations */}
-          {pendingRegistrations.length > 0 && (
+          {addedRegistrations.length > 0 && (
             <div>
-               <h4 className="font-semibold text-gray-900 mb-3">Selected Classes</h4>
+               <h4 className="font-semibold text-gray-900 mb-3">{modifyRegistration ? 'Added or Changed Classes' : 'Selected Classes'}</h4>
               <div className="space-y-3">
-                {pendingRegistrations.map((registration, index) => (
+                {addedRegistrations.map((registration, index) => (
                   <div key={index} className="border rounded-lg p-3 bg-gray-50">
                     <div className="flex items-center justify-between">
                       <div>
@@ -562,12 +591,27 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
             </div>
           )}
 
-          {/* Volunteer Assignments */}
-          {pendingVolunteerAssignments.length > 0 && (
+          {removedRegistrations.length > 0 && (
             <div>
-              <h4 className="font-semibold text-gray-900 mb-3">Volunteer Assignments</h4>
+              <h4 className="mb-3 font-semibold text-gray-900">Removed Classes</h4>
               <div className="space-y-3">
-                {pendingVolunteerAssignments.map((assignment, index) => (
+                {removedRegistrations.map((registration) => (
+                  <div key={registrationKey(registration)} className="rounded-lg border border-red-200 bg-red-50 p-3">
+                    <p className="font-medium text-gray-900">{registration.className}</p>
+                    <p className="text-sm text-gray-600">{getChildName(registration.childId)} • {PERIODS.find((period) => period.id === registration.period)?.name}</p>
+                    <p className="text-xs font-medium text-red-700">Will be removed when changes are saved</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Volunteer Assignments */}
+          {addedVolunteerAssignments.length > 0 && (
+            <div>
+              <h4 className="font-semibold text-gray-900 mb-3">{modifyRegistration ? 'Added or Changed Volunteer Assignments' : 'Volunteer Assignments'}</h4>
+              <div className="space-y-3">
+                {addedVolunteerAssignments.map((assignment, index) => (
                   <div key={index} className="border rounded-lg p-3 bg-green-50">
                     <div className="flex items-center justify-between">
                       <div>
@@ -597,6 +641,21 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
                         Remove
                       </button>
                     </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {removedVolunteerAssignments.length > 0 && (
+            <div>
+              <h4 className="mb-3 font-semibold text-gray-900">Removed Volunteer Assignments</h4>
+              <div className="space-y-3">
+                {removedVolunteerAssignments.map((assignment) => (
+                  <div key={volunteerAssignmentKey(assignment)} className="rounded-lg border border-red-200 bg-red-50 p-3">
+                    <p className="font-medium text-gray-900">{assignment.className || assignment.jobTitle || 'Volunteer Job'}</p>
+                    <p className="text-sm text-gray-600">{assignment.guardianName} • {assignment.period === 'non_period' ? 'General Volunteer' : PERIODS.find((period) => period.id === assignment.period)?.name}</p>
+                    <p className="text-xs font-medium text-red-700">Will be removed when changes are saved</p>
                   </div>
                 ))}
               </div>
