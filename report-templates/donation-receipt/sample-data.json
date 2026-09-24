@@ -1,0 +1,10 @@
+{
+  "title": "DVCLC Donation Receipt",
+  "issueDate": "9/24/2026",
+  "organization": { "name": "DVCLC", "address": "123 Main Street, Palm Desert, CA 92260", "contact": "office@example.com | example.com" },
+  "family": { "name": "Rivera Family", "guardians": "Alex Rivera, Jordan Rivera" },
+  "session": { "name": "Scholarship Fund" },
+  "amounts": { "total": "$50.00", "paid": "$50.00", "balance": "$0.00" },
+  "dueDate": "",
+  "footer": "No goods or services were provided in exchange for this contribution."
+}

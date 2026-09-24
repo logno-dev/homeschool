@@ -6,6 +6,8 @@ import { db } from '@/lib/db'
 import { familySessionFees, sessions, families } from '@/lib/schema'
 import { sendPaymentInvoiceEmail } from '@/lib/email'
 
+export const maxDuration = 120
+
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ sessionId: string }> }

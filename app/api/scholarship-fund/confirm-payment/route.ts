@@ -3,7 +3,7 @@ import { getAuthenticatedUser } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { scholarshipFundTransactions } from '@/lib/schema'
 import { randomUUID } from 'crypto'
-import { getGuardianById } from '@/lib/database'
+import { getFamilyById, getGuardianById } from '@/lib/database'
 import { sendDonationConfirmationEmail } from '@/lib/email'
 import {
   capturePayPalOrder,
@@ -12,6 +12,8 @@ import {
   logPayPalDebug,
   summarizePayPalOrderForDebug
 } from '@/lib/paypal'
+
+export const maxDuration = 120
 
 interface ScholarshipConfirmationPayload {
   paymentIntentId?: string
@@ -118,6 +120,7 @@ export async function POST(request: NextRequest) {
     }
 
     const donationAmount = resolvedDonationAmountCents / 100
+    const family = await getFamilyById(guardian.familyId)
 
     await db.insert(scholarshipFundTransactions).values({
       id: randomUUID(),
@@ -132,7 +135,7 @@ export async function POST(request: NextRequest) {
     await sendDonationConfirmationEmail({
       to: guardian.email,
       firstName: guardian.firstName,
-      familyName: guardian.lastName,
+      familyName: family?.name || guardian.lastName,
       donationAmount,
       billingStatement: `<p>Donation amount: $${donationAmount.toFixed(2)}</p>`,
       userId: guardian.id,

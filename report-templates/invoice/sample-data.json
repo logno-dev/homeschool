@@ -1,0 +1,10 @@
+{
+  "title": "DVCLC Invoice",
+  "issueDate": "9/24/2026",
+  "organization": { "name": "DVCLC", "address": "123 Main Street, Palm Desert, CA 92260", "contact": "office@example.com | example.com" },
+  "family": { "name": "Rivera Family", "guardians": "Alex Rivera, Jordan Rivera" },
+  "session": { "name": "Fall 2026" },
+  "amounts": { "total": "$250.00", "paid": "$0.00", "balance": "$250.00" },
+  "dueDate": "10/15/2026",
+  "footer": "Payment is due by the date shown above."
+}

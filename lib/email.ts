@@ -3,11 +3,12 @@ import { db } from '@/lib/db'
 import { getGlobalSetting } from '@/lib/database'
 import { globalSettings } from '@/lib/schema'
 import { type EmailType } from '@/lib/email-types'
-import { createFeePdf } from '@/lib/fee-pdf'
 import { put } from '@vercel/blob'
 import { userDocuments, guardians } from '@/lib/schema'
 import { randomUUID } from 'crypto'
 import { normalizeEmailSpacing } from '@/lib/email-content'
+import { generateReportPdf } from '@/lib/report-service'
+import type { ReportType } from '@/lib/report-types'
 
 async function getEmailContent(type: EmailType, fallbackHtml: string, fallbackText: string, variables: Record<string, string>, rawHtmlVariables: string[] = []) {
   const [setting] = await db.select({ value: globalSettings.value }).from(globalSettings).where(eq(globalSettings.key, `email_template_${type}`)).limit(1)
@@ -21,8 +22,7 @@ export async function sendTestNotificationEmail(input: { type: EmailType; to: st
   const template = input.template?.trim() || `<div><p>Hello {{firstName}},</p><p>This is a test of the ${input.type.replace(/_/g, ' ')} notification.</p></div>`
   const rawVariables = input.type === 'payment_invoice' ? ['invoice'] : input.type === 'payment_confirmation' || input.type === 'donation_confirmation' ? ['billingStatement'] : []
   const content = await getEmailContent(input.type, template, template.replace(/<[^>]+>/g, ''), input.variables, rawVariables)
-  const pdfDetails = await getInvoicePdfDetails()
-  const attachments = input.type === 'donation_confirmation' ? [{ filename: 'DVCLC-Donation-Receipt.pdf', content: createFeePdf({ title: 'DVCLC Donation Receipt', familyName: input.variables.familyName || 'Rivera Family', guardians: 'Alex Rivera, Jordan Rivera', sessionName: 'Scholarship Fund', totalAmount: 50, amountPaid: 50, balanceDue: 0, ...pdfDetails, footer: (await getGlobalSetting('invoiceDonationStatement')) || undefined }) }] : input.type === 'payment_confirmation' ? [{ filename: 'DVCLC-Billing-Statement.pdf', content: createFeePdf({ title: 'DVCLC Billing Statement', familyName: input.variables.familyName || 'Rivera Family', guardians: 'Alex Rivera, Jordan Rivera', sessionName: input.variables.sessionName || 'Fall 2026 Session', totalAmount: 250, amountPaid: 250, balanceDue: 0, ...pdfDetails }) }] : input.type === 'payment_invoice' ? [{ filename: 'DVCLC-Invoice.pdf', content: createFeePdf({ title: 'DVCLC Invoice', familyName: input.variables.familyName || 'Rivera Family', guardians: 'Alex Rivera, Jordan Rivera', sessionName: input.variables.sessionName || 'Fall 2026 Session', totalAmount: 250, amountPaid: 0, balanceDue: 250, dueDate: input.variables.dueDate, ...pdfDetails }) }] : undefined
+  const attachments = input.type === 'donation_confirmation' ? [{ filename: 'DVCLC-Donation-Receipt.pdf', content: await createFinancialReportPdf('donation_receipt', { title: 'DVCLC Donation Receipt', familyName: input.variables.familyName || 'Rivera Family', guardians: 'Alex Rivera, Jordan Rivera', sessionName: 'Scholarship Fund', totalAmount: 50, amountPaid: 50, balanceDue: 0, footer: (await getGlobalSetting('invoiceDonationStatement')) || undefined }) }] : input.type === 'payment_confirmation' ? [{ filename: 'DVCLC-Billing-Statement.pdf', content: await createFinancialReportPdf('billing_statement', { title: 'DVCLC Billing Statement', familyName: input.variables.familyName || 'Rivera Family', guardians: 'Alex Rivera, Jordan Rivera', sessionName: input.variables.sessionName || 'Fall 2026 Session', totalAmount: 250, amountPaid: 250, balanceDue: 0 }) }] : input.type === 'payment_invoice' ? [{ filename: 'DVCLC-Invoice.pdf', content: await createFinancialReportPdf('invoice', { title: 'DVCLC Invoice', familyName: input.variables.familyName || 'Rivera Family', guardians: 'Alex Rivera, Jordan Rivera', sessionName: input.variables.sessionName || 'Fall 2026 Session', totalAmount: 250, amountPaid: 0, balanceDue: 250, dueDate: input.variables.dueDate }) }] : undefined
   await sendEmail({ to: input.to, subject: input.subject?.trim() || `DVCLC ${input.type.replace(/_/g, ' ')}`, html: content.html, text: content.text, type: input.type, attachments })
 }
 
@@ -415,6 +415,52 @@ async function getInvoicePdfDetails() {
   }
 }
 
+async function createFinancialReportPdf(type: Extract<ReportType, 'invoice' | 'billing_statement' | 'donation_receipt'>, input: { title: string; familyName: string; guardians?: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; footer?: string }) {
+  const details = await getInvoicePdfDetails()
+  const generated = await generateReportPdf(type, {
+    title: input.title,
+    issueDate: new Date().toLocaleDateString('en-US'),
+    organization: {
+      name: details.organization || '',
+      address: details.organizationAddress || '',
+      contact: details.organizationContact || ''
+    },
+    family: { name: input.familyName, guardians: input.guardians || '' },
+    session: { name: input.sessionName },
+    amounts: { total: `$${input.totalAmount.toFixed(2)}`, paid: `$${input.amountPaid.toFixed(2)}`, balance: `$${input.balanceDue.toFixed(2)}` },
+    dueDate: input.dueDate || '',
+    footer: input.footer ?? details.footer ?? ''
+  })
+  return generated.pdf.toString('base64')
+}
+
+export async function sendFinancialReportTestEmail(input: { type: Extract<ReportType, 'invoice' | 'billing_statement' | 'donation_receipt'>; to: string }) {
+  const report = input.type === 'invoice'
+    ? { emailType: 'payment_invoice' as const, title: 'DVCLC Invoice', filename: 'DVCLC-Invoice-Test.pdf', totalAmount: 250, amountPaid: 0, balanceDue: 250, dueDate: 'October 15, 2026', footer: undefined }
+    : input.type === 'billing_statement'
+      ? { emailType: 'payment_confirmation' as const, title: 'DVCLC Billing Statement', filename: 'DVCLC-Billing-Statement-Test.pdf', totalAmount: 250, amountPaid: 250, balanceDue: 0, dueDate: undefined, footer: undefined }
+      : { emailType: 'donation_confirmation' as const, title: 'DVCLC Donation Receipt', filename: 'DVCLC-Donation-Receipt-Test.pdf', totalAmount: 50, amountPaid: 50, balanceDue: 0, dueDate: undefined, footer: (await getGlobalSetting('invoiceDonationStatement')) || undefined }
+  const pdf = await createFinancialReportPdf(input.type, {
+    title: report.title,
+    familyName: 'Rivera Family',
+    guardians: 'Alex Rivera, Jordan Rivera',
+    sessionName: input.type === 'donation_receipt' ? 'Scholarship Fund' : 'Fall 2026 Session',
+    totalAmount: report.totalAmount,
+    amountPaid: report.amountPaid,
+    balanceDue: report.balanceDue,
+    dueDate: report.dueDate,
+    footer: report.footer
+  })
+  await sendEmail({
+    to: input.to,
+    subject: `[TEST] ${report.title}`,
+    html: `<p>This is a test of the selected ${escapeHtml(report.title)} template using sample data.</p>`,
+    text: `This is a test of the selected ${report.title} template using sample data.`,
+    type: report.emailType,
+    attachments: [{ filename: report.filename, content: pdf }]
+  })
+}
+
 async function getFamilyGuardians(familyId: string | undefined) {
   if (!familyId) return undefined
   const familyGuardians = await db.select({ firstName: guardians.firstName, lastName: guardians.lastName }).from(guardians).where(eq(guardians.familyId, familyId))
@@ -431,7 +477,7 @@ export async function sendPaymentConfirmationEmail(input: PaymentNotificationEma
   const statement = input.billingStatement || statementHtml({ ...input, paid: true })
   const variables = { firstName: input.firstName, familyName: input.familyName, sessionName: input.sessionName, billingStatement: statement, totalAmount: `$${input.totalAmount.toFixed(2)}`, amountPaid: `$${input.amountPaid.toFixed(2)}`, balanceDue: `$${input.balanceDue.toFixed(2)}` }
   const content = await getEmailContent('payment_confirmation', `<div><p>Hello ${escapeHtml(input.firstName)},</p><p>Your payment has been received.</p>${statement}</div>`, `Hello ${input.firstName},\n\nYour payment has been received.\nTotal: $${input.totalAmount.toFixed(2)}\nPaid: $${input.amountPaid.toFixed(2)}\nBalance: $${input.balanceDue.toFixed(2)}`, variables, ['billingStatement'])
-  const pdf = createFeePdf({ title: 'DVCLC Billing Statement', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue, ...(await getInvoicePdfDetails()) })
+  const pdf = await createFinancialReportPdf('billing_statement', { title: 'DVCLC Billing Statement', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue })
   try { await storeUserPdf(input, 'DVCLC-Billing-Statement.pdf', 'billing_statement', pdf) } catch (error) { console.error('Unable to archive billing statement PDF:', error) }
   await sendEmail({ to: input.to, subject: await getEmailSubject('payment_confirmation', 'DVCLC payment confirmation', variables), html: content.html, text: content.text, type: 'payment_confirmation', attachments: [{ filename: 'DVCLC-Billing-Statement.pdf', content: pdf }] })
 }
@@ -440,7 +486,7 @@ export async function sendPaymentInvoiceEmail(input: PaymentNotificationEmailInp
   const invoice = input.invoice || statementHtml({ ...input, paid: false })
   const variables = { firstName: input.firstName, familyName: input.familyName, sessionName: input.sessionName, invoice, totalAmount: `$${input.totalAmount.toFixed(2)}`, amountPaid: `$${input.amountPaid.toFixed(2)}`, balanceDue: `$${input.balanceDue.toFixed(2)}`, dueDate: input.dueDate || '' }
   const content = await getEmailContent('payment_invoice', `<div><p>Hello ${escapeHtml(input.firstName)},</p><p>Your registration invoice is ready.</p>${invoice}</div>`, `Hello ${input.firstName},\n\nYour registration invoice is ready.\nBalance due: $${input.balanceDue.toFixed(2)}`, variables, ['invoice'])
-  const pdf = createFeePdf({ title: 'DVCLC Invoice', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue, dueDate: input.dueDate, ...(await getInvoicePdfDetails()) })
+  const pdf = await createFinancialReportPdf('invoice', { title: 'DVCLC Invoice', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue, dueDate: input.dueDate })
   try { await storeUserPdf(input, 'DVCLC-Invoice.pdf', 'invoice', pdf) } catch (error) { console.error('Unable to archive invoice PDF:', error) }
   await sendEmail({ to: input.to, subject: await getEmailSubject('payment_invoice', 'DVCLC registration invoice', variables), html: content.html, text: content.text, type: 'payment_invoice', attachments: [{ filename: 'DVCLC-Invoice.pdf', content: pdf }] })
 }
@@ -448,7 +494,7 @@ export async function sendPaymentInvoiceEmail(input: PaymentNotificationEmailInp
 export async function sendDonationConfirmationEmail(input: DonationConfirmationEmailInput) {
   const variables = { firstName: input.firstName, familyName: input.familyName, donationAmount: `$${input.donationAmount.toFixed(2)}`, billingStatement: input.billingStatement }
   const content = await getEmailContent('donation_confirmation', `<div><p>Hello ${escapeHtml(input.firstName)},</p><p>Thank you for your $${input.donationAmount.toFixed(2)} donation.</p>${input.billingStatement}</div>`, `Hello ${input.firstName},\n\nThank you for your $${input.donationAmount.toFixed(2)} donation.`, variables, ['billingStatement'])
-  const pdf = createFeePdf({ title: 'DVCLC Donation Receipt', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: 'Scholarship Fund', totalAmount: input.donationAmount, amountPaid: input.donationAmount, balanceDue: 0, ...(await getInvoicePdfDetails()), footer: (await getGlobalSetting('invoiceDonationStatement')) || undefined })
+  const pdf = await createFinancialReportPdf('donation_receipt', { title: 'DVCLC Donation Receipt', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: 'Scholarship Fund', totalAmount: input.donationAmount, amountPaid: input.donationAmount, balanceDue: 0, footer: (await getGlobalSetting('invoiceDonationStatement')) || undefined })
   try { if (input.userId && input.familyId) await storeUserPdf({ ...input, sessionName: 'Scholarship Fund', totalAmount: input.donationAmount, amountPaid: input.donationAmount, balanceDue: 0 }, 'DVCLC-Donation-Receipt.pdf', 'donation_receipt', pdf) } catch (error) { console.error('Unable to archive donation receipt PDF:', error) }
   await sendEmail({ to: input.to, subject: await getEmailSubject('donation_confirmation', 'DVCLC donation confirmation', variables), html: content.html, text: content.text, type: 'donation_confirmation', attachments: [{ filename: 'DVCLC-Donation-Receipt.pdf', content: pdf }] })
 }

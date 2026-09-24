@@ -1,0 +1,10 @@
+{
+  "title": "DVCLC Billing Statement",
+  "issueDate": "9/24/2026",
+  "organization": { "name": "DVCLC", "address": "123 Main Street, Palm Desert, CA 92260", "contact": "office@example.com | example.com" },
+  "family": { "name": "Rivera Family", "guardians": "Alex Rivera, Jordan Rivera" },
+  "session": { "name": "Fall 2026" },
+  "amounts": { "total": "$250.00", "paid": "$250.00", "balance": "$0.00" },
+  "dueDate": "",
+  "footer": "Thank you for your payment."
+}

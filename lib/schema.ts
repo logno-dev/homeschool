@@ -510,6 +510,20 @@ export const userDocuments = sqliteTable('user_documents', {
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const reportJobs = sqliteTable('report_jobs', {
+  id: text('id').primaryKey(),
+  reportType: text('report_type').notNull(),
+  providerJobId: text('provider_job_id').notNull().unique(),
+  status: text('status').notNull(),
+  templateSlug: text('template_slug').notNull(),
+  templateVersion: integer('template_version').notNull(),
+  schemaHash: text('schema_hash').notNull(),
+  error: text('error'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  completedAt: text('completed_at'),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
 export const userAcknowledgements = sqliteTable('user_acknowledgements', {
   id: text('id').primaryKey(),
   userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),

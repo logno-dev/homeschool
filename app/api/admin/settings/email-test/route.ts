@@ -3,6 +3,8 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { EMAIL_TYPES, type EmailType } from '@/lib/email-types'
 import { NOTIFICATION_TYPES, type NotificationType, EMAIL_TEMPLATE_VARIABLES } from '@/lib/email-templates'
 import { sendTestNotificationEmail } from '@/lib/email'
+
+export const maxDuration = 120
 import { sanitizeEmailHtml } from '@/lib/email-content'
 
 const sampleStatement = '<table style="border-collapse:collapse;width:100%"><tr><th style="padding:8px;border-bottom:1px solid #ccc;text-align:left">Description</th><th style="padding:8px;border-bottom:1px solid #ccc;text-align:right">Amount</th></tr><tr><td style="padding:8px">Fall 2026 registration fee</td><td style="padding:8px;text-align:right">$75.00</td></tr><tr><td style="padding:8px">Art Explorers</td><td style="padding:8px;text-align:right">$100.00</td></tr><tr><td style="padding:8px">Science Lab</td><td style="padding:8px;text-align:right">$75.00</td></tr><tr><td style="padding:8px;border-top:2px solid #333"><strong>Total</strong></td><td style="padding:8px;border-top:2px solid #333;text-align:right"><strong>$250.00</strong></td></tr><tr><td style="padding:8px">Payment received</td><td style="padding:8px;text-align:right">-$250.00</td></tr><tr><td style="padding:8px"><strong>Balance paid</strong></td><td style="padding:8px;text-align:right"><strong>$0.00</strong></td></tr></table>'

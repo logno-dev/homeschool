@@ -7,6 +7,8 @@ import { db } from '@/lib/db'
 import { getGuardianById } from '@/lib/database'
 import { familySessionFees, familyFeeCredits, feePayments, scholarshipFundTransactions, sessions, families } from '@/lib/schema'
 import { sendPaymentConfirmationEmail } from '@/lib/email'
+
+export const maxDuration = 120
 import {
   capturePayPalOrder,
   getCaptureAmountCents,
