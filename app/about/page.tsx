@@ -11,6 +11,20 @@ export const metadata: Metadata = {
   description:
     'Learn how Desert Valley Creative Learning Collaborative supports Coachella Valley homeschool families through classes, community, and parent-led learning.',
   alternates: { canonical: '/about' },
+  openGraph: {
+    type: 'website',
+    url: '/about',
+    title: 'About Our Homeschool Co-op | DVCLC',
+    description: 'Learn how DVCLC supports Coachella Valley homeschool families through classes, community, and parent-led learning.',
+    images: [{ url: '/images/about-classroom.jpg', width: 1200, height: 900, alt: 'Students learning in the DVCLC homeschool co-op classroom' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'About Our Homeschool Co-op | DVCLC',
+    description: 'Learn how DVCLC supports Coachella Valley homeschool families through classes, community, and parent-led learning.',
+    images: ['/images/about-classroom.jpg'],
+  },
+  robots: { index: true, follow: true },
 }
 
 const groupCards = [

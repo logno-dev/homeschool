@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import TopBar from "./components/TopBar";
+import { getSiteUrl } from "@/lib/site-url";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,10 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")
-  ),
+  metadataBase: new URL(getSiteUrl()),
   title: {
     default: "DVCLC | Coachella Valley Homeschool Co-op",
     template: "%s | DVCLC",
@@ -35,7 +33,6 @@ export const metadata: Metadata = {
   authors: [{ name: "Desert Valley Creative Learning Collaborative" }],
   creator: "Desert Valley Creative Learning Collaborative",
   publisher: "Desert Valley Creative Learning Collaborative",
-  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -52,7 +49,6 @@ export const metadata: Metadata = {
       "A Coachella Valley homeschool co-op built around academics, creativity, community, and parent-led learning.",
     images: ["/images/hero-home.jpg"],
   },
-  robots: { index: true, follow: true },
   manifest: "/site.webmanifest",
   icons: {
     icon: "/favicon.svg",

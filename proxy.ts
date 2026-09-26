@@ -6,8 +6,13 @@ const PUBLIC_PATHS = [
   '/signup',
   '/forgot-password',
   '/reset-password',
-  '/about'
+  '/about',
+  '/robots.txt',
+  '/sitemap.xml',
+  '/site.webmanifest'
 ]
+
+const INDEXABLE_PATHS = ['/', '/about']
 
 const PUBLIC_API_PREFIXES = [
   '/api/auth'
@@ -24,6 +29,11 @@ function isPublicApiPath(pathname: string) {
   return PUBLIC_API_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))
 }
 
+function noIndex(response: NextResponse) {
+  response.headers.set('X-Robots-Tag', 'noindex, nofollow')
+  return response
+}
+
 export default function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isEmulationPath = pathname.startsWith('/emulate/')
@@ -35,24 +45,27 @@ export default function middleware(request: NextRequest) {
   if (isEmulationPath && hasSession) {
     const rewritten = request.nextUrl.clone()
     rewritten.pathname = pathname.slice('/emulate'.length) || '/'
-    return NextResponse.rewrite(rewritten)
+    return noIndex(NextResponse.rewrite(rewritten))
   }
 
   if (pathname === '/emulate' || isPublicPath(pathname) || isPublicApiPath(pathname)) {
-    return NextResponse.next()
+    const response = NextResponse.next()
+    return INDEXABLE_PATHS.includes(pathname) || pathname === '/robots.txt' || pathname === '/sitemap.xml' || pathname === '/site.webmanifest'
+      ? response
+      : noIndex(response)
   }
 
   if (hasSession) {
-    return NextResponse.next()
+    return noIndex(NextResponse.next())
   }
 
   if (pathname.startsWith('/api/')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return noIndex(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
   }
 
   const signinUrl = new URL('/signin', request.url)
   signinUrl.searchParams.set('next', pathname)
-  return NextResponse.redirect(signinUrl)
+  return noIndex(NextResponse.redirect(signinUrl))
 }
 
 export const config = {
