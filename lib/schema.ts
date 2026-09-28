@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 // Families table
@@ -512,6 +512,7 @@ export const userDocuments = sqliteTable('user_documents', {
 
 export const reportJobs = sqliteTable('report_jobs', {
   id: text('id').primaryKey(),
+  requestKey: text('request_key').unique(),
   reportType: text('report_type').notNull(),
   providerJobId: text('provider_job_id').notNull().unique(),
   status: text('status').notNull(),
@@ -523,6 +524,37 @@ export const reportJobs = sqliteTable('report_jobs', {
   completedAt: text('completed_at'),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
+
+export const queuedJobs = sqliteTable('queued_jobs', {
+  id: text('id').primaryKey(),
+  type: text('type').notNull(),
+  deduplicationKey: text('deduplication_key').notNull().unique(),
+  payload: text('payload').notNull(),
+  status: text('status').notNull().default('queued'),
+  attempts: integer('attempts').notNull().default(0),
+  nextAttemptAt: text('next_attempt_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  lockedAt: text('locked_at'),
+  lastError: text('last_error'),
+  completedAt: text('completed_at'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  dueJobIndex: index('queued_jobs_due_idx').on(table.status, table.nextAttemptAt),
+}))
+
+export const scheduledJobs = sqliteTable('scheduled_jobs', {
+  name: text('name').primaryKey(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
+  intervalMinutes: integer('interval_minutes').notNull(),
+  nextRunAt: text('next_run_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  lockedAt: text('locked_at'),
+  lastRunAt: text('last_run_at'),
+  lastError: text('last_error'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  dueJobIndex: index('scheduled_jobs_due_idx').on(table.enabled, table.nextRunAt),
+}))
 
 export const userAcknowledgements = sqliteTable('user_acknowledgements', {
   id: text('id').primaryKey(),

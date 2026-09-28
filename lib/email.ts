@@ -9,6 +9,7 @@ import { randomUUID } from 'crypto'
 import { normalizeEmailSpacing } from '@/lib/email-content'
 import { generateReportPdf } from '@/lib/report-service'
 import type { ReportType } from '@/lib/report-types'
+import { isTransientHttpStatus, PermanentJobError } from '@/lib/job-errors'
 
 async function getEmailContent(type: EmailType, fallbackHtml: string, fallbackText: string, variables: Record<string, string>, rawHtmlVariables: string[] = []) {
   const [setting] = await db.select({ value: globalSettings.value }).from(globalSettings).where(eq(globalSettings.key, `email_template_${type}`)).limit(1)
@@ -104,6 +105,7 @@ async function sendEmail(input: {
   cc?: string[]
   bcc?: string[]
   attachments?: Array<{ filename: string; content: string }>
+  idempotencyKey?: string
 }): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY
   const from = await getConfiguredSender(input.type, input.senderAlias)
@@ -114,14 +116,15 @@ async function sendEmail(input: {
   ])
 
   if (!apiKey || !from) {
-    throw new Error('RESEND_API_KEY and RESEND_EMAIL_DOMAIN must be configured in the active deployment environment')
+    throw new PermanentJobError('RESEND_API_KEY and RESEND_EMAIL_DOMAIN must be configured in the active deployment environment')
   }
 
-  const response = await fetch('https://api.resend.com/emails', {
+  const request = {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      ...(input.idempotencyKey ? { 'Idempotency-Key': input.idempotencyKey } : {})
     },
     body: JSON.stringify({
       from,
@@ -133,15 +136,26 @@ async function sendEmail(input: {
       ...(input.bcc?.length ? { bcc: input.bcc } : {}),
       subject: input.subject,
       html: normalizeEmailSpacing(input.html),
-      text: normalizeEmailSpacing(input.text)
-      , ...(input.attachments?.length ? { attachments: input.attachments } : {})
+      text: normalizeEmailSpacing(input.text),
+      ...(input.attachments?.length ? { attachments: input.attachments } : {})
     })
-  })
-
-  if (!response.ok) {
-    const payload = await response.text()
-    throw new Error(`Resend email failed (${response.status}): ${payload}`)
   }
+  const attempts = input.idempotencyKey ? 3 : 1
+  let lastError: unknown
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch('https://api.resend.com/emails', { ...request, signal: AbortSignal.timeout(20_000) })
+      if (response.ok) return
+      const message = `Resend email failed (${response.status}): ${await response.text()}`
+      if (!isTransientHttpStatus(response.status)) throw new PermanentJobError(message)
+      lastError = new Error(message)
+    } catch (error) {
+      lastError = error
+      if (error instanceof PermanentJobError) throw error
+    }
+    if (attempt < attempts - 1) await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+  }
+  throw lastError instanceof Error ? lastError : new Error('Resend email failed')
 }
 
 async function getConfiguredRecipients(type: EmailType, kind: 'cc' | 'bcc'): Promise<string[]> {
@@ -415,7 +429,7 @@ async function getInvoicePdfDetails() {
   }
 }
 
-async function createFinancialReportPdf(type: Extract<ReportType, 'invoice' | 'billing_statement' | 'donation_receipt'>, input: { title: string; familyName: string; guardians?: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; footer?: string }) {
+async function createFinancialReportPdf(type: Extract<ReportType, 'invoice' | 'billing_statement' | 'donation_receipt'>, input: { title: string; familyName: string; guardians?: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; footer?: string }, requestKey?: string, submissionKey?: string) {
   const details = await getInvoicePdfDetails()
   const generated = await generateReportPdf(type, {
     title: input.title,
@@ -430,7 +444,7 @@ async function createFinancialReportPdf(type: Extract<ReportType, 'invoice' | 'b
     amounts: { total: `$${input.totalAmount.toFixed(2)}`, paid: `$${input.amountPaid.toFixed(2)}`, balance: `$${input.balanceDue.toFixed(2)}` },
     dueDate: input.dueDate || '',
     footer: input.footer ?? details.footer ?? ''
-  })
+  }, requestKey, submissionKey)
   return generated.pdf.toString('base64')
 }
 
@@ -482,13 +496,14 @@ export async function sendPaymentConfirmationEmail(input: PaymentNotificationEma
   await sendEmail({ to: input.to, subject: await getEmailSubject('payment_confirmation', 'DVCLC payment confirmation', variables), html: content.html, text: content.text, type: 'payment_confirmation', attachments: [{ filename: 'DVCLC-Billing-Statement.pdf', content: pdf }] })
 }
 
-export async function sendPaymentInvoiceEmail(input: PaymentNotificationEmailInput) {
+export async function sendPaymentInvoiceEmail(input: PaymentNotificationEmailInput, idempotencyKey?: string, reportSubmissionKey?: string, beforeSend?: () => Promise<boolean>) {
   const invoice = input.invoice || statementHtml({ ...input, paid: false })
   const variables = { firstName: input.firstName, familyName: input.familyName, sessionName: input.sessionName, invoice, totalAmount: `$${input.totalAmount.toFixed(2)}`, amountPaid: `$${input.amountPaid.toFixed(2)}`, balanceDue: `$${input.balanceDue.toFixed(2)}`, dueDate: input.dueDate || '' }
   const content = await getEmailContent('payment_invoice', `<div><p>Hello ${escapeHtml(input.firstName)},</p><p>Your registration invoice is ready.</p>${invoice}</div>`, `Hello ${input.firstName},\n\nYour registration invoice is ready.\nBalance due: $${input.balanceDue.toFixed(2)}`, variables, ['invoice'])
-  const pdf = await createFinancialReportPdf('invoice', { title: 'DVCLC Invoice', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue, dueDate: input.dueDate })
+  const pdf = await createFinancialReportPdf('invoice', { title: 'DVCLC Invoice', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue, dueDate: input.dueDate }, idempotencyKey ? `${idempotencyKey}-report` : undefined, reportSubmissionKey)
+  if (beforeSend && !(await beforeSend())) return
+  await sendEmail({ to: input.to, subject: await getEmailSubject('payment_invoice', 'DVCLC registration invoice', variables), html: content.html, text: content.text, type: 'payment_invoice', attachments: [{ filename: 'DVCLC-Invoice.pdf', content: pdf }], idempotencyKey: idempotencyKey ? `${idempotencyKey}-email` : undefined })
   try { await storeUserPdf(input, 'DVCLC-Invoice.pdf', 'invoice', pdf) } catch (error) { console.error('Unable to archive invoice PDF:', error) }
-  await sendEmail({ to: input.to, subject: await getEmailSubject('payment_invoice', 'DVCLC registration invoice', variables), html: content.html, text: content.text, type: 'payment_invoice', attachments: [{ filename: 'DVCLC-Invoice.pdf', content: pdf }] })
 }
 
 export async function sendDonationConfirmationEmail(input: DonationConfirmationEmailInput) {

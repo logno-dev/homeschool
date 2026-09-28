@@ -15,7 +15,7 @@ const require = createRequire(import.meta.url)
 function load(path, mocks = {}, globals = {}) {
   const { outputText } = ts.transpileModule(readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, esModuleInterop: true } })
   const module = { exports: {} }
-  vm.runInNewContext(outputText, { module, exports: module.exports, console, Request, Response, URL, Blob, FormData, fetch, process, setTimeout, ...globals, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name) })
+  vm.runInNewContext(outputText, { module, exports: module.exports, console, Request, Response, URL, Blob, FormData, AbortSignal, fetch, process, setTimeout, ...globals, require: name => Object.hasOwn(mocks, name) ? mocks[name] : require(name) })
   return module.exports
 }
 
@@ -84,7 +84,8 @@ try {
     throw new Error(`Unexpected provider call: ${url}`)
   }
   const email = load('lib/email.ts', {
-    '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/database': { getGlobalSetting: async () => null }, '@/lib/email-types': {}, '@/lib/email-content': emailContent, '@/lib/report-service': { generateReportPdf: async () => ({ pdf: Buffer.from('pdf') }) }, '@vercel/blob': { put: async () => ({}) }
+    '@/lib/db': { db }, '@/lib/schema': schema, '@/lib/database': { getGlobalSetting: async () => null }, '@/lib/email-types': {}, '@/lib/email-content': emailContent, '@/lib/report-service': { generateReportPdf: async () => ({ pdf: Buffer.from('pdf') }) }, '@vercel/blob': { put: async () => ({}) },
+    '@/lib/job-errors': load('lib/job-errors.ts')
   }, { fetch: providerFetch, process: { env: { RESEND_API_KEY: 'test-key', RESEND_EMAIL_DOMAIN: 'example.com' } } })
   assert.equal(await email.createNewsletterSegment('newsletter', 'Test campaign'), 'segment-id')
   assert.equal(await email.createNewsletterContactImport('newsletter', 'segment-id', recipients), 'import-id')

@@ -266,12 +266,18 @@ export default function RegistrationCart({ sessionId, children, costBreakdown, m
   }
 
   const handlePaymentDefer = async () => {
+    let invoiceQueued = true
     if (pendingPaymentFee?.sessionId) {
-      await fetch(`/api/family/fees/${pendingPaymentFee.sessionId}/invoice`, { method: 'POST' }).catch((error) => {
+      await fetch(`/api/family/fees/${pendingPaymentFee.sessionId}/invoice`, { method: 'POST' }).then(async (response) => {
+        if (!response.ok) throw new Error((await response.json().catch(() => null))?.error || 'Invoice request failed')
+      }).catch((error) => {
+        invoiceQueued = false
         console.error('Failed to send deferred payment invoice:', error)
       })
     }
-    showError('Payment deferred', 'Your selections may not be guaranteed if payment is not completed promptly.')
+    showError('Payment deferred', invoiceQueued
+      ? 'Your invoice is being delivered. Your selections may not be guaranteed if payment is not completed promptly.'
+      : 'Invoice delivery could not be scheduled. Please contact DVCLC so an invoice can be sent manually.')
     setShowPaymentModal(false)
     window.location.reload()
   }

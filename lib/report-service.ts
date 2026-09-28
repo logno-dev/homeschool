@@ -6,13 +6,16 @@ import { REPORT_TYPES, REPORT_TYPE_LABELS, type ReportTemplateCatalogItem, type 
 import { db } from '@/lib/db'
 import { reportJobs } from '@/lib/schema'
 import { eq } from 'drizzle-orm'
+import { isTransientHttpStatus, PermanentJobError } from '@/lib/job-errors'
 
 const MAPPINGS_SETTING = 'report_template_mappings'
+
+class RetryableReportError extends Error {}
 
 function configuration() {
   const baseUrl = process.env.REPORT_API_URL?.trim().replace(/\/$/, '')
   const apiKey = process.env.REPORT_API_KEY?.trim()
-  if (!baseUrl || !apiKey) throw new Error('REPORT_API_URL and REPORT_API_KEY must be configured in the active deployment environment')
+  if (!baseUrl || !apiKey) throw new PermanentJobError('REPORT_API_URL and REPORT_API_KEY must be configured in the active deployment environment')
   return { baseUrl, apiKey }
 }
 
@@ -34,7 +37,33 @@ async function reportRequest(path: string, init?: RequestInit, timeoutMs = 20_00
 async function reportError(response: Response, fallback: string) {
   const payload = await response.json().catch(() => null) as { error?: { code?: string; message?: string; details?: Array<{ path?: string; message?: string }> } } | null
   const detail = payload?.error?.details?.map((entry) => [entry.path, entry.message].filter(Boolean).join(': ')).join('; ')
-  return new Error([payload?.error?.message || fallback, detail].filter(Boolean).join(' - '))
+  const message = [payload?.error?.message || fallback, detail].filter(Boolean).join(' - ')
+  return isTransientHttpStatus(response.status) ? new Error(message) : new PermanentJobError(message)
+}
+
+async function submitReport(body: string, requestKey?: string) {
+  let lastError: unknown
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const response = await reportRequest('v1/reports', {
+        method: 'POST',
+        headers: requestKey ? { 'Idempotency-Key': requestKey } : undefined,
+        body
+      })
+      if (response.ok) return response
+      lastError = await reportError(response, 'Unable to submit report')
+      if (lastError instanceof PermanentJobError) throw lastError
+    } catch (error) {
+      lastError = error
+      if (error instanceof PermanentJobError) throw error
+    }
+    if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
+  }
+  throw lastError instanceof Error ? lastError : new Error('Unable to submit report')
+}
+
+async function abandonReport(providerJobId: string, message: string) {
+  await db.update(reportJobs).set({ requestKey: null, status: 'failed', error: message, updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, providerJobId))
 }
 
 export async function getReportTemplateCatalog(): Promise<ReportTemplateCatalogItem[]> {
@@ -69,29 +98,33 @@ export async function saveReportTemplateMappings(mappings: ReportTemplateMapping
   return normalized
 }
 
-export async function generateReportPdf(type: ReportType, data: Record<string, unknown>) {
-  const mappings = await getReportTemplateMappings()
-  const selection = mappings[type]
-  if (!selection) throw new Error(`No published report template is selected for ${REPORT_TYPE_LABELS[type]}`)
+export async function generateReportPdf(type: ReportType, data: Record<string, unknown>, requestKey?: string, submissionKey = requestKey) {
+  const [existingJob] = requestKey ? await db.select().from(reportJobs).where(eq(reportJobs.requestKey, requestKey)).limit(1) : []
+  const mappings = existingJob ? null : await getReportTemplateMappings()
+  const selection = existingJob
+    ? { slug: existingJob.templateSlug, version: existingJob.templateVersion, schemaHash: existingJob.schemaHash }
+    : mappings?.[type]
+  if (!selection) throw new PermanentJobError(`No published report template is selected for ${REPORT_TYPE_LABELS[type]}`)
 
-  const submitted = await reportRequest('v1/reports', {
-    method: 'POST',
-    body: JSON.stringify({ template: selection.slug, version: selection.version, schemaHash: selection.schemaHash, data })
-  })
-  if (!submitted.ok) throw await reportError(submitted, `Unable to submit ${REPORT_TYPE_LABELS[type]}`)
-  const job = await submitted.json() as { jobId: string }
-  if (!job.jobId) throw new Error('Report service did not return a job ID')
-  const now = new Date().toISOString()
-  await db.insert(reportJobs).values({
-    id: randomUUID(),
-    reportType: type,
-    providerJobId: job.jobId,
-    status: 'queued',
-    templateSlug: selection.slug,
-    templateVersion: selection.version,
-    schemaHash: selection.schemaHash,
-    updatedAt: now
-  })
+  let providerJobId = existingJob?.providerJobId
+  if (!providerJobId) {
+    const submitted = await submitReport(JSON.stringify({ template: selection.slug, version: selection.version, schemaHash: selection.schemaHash, data }), submissionKey)
+    const job = await submitted.json() as { jobId: string }
+    if (!job.jobId) throw new Error('Report service did not return a job ID')
+    providerJobId = job.jobId
+    const now = new Date().toISOString()
+    await db.insert(reportJobs).values({
+      id: randomUUID(),
+      requestKey,
+      reportType: type,
+      providerJobId,
+      status: 'queued',
+      templateSlug: selection.slug,
+      templateVersion: selection.version,
+      schemaHash: selection.schemaHash,
+      updatedAt: now
+    })
+  }
 
   const timeoutMs = Math.min(100_000, Math.max(5_000, Number(process.env.REPORT_POLL_TIMEOUT_MS) || 60_000))
   const deadline = Date.now() + timeoutMs
@@ -104,7 +137,7 @@ export async function generateReportPdf(type: ReportType, data: Record<string, u
     if (Date.now() >= deadline) break
     let statusResponse: Response
     try {
-      statusResponse = await reportRequest(`v1/reports/${encodeURIComponent(job.jobId)}`, undefined, Math.min(20_000, deadline - Date.now()))
+      statusResponse = await reportRequest(`v1/reports/${encodeURIComponent(providerJobId)}`, undefined, Math.min(20_000, deadline - Date.now()))
     } catch {
       delayMs = Math.min(Math.round(delayMs * 1.5), 5_000)
       continue
@@ -115,24 +148,36 @@ export async function generateReportPdf(type: ReportType, data: Record<string, u
     }
     if (!statusResponse.ok) {
       const error = await reportError(statusResponse, 'Unable to poll report status')
-      await db.update(reportJobs).set({ status: 'failed', error: error.message, updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, job.jobId))
+      if (statusResponse.status === 404) {
+        await abandonReport(providerJobId, error.message)
+        throw new RetryableReportError(error.message)
+      }
+      await db.update(reportJobs).set({ status: error instanceof PermanentJobError ? 'failed' : 'queued', error: error.message, updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, providerJobId))
       throw error
     }
     const status = await statusResponse.json() as { status: string; downloadUrl?: string; sha256?: string; error?: string }
-    await db.update(reportJobs).set({ status: status.status, error: status.error || null, updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, job.jobId))
-    if (status.status === 'failed') throw new Error(status.error || `Report job ${job.jobId} failed`)
+    await db.update(reportJobs).set({ status: status.status, error: status.error || null, updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, providerJobId))
+    if (status.status === 'failed') {
+      const message = status.error || `Report job ${providerJobId} failed`
+      await abandonReport(providerJobId, message)
+      throw new RetryableReportError(message)
+    }
     if (status.status === 'completed') {
-      if (!status.downloadUrl) throw new Error('Completed report did not include a download URL')
+      if (!status.downloadUrl) {
+        const message = 'Completed report did not include a download URL'
+        await abandonReport(providerJobId, message)
+        throw new RetryableReportError(message)
+      }
       downloadUrl = status.downloadUrl
       expectedSha = status.sha256 || ''
-      await db.update(reportJobs).set({ status: 'downloading', updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, job.jobId))
+      await db.update(reportJobs).set({ status: 'downloading', updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, providerJobId))
       break
     }
     delayMs = Math.min(Math.round(delayMs * 1.5), 5_000)
   }
 
   if (!downloadUrl) {
-    await db.update(reportJobs).set({ status: 'failed', error: `Polling timed out after ${Math.round(timeoutMs / 1000)} seconds`, updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, job.jobId))
+    await db.update(reportJobs).set({ status: 'queued', error: `Polling timed out after ${Math.round(timeoutMs / 1000)} seconds`, updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, providerJobId))
     throw new Error(`Report generation timed out after ${Math.round(timeoutMs / 1000)} seconds`)
   }
   try {
@@ -151,18 +196,30 @@ export async function generateReportPdf(type: ReportType, data: Record<string, u
       await new Promise((resolve) => setTimeout(resolve, Math.min(500 * (attempt + 1), Math.max(0, deadline - Date.now()))))
     }
     if (!download) throw downloadError instanceof Error ? downloadError : new Error('Unable to download completed report before the deadline')
-    if (!download.ok) throw await reportError(download, 'Unable to download completed report')
-    if (!download.headers.get('content-type')?.toLowerCase().includes('application/pdf')) throw new Error('Report service returned a non-PDF artifact')
+    if (!download.ok) {
+      const error = await reportError(download, 'Unable to download completed report')
+      await abandonReport(providerJobId, error.message)
+      throw new RetryableReportError(error.message)
+    }
+    if (!download.headers.get('content-type')?.toLowerCase().includes('application/pdf')) {
+      const message = 'Report service returned a non-PDF artifact'
+      await abandonReport(providerJobId, message)
+      throw new RetryableReportError(message)
+    }
     const pdf = Buffer.from(await download.arrayBuffer())
     const actualSha = createHash('sha256').update(pdf).digest('hex')
     const headerSha = download.headers.get('x-content-sha256') || ''
     const checksum = expectedSha || headerSha
-    if (checksum && checksum.toLowerCase() !== actualSha) throw new Error('Downloaded report failed its SHA-256 integrity check')
-    await db.update(reportJobs).set({ status: 'completed', error: null, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, job.jobId))
+    if (checksum && checksum.toLowerCase() !== actualSha) {
+      const message = 'Downloaded report failed its SHA-256 integrity check'
+      await abandonReport(providerJobId, message)
+      throw new RetryableReportError(message)
+    }
+    await db.update(reportJobs).set({ status: 'completed', error: null, completedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, providerJobId))
 
-    return { pdf, jobId: job.jobId, template: selection }
+    return { pdf, jobId: providerJobId, template: selection }
   } catch (error) {
-    await db.update(reportJobs).set({ status: 'failed', error: error instanceof Error ? error.message : 'Report download failed', updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, job.jobId))
+    await db.update(reportJobs).set({ status: error instanceof PermanentJobError || error instanceof RetryableReportError ? 'failed' : 'queued', error: error instanceof Error ? error.message : 'Report download failed', updatedAt: new Date().toISOString() }).where(eq(reportJobs.providerJobId, providerJobId))
     throw error
   }
 }

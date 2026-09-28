@@ -3,10 +3,10 @@ import { and, eq } from 'drizzle-orm'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { getGuardianById } from '@/lib/database'
 import { db } from '@/lib/db'
-import { familySessionFees, sessions, families } from '@/lib/schema'
-import { sendPaymentInvoiceEmail } from '@/lib/email'
+import { familySessionFees } from '@/lib/schema'
+import { enqueuePaymentInvoice, processQueuedJob } from '@/lib/queued-jobs'
 
-export const maxDuration = 120
+export const maxDuration = 300
 
 export async function POST(
   _request: Request,
@@ -18,33 +18,19 @@ export async function POST(
     const guardian = await getGuardianById(auth.user.id)
     if (!guardian) return NextResponse.json({ error: 'User not associated with a family' }, { status: 400 })
 
-    const [fee] = await db.select({
-      id: familySessionFees.id,
-      totalFee: familySessionFees.totalFee,
-      paidAmount: familySessionFees.paidAmount,
-      dueDate: familySessionFees.dueDate,
-      sessionName: sessions.name,
-      familyName: families.name
-    }).from(familySessionFees)
-      .innerJoin(sessions, eq(familySessionFees.sessionId, sessions.id))
-      .innerJoin(families, eq(familySessionFees.familyId, families.id))
+    const [fee] = await db.select({ id: familySessionFees.id }).from(familySessionFees)
       .where(and(eq(familySessionFees.sessionId, sessionId), eq(familySessionFees.familyId, guardian.familyId)))
       .limit(1)
     if (!fee) return NextResponse.json({ error: 'Fee record not found' }, { status: 404 })
 
-    await sendPaymentInvoiceEmail({
-      to: guardian.email,
-      firstName: guardian.firstName,
-      familyName: fee.familyName,
-      sessionName: fee.sessionName,
-      totalAmount: fee.totalFee,
-      amountPaid: fee.paidAmount,
-      balanceDue: Math.max(0, fee.totalFee - fee.paidAmount),
-      dueDate: fee.dueDate,
-      userId: guardian.id,
-      familyId: guardian.familyId
-    })
-    return NextResponse.json({ success: true })
+    const job = await enqueuePaymentInvoice(fee.id, guardian.id)
+    if (job.status === 'completed') return NextResponse.json({ success: true, jobId: job.id })
+    const result = await processQueuedJob(job.id)
+    if (result.status === 'failed') {
+      console.error(`Invoice job ${job.id} failed permanently:`, result.error)
+      return NextResponse.json({ error: 'Failed to schedule invoice delivery', jobId: job.id }, { status: 500 })
+    }
+    return NextResponse.json({ success: true, queued: result.status !== 'completed', jobId: job.id }, { status: result.status === 'completed' ? 200 : 202 })
   } catch (error) {
     console.error('Error sending payment invoice:', error)
     return NextResponse.json({ error: 'Failed to send invoice' }, { status: 500 })
