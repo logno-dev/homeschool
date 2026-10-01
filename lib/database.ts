@@ -1,4 +1,4 @@
-import { eq, and, or, desc, asc, isNull, isNotNull, sql } from 'drizzle-orm'
+import { eq, and, or, desc, asc, isNull, isNotNull, inArray, sql } from 'drizzle-orm'
 import { db, client, hasDatabaseConnection } from './db'
 import { families, guardians, children, feePayments, users, sessions, classrooms, sessionClassrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments, globalSettings, volunteerJobs, sessionVolunteerJobs, faqs } from './schema'
 import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, SessionClassroom, Schedule, ScheduleDraft, ScheduleDraftEntry, ClassTeachingRequest, ScheduleComment, NewFamily, NewGuardian, NewChild, NewFeePayment, NewUser, NewSession, NewClassroom, NewSessionClassroom, NewSchedule, NewScheduleDraft, NewScheduleDraftEntry, NewClassTeachingRequest, NewScheduleComment, NewSessionVolunteerJob } from './schema'
@@ -834,24 +834,23 @@ export async function createClassroom(classroomData: Omit<NewClassroom, 'id' | '
   const result = await db.insert(classrooms).values(newClassroom).returning()
   const created = result[0]
 
-  const activeSession = await db
+  const activeSessions = await db
     .select({ id: sessions.id })
     .from(sessions)
     .where(eq(sessions.isActive, true))
-    .limit(1)
 
-  if (activeSession.length > 0) {
+  if (activeSessions.length > 0) {
     const now = new Date().toISOString()
-    await db.insert(sessionClassrooms).values({
-      id: `${activeSession[0].id}_${created.id}`,
-      sessionId: activeSession[0].id,
+    await db.insert(sessionClassrooms).values(activeSessions.map((session) => ({
+      id: `${session.id}_${created.id}`,
+      sessionId: session.id,
       classroomId: created.id,
       name: created.name,
       description: created.description,
       orderIndex: created.orderIndex,
       createdAt: now,
       updatedAt: now
-    })
+    })))
   }
 
   return created
@@ -966,23 +965,70 @@ export async function getClassroomById(id: string): Promise<Classroom | null> {
   return result[0] || null
 }
 
-export async function updateClassroom(id: string, updates: Partial<Omit<Classroom, 'id' | 'createdAt'>>): Promise<Classroom | null> {
+export async function updateClassroom(
+  id: string,
+  updates: Partial<Omit<Classroom, 'id' | 'createdAt'>>,
+  syncActiveSessions = false
+): Promise<Classroom | null> {
   const updateData = {
     ...updates,
     updatedAt: new Date().toISOString()
   }
-  
-  const result = await db.update(classrooms)
-    .set(updateData)
-    .where(eq(classrooms.id, id))
-    .returning()
-  
-  return result[0] || null
+
+  return await db.transaction(async (tx) => {
+    const result = await tx.update(classrooms)
+      .set(updateData)
+      .where(eq(classrooms.id, id))
+      .returning()
+
+    const updatedClassroom = result[0]
+    if (!updatedClassroom || !syncActiveSessions) return updatedClassroom || null
+
+    const activeSessions = await tx
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(eq(sessions.isActive, true))
+
+    if (activeSessions.length > 0) {
+      const sessionUpdates: Partial<Pick<SessionClassroom, 'name' | 'description' | 'updatedAt'>> = {
+        updatedAt: updateData.updatedAt
+      }
+      if (updates.name !== undefined) sessionUpdates.name = updates.name
+      if (updates.description !== undefined) sessionUpdates.description = updates.description
+
+      await tx
+        .update(sessionClassrooms)
+        .set(sessionUpdates)
+        .where(and(
+          eq(sessionClassrooms.classroomId, id),
+          inArray(sessionClassrooms.sessionId, activeSessions.map((session) => session.id))
+        ))
+    }
+
+    return updatedClassroom
+  })
 }
 
 export async function deleteClassroom(id: string): Promise<boolean> {
-  const result = await db.delete(classrooms).where(eq(classrooms.id, id)).returning()
-  return result.length > 0
+  return await db.transaction(async (tx) => {
+    const scheduledUse = await tx
+      .select({ id: schedules.id })
+      .from(schedules)
+      .where(eq(schedules.classroomId, id))
+      .limit(1)
+    const draftUse = await tx
+      .select({ id: scheduleDraftEntries.id })
+      .from(scheduleDraftEntries)
+      .where(eq(scheduleDraftEntries.classroomId, id))
+      .limit(1)
+
+    if (scheduledUse.length > 0 || draftUse.length > 0) {
+      throw new Error('CLASSROOM_IN_USE')
+    }
+
+    const result = await tx.delete(classrooms).where(eq(classrooms.id, id)).returning()
+    return result.length > 0
+  })
 }
 
 // Schedule management functions

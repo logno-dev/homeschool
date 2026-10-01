@@ -43,7 +43,7 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { name, description } = body
+    const { name, description, syncActiveSessions } = body
 
     // Validate required fields
     if (name !== undefined && (!name || !name.trim())) {
@@ -53,12 +53,12 @@ export async function PATCH(
       )
     }
 
-    const updateData: any = {}
+    const updateData: { name?: string; description?: string | null } = {}
     if (name !== undefined) updateData.name = name.trim()
     if (description !== undefined) updateData.description = description?.trim() || null
 
     const { classroomId } = await params
-    const updatedClassroom = await updateClassroom(classroomId, updateData)
+    const updatedClassroom = await updateClassroom(classroomId, updateData, syncActiveSessions === true)
 
     if (!updatedClassroom) {
       return NextResponse.json(
@@ -67,7 +67,10 @@ export async function PATCH(
       )
     }
 
-    return NextResponse.json({ classroom: updatedClassroom })
+    return NextResponse.json({
+      classroom: updatedClassroom,
+      activeSessionsSynced: syncActiveSessions === true
+    })
   } catch (error) {
     console.error('Error updating classroom:', error)
     return NextResponse.json(
@@ -100,6 +103,12 @@ export async function DELETE(
     return NextResponse.json({ message: 'Classroom deleted successfully' })
   } catch (error) {
     console.error('Error deleting classroom:', error)
+    if (error instanceof Error && error.message === 'CLASSROOM_IN_USE') {
+      return NextResponse.json(
+        { error: 'This classroom is used in a schedule or saved draft and cannot be deleted.' },
+        { status: 409 }
+      )
+    }
     return NextResponse.json(
       { error: 'Failed to delete classroom' },
       { status: 500 }
