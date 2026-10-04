@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { and, asc, eq, lte, or, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { sendPaymentInvoiceEmail } from '@/lib/email'
+import { getFinancialLineItems } from '@/lib/financial-line-items'
 import { PermanentJobError } from '@/lib/job-errors'
 import { families, familySessionFees, guardians, queuedJobs, sessions } from '@/lib/schema'
 
@@ -35,6 +36,9 @@ async function deliverInvoice(jobId: string, rawPayload: string, attempt: number
   if (!payload.feeId || !payload.guardianId || !payload.feeVersion) throw new PermanentJobError('Invoice job is missing its fee, guardian ID, or version')
 
   const [invoice] = await db.select({
+    sessionId: familySessionFees.sessionId,
+    registrationFee: familySessionFees.registrationFee,
+    classFees: familySessionFees.classFees,
     totalFee: familySessionFees.totalFee,
     paidAmount: familySessionFees.paidAmount,
     dueDate: familySessionFees.dueDate,
@@ -55,6 +59,7 @@ async function deliverInvoice(jobId: string, rawPayload: string, attempt: number
   if (invoice.updatedAt !== payload.feeVersion) return
 
   await sendPaymentInvoiceEmail({
+    lineItems: await getFinancialLineItems(invoice),
     to: invoice.guardianEmail,
     firstName: invoice.guardianFirstName,
     familyName: invoice.familyName,

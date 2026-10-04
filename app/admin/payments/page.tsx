@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '../../components/AdminLayout'
@@ -8,16 +8,81 @@ import SessionOptions from '../../components/SessionOptions'
 
 interface PaymentData {
   id: string
+  familySessionFeeId: string | null
+  createdAt: string
   familyName: string
   sessionName: string
   amount: number
   paymentDate: string
   paymentMethod: string
-  notes?: string
+  notes?: string | null
   status: string
   totalFee: number
   paidAmount: number
   remainingBalance: number
+}
+
+function PaymentDetailsDialog({ payment, onClose }: { payment: PaymentData; onClose: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const currency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+  const date = (value: string) => {
+    // Date-only payments are calendar dates, not UTC instants.
+    const parsed = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value)
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+  }
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    dialog?.showModal()
+    return () => dialog?.close()
+  }, [])
+
+  return (
+    <dialog
+      ref={dialogRef}
+      onCancel={onClose}
+      aria-labelledby="payment-details-title"
+      className="fixed inset-0 m-auto max-h-[90vh] w-[calc(100%_-_2rem)] max-w-xl overflow-y-auto rounded-2xl border-0 bg-white p-0 text-gray-900 shadow-xl backdrop:bg-black/50"
+    >
+      <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+        <h2 id="payment-details-title" className="text-lg font-semibold">Transaction details</h2>
+        <button type="button" autoFocus onClick={onClose} aria-label="Close transaction details" className="rounded-lg px-3 py-2 text-gray-500 hover:bg-gray-100 focus-visible:outline-blue-600">✕</button>
+      </div>
+      <div className="space-y-6 p-6">
+        <div className="rounded-xl bg-blue-50 p-4">
+          <p className="text-sm text-blue-800">{payment.amount < 0 ? 'Refund / adjustment' : 'Payment amount'}</p>
+          <p className="mt-1 text-3xl font-semibold text-blue-950">{currency(payment.amount)}</p>
+          <p className="mt-1 text-sm text-blue-800">{payment.familyName}</p>
+        </div>
+        <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
+          <div><dt className="text-gray-500">Session</dt><dd className="mt-1 font-medium">{payment.sessionName}</dd></div>
+          <div><dt className="text-gray-500">Payment date</dt><dd className="mt-1 font-medium">{date(payment.paymentDate)}</dd></div>
+          <div><dt className="text-gray-500">Payment method</dt><dd className="mt-1 font-medium capitalize">{payment.paymentMethod.replaceAll('_', ' ')}</dd></div>
+          <div><dt className="text-gray-500">Recorded on</dt><dd className="mt-1 font-medium">{date(payment.createdAt)}</dd></div>
+          <div className="sm:col-span-2"><dt className="text-gray-500">Payment record ID</dt><dd className="mt-1 break-all font-mono text-xs">{payment.id}</dd></div>
+        </dl>
+        <section>
+          <h3 className="text-sm font-semibold">Notes and transaction references</h3>
+          <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-gray-50 p-4 text-sm text-gray-700">{payment.notes || 'No notes recorded.'}</p>
+        </section>
+        {payment.familySessionFeeId ? (
+          <section className="border-t border-gray-200 pt-4">
+            <h3 className="text-sm font-semibold">Current session balance</h3>
+            <p className="mt-1 text-xs text-gray-500">Includes all recorded payments and adjustments, not just this transaction.</p>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div className="flex justify-between gap-4"><dt>Total fees</dt><dd>{currency(payment.totalFee)}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Amount paid</dt><dd>{currency(payment.paidAmount)}</dd></div>
+              <div className="flex justify-between gap-4 font-semibold"><dt>Remaining balance</dt><dd>{currency(payment.remainingBalance)}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Fee status</dt><dd className="capitalize">{payment.status}</dd></div>
+            </dl>
+          </section>
+        ) : <p className="text-sm text-gray-500">This transaction is not linked to a session fee record.</p>}
+      </div>
+      <div className="flex justify-end border-t border-gray-200 px-6 py-4">
+        <button type="button" onClick={onClose} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">Close</button>
+      </div>
+    </dialog>
+  )
 }
 
 interface TeacherReimbursement {
@@ -72,6 +137,7 @@ export default function PaymentsPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [payments, setPayments] = useState<PaymentData[]>([])
+  const [selectedPayment, setSelectedPayment] = useState<PaymentData | null>(null)
   const [outstandingBalance, setOutstandingBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -745,9 +811,24 @@ export default function PaymentsPage() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {filteredAndSortedPayments.map((payment) => (
-                      <tr key={payment.id} className="hover:bg-gray-50">
+                      <tr
+                        key={payment.id}
+                        onClick={() => setSelectedPayment(payment)}
+                        className="cursor-pointer transition-colors hover:bg-blue-50 focus-within:bg-blue-50"
+                      >
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {payment.familyName}
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              setSelectedPayment(payment)
+                            }}
+                            aria-haspopup="dialog"
+                            aria-label={`View ${payment.familyName} transaction of ${formatCurrency(payment.amount)} on ${formatDate(payment.paymentDate)}`}
+                            className="rounded text-left text-blue-700 underline decoration-blue-200 underline-offset-4 hover:decoration-blue-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600"
+                          >
+                            {payment.familyName}
+                          </button>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {payment.sessionName}
@@ -793,6 +874,13 @@ export default function PaymentsPage() {
               )}
             </div>
           </>
+        )}
+
+        {selectedPayment && (
+          <PaymentDetailsDialog
+            payment={selectedPayment}
+            onClose={() => setSelectedPayment(null)}
+          />
         )}
 
         {activeTab === 'documents' && (

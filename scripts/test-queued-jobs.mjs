@@ -58,6 +58,7 @@ try {
     '@/lib/db': { db },
     '@/lib/schema': schema,
     '@/lib/job-errors': jobErrors,
+    '@/lib/financial-line-items': { getFinancialLineItems: async () => [{ description: 'Session fees', amount: 125 }] },
     '@/lib/email': {
       sendPaymentInvoiceEmail: async (input, idempotencyKey, _reportSubmissionKey, beforeSend) => {
         deliveries += 1

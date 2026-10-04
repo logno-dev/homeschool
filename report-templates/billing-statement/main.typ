@@ -20,10 +20,20 @@
 ]
 
 #v(18pt)
+#let items = data.at("lineItems", default: ())
+#if items.len() > 0 {
+  table(
+    columns: (1fr, auto), inset: 9pt,
+    stroke: (x: none, y: 0.5pt + rgb("d9e0e8")),
+    table.header([*Description*], [*Amount*]),
+    ..items.map(item => (item.at("description"), align(right)[#item.at("amount")])).flatten(),
+  )
+  v(12pt)
+}
 #table(
   columns: (1fr, auto), inset: 9pt,
   stroke: (x: none, y: 0.5pt + rgb("d9e0e8")),
-  [Registration total], align(right)[#amounts.at("total")],
+  [Total charges], align(right)[#amounts.at("total")],
   [Amount paid], align(right)[#amounts.at("paid")],
   text(weight: "bold")[Remaining balance], align(right)[#text(weight: "bold")[#amounts.at("balance")]],
 )

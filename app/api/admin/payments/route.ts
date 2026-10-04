@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
           amount: feePayments.amount,
           paymentDate: feePayments.paymentDate,
           paymentMethod: feePayments.paymentMethod,
+          createdAt: feePayments.createdAt,
           notes: feePayments.notes,
           familySessionFeeId: feePayments.familySessionFeeId,
           totalFee: sql<number>`COALESCE(${familySessionFees.totalFee}, 0)`,
@@ -49,6 +50,8 @@ export async function GET(request: NextRequest) {
     // Transform the data to include calculated remaining balance
     const transformedPayments = paymentsData.map(payment => ({
       id: payment.id,
+      familySessionFeeId: payment.familySessionFeeId,
+      createdAt: payment.createdAt,
       familyName: payment.familyName || 'Unknown Family',
       sessionName: payment.sessionName || 'No Session',
       amount: payment.amount,

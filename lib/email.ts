@@ -10,6 +10,7 @@ import { normalizeEmailSpacing } from '@/lib/email-content'
 import { generateReportPdf } from '@/lib/report-service'
 import type { ReportType } from '@/lib/report-types'
 import { isTransientHttpStatus, PermanentJobError } from '@/lib/job-errors'
+import type { FinancialLineItem } from '@/lib/financial-line-items'
 
 async function getEmailContent(type: EmailType, fallbackHtml: string, fallbackText: string, variables: Record<string, string>, rawHtmlVariables: string[] = []) {
   const [setting] = await db.select({ value: globalSettings.value }).from(globalSettings).where(eq(globalSettings.key, `email_template_${type}`)).limit(1)
@@ -82,7 +83,7 @@ type ScholarshipRequestNotificationEmailInput = {
 }
 
 type RegistrationConfirmationEmailInput = { to: string; firstName: string; sessionName: string; classNames: string; totalAmount: number; amountPaid: number; balanceDue: number }
-type PaymentNotificationEmailInput = { to: string; firstName: string; familyName: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; billingStatement?: string; invoice?: string; userId?: string; familyId?: string }
+type PaymentNotificationEmailInput = { to: string; firstName: string; familyName: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; billingStatement?: string; invoice?: string; userId?: string; familyId?: string; lineItems?: FinancialLineItem[] }
 type DonationConfirmationEmailInput = { to: string; firstName: string; familyName: string; donationAmount: number; billingStatement: string; userId?: string; familyId?: string }
 
 function escapeHtml(value: string): string {
@@ -406,7 +407,14 @@ export async function sendScholarshipRequestNotificationEmail(input: Scholarship
   })
 }
 
-function statementHtml(input: { familyName?: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; paid: boolean }) {
+function statementHtml(input: { familyName?: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; paid: boolean; lineItems?: FinancialLineItem[] }) {
+  const itemTable = input.lineItems?.length
+    ? `<table style="border-collapse:collapse;margin-bottom:16px"><thead><tr><th style="text-align:left;padding:4px 16px 4px 0">Description</th><th style="text-align:right">Amount</th></tr></thead><tbody>${input.lineItems.map((item) => `<tr><td style="padding:4px 16px 4px 0">${escapeHtml(item.description)}</td><td style="text-align:right">$${item.amount.toFixed(2)}</td></tr>`).join('')}</tbody></table>`
+    : ''
+  return itemTable + statementSummaryHtml(input)
+}
+
+function statementSummaryHtml(input: { familyName?: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; paid: boolean }) {
   return `<table style="border-collapse:collapse"><tr><td style="padding:4px 16px 4px 0"><strong>Family</strong></td><td>${escapeHtml(input.familyName || '')}</td></tr><tr><td style="padding:4px 16px 4px 0"><strong>Session</strong></td><td>${escapeHtml(input.sessionName)}</td></tr><tr><td style="padding:4px 16px 4px 0"><strong>Total</strong></td><td>$${input.totalAmount.toFixed(2)}</td></tr><tr><td style="padding:4px 16px 4px 0"><strong>Paid</strong></td><td>$${input.amountPaid.toFixed(2)}</td></tr><tr><td style="padding:4px 16px 4px 0"><strong>${input.paid ? 'Balance paid' : 'Balance due'}</strong></td><td>$${input.balanceDue.toFixed(2)}</td></tr>${input.dueDate ? `<tr><td style="padding:4px 16px 4px 0"><strong>Due date</strong></td><td>${escapeHtml(input.dueDate)}</td></tr>` : ''}</table>`
 }
 
@@ -429,7 +437,7 @@ async function getInvoicePdfDetails() {
   }
 }
 
-async function createFinancialReportPdf(type: Extract<ReportType, 'invoice' | 'billing_statement' | 'donation_receipt'>, input: { title: string; familyName: string; guardians?: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; footer?: string }, requestKey?: string, submissionKey?: string) {
+async function createFinancialReportPdf(type: Extract<ReportType, 'invoice' | 'billing_statement' | 'donation_receipt'>, input: { title: string; familyName: string; guardians?: string; sessionName: string; totalAmount: number; amountPaid: number; balanceDue: number; dueDate?: string; footer?: string; lineItems?: FinancialLineItem[] }, requestKey?: string, submissionKey?: string) {
   const details = await getInvoicePdfDetails()
   const generated = await generateReportPdf(type, {
     title: input.title,
@@ -442,6 +450,10 @@ async function createFinancialReportPdf(type: Extract<ReportType, 'invoice' | 'b
     family: { name: input.familyName, guardians: input.guardians || '' },
     session: { name: input.sessionName },
     amounts: { total: `$${input.totalAmount.toFixed(2)}`, paid: `$${input.amountPaid.toFixed(2)}`, balance: `$${input.balanceDue.toFixed(2)}` },
+    ...(type !== 'donation_receipt' ? {
+      lineItems: (input.lineItems || [{ description: 'Session fees', amount: input.totalAmount }])
+        .map((item) => ({ description: item.description, amount: `$${item.amount.toFixed(2)}` }))
+    } : {}),
     dueDate: input.dueDate || '',
     footer: input.footer ?? details.footer ?? ''
   }, requestKey, submissionKey)
@@ -455,6 +467,11 @@ export async function sendFinancialReportTestEmail(input: { type: Extract<Report
       ? { emailType: 'payment_confirmation' as const, title: 'DVCLC Billing Statement', filename: 'DVCLC-Billing-Statement-Test.pdf', totalAmount: 250, amountPaid: 250, balanceDue: 0, dueDate: undefined, footer: undefined }
       : { emailType: 'donation_confirmation' as const, title: 'DVCLC Donation Receipt', filename: 'DVCLC-Donation-Receipt-Test.pdf', totalAmount: 50, amountPaid: 50, balanceDue: 0, dueDate: undefined, footer: (await getGlobalSetting('invoiceDonationStatement')) || undefined }
   const pdf = await createFinancialReportPdf(input.type, {
+    lineItems: input.type === 'donation_receipt' ? undefined : [
+      { description: 'Session registration fee', amount: 200 },
+      { description: 'Sam — Art Studio', amount: 30 },
+      { description: 'Taylor — Science Lab', amount: 20 }
+    ],
     title: report.title,
     familyName: 'Rivera Family',
     guardians: 'Alex Rivera, Jordan Rivera',
@@ -488,19 +505,21 @@ export async function sendRegistrationConfirmationEmail(input: RegistrationConfi
 }
 
 export async function sendPaymentConfirmationEmail(input: PaymentNotificationEmailInput) {
+  const itemText = (input.lineItems || []).map((item) => `${item.description}: $${item.amount.toFixed(2)}`).join('\n')
   const statement = input.billingStatement || statementHtml({ ...input, paid: true })
   const variables = { firstName: input.firstName, familyName: input.familyName, sessionName: input.sessionName, billingStatement: statement, totalAmount: `$${input.totalAmount.toFixed(2)}`, amountPaid: `$${input.amountPaid.toFixed(2)}`, balanceDue: `$${input.balanceDue.toFixed(2)}` }
-  const content = await getEmailContent('payment_confirmation', `<div><p>Hello ${escapeHtml(input.firstName)},</p><p>Your payment has been received.</p>${statement}</div>`, `Hello ${input.firstName},\n\nYour payment has been received.\nTotal: $${input.totalAmount.toFixed(2)}\nPaid: $${input.amountPaid.toFixed(2)}\nBalance: $${input.balanceDue.toFixed(2)}`, variables, ['billingStatement'])
-  const pdf = await createFinancialReportPdf('billing_statement', { title: 'DVCLC Billing Statement', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue })
+  const content = await getEmailContent('payment_confirmation', `<div><p>Hello ${escapeHtml(input.firstName)},</p><p>Your payment has been received.</p>${statement}</div>`, `Hello ${input.firstName},\n\nYour payment has been received.\n${itemText}\nTotal: $${input.totalAmount.toFixed(2)}\nPaid: $${input.amountPaid.toFixed(2)}\nBalance: $${input.balanceDue.toFixed(2)}`, variables, ['billingStatement'])
+  const pdf = await createFinancialReportPdf('billing_statement', { title: 'DVCLC Billing Statement', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue, lineItems: input.lineItems })
   try { await storeUserPdf(input, 'DVCLC-Billing-Statement.pdf', 'billing_statement', pdf) } catch (error) { console.error('Unable to archive billing statement PDF:', error) }
   await sendEmail({ to: input.to, subject: await getEmailSubject('payment_confirmation', 'DVCLC payment confirmation', variables), html: content.html, text: content.text, type: 'payment_confirmation', attachments: [{ filename: 'DVCLC-Billing-Statement.pdf', content: pdf }] })
 }
 
 export async function sendPaymentInvoiceEmail(input: PaymentNotificationEmailInput, idempotencyKey?: string, reportSubmissionKey?: string, beforeSend?: () => Promise<boolean>) {
+  const itemText = (input.lineItems || []).map((item) => `${item.description}: $${item.amount.toFixed(2)}`).join('\n')
   const invoice = input.invoice || statementHtml({ ...input, paid: false })
   const variables = { firstName: input.firstName, familyName: input.familyName, sessionName: input.sessionName, invoice, totalAmount: `$${input.totalAmount.toFixed(2)}`, amountPaid: `$${input.amountPaid.toFixed(2)}`, balanceDue: `$${input.balanceDue.toFixed(2)}`, dueDate: input.dueDate || '' }
-  const content = await getEmailContent('payment_invoice', `<div><p>Hello ${escapeHtml(input.firstName)},</p><p>Your registration invoice is ready.</p>${invoice}</div>`, `Hello ${input.firstName},\n\nYour registration invoice is ready.\nBalance due: $${input.balanceDue.toFixed(2)}`, variables, ['invoice'])
-  const pdf = await createFinancialReportPdf('invoice', { title: 'DVCLC Invoice', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue, dueDate: input.dueDate }, idempotencyKey ? `${idempotencyKey}-report` : undefined, reportSubmissionKey)
+  const content = await getEmailContent('payment_invoice', `<div><p>Hello ${escapeHtml(input.firstName)},</p><p>Your registration invoice is ready.</p>${invoice}</div>`, `Hello ${input.firstName},\n\nYour registration invoice is ready.\n${itemText}\nTotal: $${input.totalAmount.toFixed(2)}\nPaid: $${input.amountPaid.toFixed(2)}\nBalance due: $${input.balanceDue.toFixed(2)}`, variables, ['invoice'])
+  const pdf = await createFinancialReportPdf('invoice', { title: 'DVCLC Invoice', familyName: input.familyName, guardians: await getFamilyGuardians(input.familyId), sessionName: input.sessionName, totalAmount: input.totalAmount, amountPaid: input.amountPaid, balanceDue: input.balanceDue, dueDate: input.dueDate, lineItems: input.lineItems }, idempotencyKey ? `${idempotencyKey}-report` : undefined, reportSubmissionKey)
   if (beforeSend && !(await beforeSend())) return
   await sendEmail({ to: input.to, subject: await getEmailSubject('payment_invoice', 'DVCLC registration invoice', variables), html: content.html, text: content.text, type: 'payment_invoice', attachments: [{ filename: 'DVCLC-Invoice.pdf', content: pdf }], idempotencyKey: idempotencyKey ? `${idempotencyKey}-email` : undefined })
   try { await storeUserPdf(input, 'DVCLC-Invoice.pdf', 'invoice', pdf) } catch (error) { console.error('Unable to archive invoice PDF:', error) }
