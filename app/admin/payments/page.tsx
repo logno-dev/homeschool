@@ -17,6 +17,8 @@ interface PaymentData {
   paymentMethod: string
   notes?: string | null
   status: string
+  registrationFee: number | null
+  classFees: number | null
   totalFee: number
   paidAmount: number
   remainingBalance: number
@@ -67,11 +69,16 @@ function PaymentDetailsDialog({ payment, onClose }: { payment: PaymentData; onCl
         </section>
         {payment.familySessionFeeId ? (
           <section className="border-t border-gray-200 pt-4">
-            <h3 className="text-sm font-semibold">Current session balance</h3>
-            <p className="mt-1 text-xs text-gray-500">Includes all recorded payments and adjustments, not just this transaction.</p>
+            <h3 className="text-sm font-semibold">Current session fee breakdown</h3>
+            <p className="mt-1 text-xs text-gray-500">These are the current charges for the family's session bill. Individual payments are applied to the overall balance; a registration-versus-class allocation is not recorded for this transaction.</p>
             <dl className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between gap-4"><dt>Total fees</dt><dd>{currency(payment.totalFee)}</dd></div>
-              <div className="flex justify-between gap-4"><dt>Amount paid</dt><dd>{currency(payment.paidAmount)}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Registration fees</dt><dd>{payment.registrationFee === null ? 'Unavailable' : currency(payment.registrationFee)}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Class fees</dt><dd>{payment.classFees === null ? 'Unavailable' : currency(payment.classFees)}</dd></div>
+              {payment.registrationFee !== null && payment.classFees !== null && Math.round(payment.totalFee * 100) !== Math.round(payment.registrationFee * 100) + Math.round(payment.classFees * 100) && (
+                <div className="flex justify-between gap-4"><dt>Fee adjustment</dt><dd>{currency((Math.round(payment.totalFee * 100) - Math.round(payment.registrationFee * 100) - Math.round(payment.classFees * 100)) / 100)}</dd></div>
+              )}
+              <div className="flex justify-between gap-4 border-t border-gray-100 pt-2 font-medium"><dt>Total fees</dt><dd>{currency(payment.totalFee)}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Total paid toward this bill</dt><dd>{currency(payment.paidAmount)}</dd></div>
               <div className="flex justify-between gap-4 font-semibold"><dt>Remaining balance</dt><dd>{currency(payment.remainingBalance)}</dd></div>
               <div className="flex justify-between gap-4"><dt>Fee status</dt><dd className="capitalize">{payment.status}</dd></div>
             </dl>

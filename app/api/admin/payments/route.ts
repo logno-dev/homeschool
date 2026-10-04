@@ -33,6 +33,8 @@ export async function GET(request: NextRequest) {
           createdAt: feePayments.createdAt,
           notes: feePayments.notes,
           familySessionFeeId: feePayments.familySessionFeeId,
+          registrationFee: familySessionFees.registrationFee,
+          classFees: familySessionFees.classFees,
           totalFee: sql<number>`COALESCE(${familySessionFees.totalFee}, 0)`,
           paidAmount: sql<number>`COALESCE(${familySessionFees.paidAmount}, 0)`,
           status: sql<string>`COALESCE(${familySessionFees.status}, 'unknown')`,
@@ -59,6 +61,8 @@ export async function GET(request: NextRequest) {
       paymentMethod: payment.paymentMethod,
       notes: payment.notes,
       status: payment.status,
+      registrationFee: payment.registrationFee,
+      classFees: payment.classFees,
       totalFee: payment.totalFee,
       paidAmount: payment.paidAmount,
       remainingBalance: Math.max(0, payment.totalFee - payment.paidAmount)
