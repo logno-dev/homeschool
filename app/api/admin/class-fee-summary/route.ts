@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { classRegistrations, classTeachingRequests, guardians, schedules, sessions } from '@/lib/schema'
+import { classRegistrations, classTeachingRequests, familyClassCharges, guardians, schedules, sessions, teacherReimbursements } from '@/lib/schema'
 import { and, desc, eq, sql } from 'drizzle-orm'
 
 export async function GET() {
@@ -23,10 +23,12 @@ export async function GET() {
         teacherFirstName: guardians.firstName,
         teacherLastName: guardians.lastName,
         enrolledCount: sql<number>`COALESCE(COUNT(${classRegistrations.id}), 0)`,
-        totalFees: sql<number>`COALESCE(COUNT(${classRegistrations.id}), 0) * COALESCE(${classTeachingRequests.feeAmount}, 0)`
+        totalFees: sql<number>`COALESCE((SELECT SUM(${familyClassCharges.amountCents} - ${familyClassCharges.refundedCents}) / 100.0 FROM ${familyClassCharges} WHERE ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id}), 0)`,
+        refundedFees: sql<number>`COALESCE((SELECT SUM(${familyClassCharges.refundedCents}) / 100.0 FROM ${familyClassCharges} WHERE ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id}), 0)`,
+        allocatedReimbursements: sql<number>`COALESCE((SELECT SUM(${teacherReimbursements.amount}) FROM ${teacherReimbursements} WHERE ${teacherReimbursements.classTeachingRequestId} = ${classTeachingRequests.id} AND ${teacherReimbursements.status} IN ('pending', 'paid')), 0)`
       })
       .from(classTeachingRequests)
-      .innerJoin(schedules, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
+      .leftJoin(schedules, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
       .innerJoin(sessions, eq(classTeachingRequests.sessionId, sessions.id))
       .leftJoin(guardians, eq(classTeachingRequests.guardianId, guardians.id))
       .leftJoin(

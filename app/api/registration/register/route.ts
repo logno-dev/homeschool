@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { refreshRegistrationFees } from '@/lib/fee-calculation'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
 
 import { db } from '@/lib/db'
@@ -203,6 +204,7 @@ export async function POST(request: Request) {
         })
       }
 
+      await refreshRegistrationFees(sessionId, familyId, tx)
       return { registrationId }
     })
 

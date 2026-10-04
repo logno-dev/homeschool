@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { refreshRegistrationFees } from '@/lib/fee-calculation'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import {
@@ -443,7 +444,8 @@ export async function POST(request: Request) {
       }
     }
 
-    const inserted = await db
+    const inserted = await db.transaction(async (tx) => {
+      const result = await tx
       .insert(classRegistrations)
       .values({
         id: randomUUID(),
@@ -457,6 +459,9 @@ export async function POST(request: Request) {
         status
       })
       .returning()
+      await refreshRegistrationFees(sessionId, child[0].familyId, tx)
+      return result
+    })
 
     publishRegistrationUpdate(sessionId)
     return NextResponse.json({ registration: inserted[0] })

@@ -360,6 +360,36 @@ export const familySessionFees = sqliteTable('family_session_fees', {
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+// Monetary snapshots survive enrollment changes. Refunds reduce these charges,
+// not the live enrollment count, so reimbursements cannot be reduced twice.
+export const familyClassCharges = sqliteTable('family_class_charges', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull(),
+  familyId: text('family_id').notNull(),
+  childId: text('child_id').notNull(),
+  classTeachingRequestId: text('class_teaching_request_id').notNull(),
+  childName: text('child_name').notNull(),
+  className: text('class_name').notNull(),
+  amountCents: integer('amount_cents').notNull(),
+  refundedCents: integer('refunded_cents').notNull().default(0),
+  status: text('status').notNull().default('active'), // active, review, retained, refunded
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
+export const classFeeRefunds = sqliteTable('class_fee_refunds', {
+  id: text('id').primaryKey(), // Client request key, for safe retries
+  chargeId: text('charge_id').notNull().references(() => familyClassCharges.id),
+  paymentId: text('payment_id'),
+  amountCents: integer('amount_cents').notNull(),
+  method: text('method').notNull(),
+  reference: text('reference'),
+  notes: text('notes').notNull(),
+  recordedBy: text('recorded_by').notNull(),
+  refundedAt: text('refunded_at').notNull(),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+})
+
 export const familyFeeCredits = sqliteTable('family_fee_credits', {
   id: text('id').primaryKey(),
   familyId: text('family_id').notNull().references(() => families.id, { onDelete: 'cascade' }),

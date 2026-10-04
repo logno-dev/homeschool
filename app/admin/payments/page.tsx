@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth-client'
 import { useRouter } from 'next/navigation'
 import AdminLayout from '../../components/AdminLayout'
 import SessionOptions from '../../components/SessionOptions'
+import ClassFeeRefunds from '../../components/ClassFeeRefunds'
 
 interface PaymentData {
   id: string
@@ -180,6 +181,8 @@ interface ClassFeeSummary {
   teacherLastName: string | null
   enrolledCount: number
   totalFees: number
+  refundedFees: number
+  allocatedReimbursements: number
 }
 
 export default function PaymentsPage() {
@@ -190,12 +193,13 @@ export default function PaymentsPage() {
   const [outstandingBalance, setOutstandingBalance] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'family' | 'classFees' | 'reimbursements' | 'documents'>('family')
+  const [activeTab, setActiveTab] = useState<'family' | 'classFees' | 'reimbursements' | 'documents' | 'refunds'>('family')
   const [billingDocuments, setBillingDocuments] = useState<BillingDocument[]>([])
   const [classFeeSummaries, setClassFeeSummaries] = useState<ClassFeeSummary[]>([])
   const [reimbursements, setReimbursements] = useState<TeacherReimbursement[]>([])
   const [overpayments, setOverpayments] = useState<FeeOverpayment[]>([])
   const [updatingReimbursementId, setUpdatingReimbursementId] = useState<string | null>(null)
+  const [editingReimbursement, setEditingReimbursement] = useState<{ id: string; amount: string } | null>(null)
   
   // Filter and sort states
   const [searchTerm, setSearchTerm] = useState('')
@@ -447,6 +451,22 @@ export default function PaymentsPage() {
     }
   }
 
+  const saveReimbursementAmount = async () => {
+    if (!editingReimbursement) return
+    setUpdatingReimbursementId(editingReimbursement.id)
+    try {
+      const response = await fetch('/api/admin/teacher-reimbursements', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingReimbursement.id, amount: Number(editingReimbursement.amount), status: 'pending' })
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error)
+      setEditingReimbursement(null)
+      await Promise.all([fetchReimbursements(), fetchClassFeeSummaries()])
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to adjust reimbursement') }
+    finally { setUpdatingReimbursementId(null) }
+  }
+
   const handleReimbursementStatusToggle = async (reimbursement: TeacherReimbursement) => {
     try {
       setUpdatingReimbursementId(reimbursement.id)
@@ -647,6 +667,7 @@ export default function PaymentsPage() {
               Teacher Reimbursements
             </button>
             <button type="button" onClick={() => setActiveTab('documents')} className={`px-4 py-2 rounded-md text-sm font-medium border ${activeTab === 'documents' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>Billing Documents</button>
+            <button type="button" onClick={() => setActiveTab('refunds')} className={`px-4 py-2 rounded-md text-sm font-medium border ${activeTab === 'refunds' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}>Class Refunds</button>
           </div>
         </div>
 
@@ -932,6 +953,13 @@ export default function PaymentsPage() {
           />
         )}
 
+        {activeTab === 'refunds' && <ClassFeeRefunds onRecorded={() => {
+          void fetchPayments()
+          void fetchClassFeeSummaries()
+          void fetchReimbursements()
+          void fetchOverpayments()
+        }} />}
+
         {activeTab === 'documents' && (
           <div className="bg-white rounded-lg shadow p-6">
             <h2 className="text-lg font-semibold text-gray-900">Billing Documents</h2>
@@ -1056,7 +1084,7 @@ export default function PaymentsPage() {
                         classTeachingRequestId: e.target.value,
                         guardianId: summary?.guardianId || '',
                         sessionId: summary?.sessionId || prev.sessionId,
-                        amount: summary?.totalFees ? summary.totalFees.toString() : prev.amount
+                        amount: summary ? Math.max(0, summary.totalFees - summary.allocatedReimbursements).toFixed(2) : ''
                       }))
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -1075,7 +1103,9 @@ export default function PaymentsPage() {
                   {reimbursementForm.classTeachingRequestId && (
                     <p className="mt-2 text-sm text-gray-600">
                       Enrolled: {selectedClassFeeSummary?.enrolledCount || 0} ·
-                      Total fees: {formatCurrency(selectedClassFeeSummary?.totalFees || 0)}
+                      Net class fees: {formatCurrency(selectedClassFeeSummary?.totalFees || 0)} ·
+                      Refunded / waived: {formatCurrency(selectedClassFeeSummary?.refundedFees || 0)} ·
+                      Available: {formatCurrency(Math.max(0, (selectedClassFeeSummary?.totalFees || 0) - (selectedClassFeeSummary?.allocatedReimbursements || 0)))}
                     </p>
                   )}
                 </div>
@@ -1148,9 +1178,10 @@ export default function PaymentsPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                             {formatCurrency(summary?.totalFees ?? 0)}
+                            {summary && summary.allocatedReimbursements > summary.totalFees && <div className="mt-1 whitespace-normal text-xs text-red-700">Review required: reimbursements exceed net class fees by {formatCurrency(summary.allocatedReimbursements - summary.totalFees)}.</div>}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                            {formatCurrency(reimbursement.amount)}
+                            {editingReimbursement?.id === reimbursement.id ? <div className="flex items-center gap-2"><input aria-label="Adjusted reimbursement amount" type="number" min="0" step="0.01" className="w-24 rounded border p-2" value={editingReimbursement.amount} onChange={(event) => setEditingReimbursement({ ...editingReimbursement, amount: event.target.value })} /><button type="button" disabled={updatingReimbursementId !== null || editingReimbursement.amount === ''} onClick={saveReimbursementAmount} className="text-blue-700 underline">Save</button><button type="button" disabled={updatingReimbursementId !== null} onClick={() => setEditingReimbursement(null)}>Cancel</button></div> : <>{formatCurrency(reimbursement.amount)}{reimbursement.status === 'pending' && <button type="button" onClick={() => setEditingReimbursement({ id: reimbursement.id, amount: reimbursement.amount.toFixed(2) })} className="ml-2 text-xs text-blue-700 underline">Adjust</button>}</>}
                           </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

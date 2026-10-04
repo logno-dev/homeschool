@@ -1,6 +1,6 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { children, classRegistrations, classTeachingRequests, schedules, sessionFeeConfigs } from '@/lib/schema'
+import { children, classRegistrations, classTeachingRequests, familyClassCharges, schedules, sessionFeeConfigs } from '@/lib/schema'
 import type { FamilySessionFee } from '@/lib/schema'
 import { calculateFeeFromRules, parseStoredSessionFeeRules } from '@/lib/session-fee-rules'
 
@@ -64,7 +64,13 @@ export async function getFinancialLineItems(
   }
 
   const items: FinancialLineItem[] = [{ description: registrationDescription, amount: fee.registrationFee }]
-  const classItems = registrations.map((registration) => ({
+  const charges = await db.select().from(familyClassCharges)
+    .where(and(eq(familyClassCharges.sessionId, fee.sessionId), eq(familyClassCharges.familyId, fee.familyId)))
+    .orderBy(asc(familyClassCharges.childName), asc(familyClassCharges.className))
+  const classItems = charges.length ? charges.map((charge) => ({
+    description: `${charge.childName} — ${charge.className}${charge.status === 'review' ? ' (dropped; refund review pending)' : charge.status === 'retained' ? ' (dropped; retained fee)' : ''}${charge.refundedCents ? ` ($${(charge.refundedCents / 100).toFixed(2)} refunded/waived)` : ''}`,
+    amount: (charge.amountCents - charge.refundedCents) / 100
+  })) : registrations.map((registration) => ({
     description: `${registration.childName} — ${registration.className}`,
     amount: registration.amount || 0
   })).filter((item) => item.amount !== 0)

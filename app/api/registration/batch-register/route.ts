@@ -17,6 +17,7 @@ import {
 import { eq, and, inArray, or, gt, not, isNotNull } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { createOrUpdateFamilySessionFee } from '@/lib/fee-calculation'
+import { syncClassCharges } from '@/lib/class-fee-ledger'
 import { isGradeWithinRange } from '@/lib/grades'
 import { getStudentTeacherAssignment } from '@/lib/student-teachers'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
@@ -616,10 +617,12 @@ export async function POST(request: Request) {
 
     if (modifyRegistration) {
       await withRegistrationRetry(() => db.transaction(async (tx) => {
+        await syncClassCharges(sessionId, familyId, tx)
         await tx.delete(classRegistrations).where(and(
           eq(classRegistrations.familyId, familyId),
           eq(classRegistrations.sessionId, sessionId)
         ))
+        await syncClassCharges(sessionId, familyId, tx)
         await tx.delete(volunteerAssignments).where(and(
           eq(volunteerAssignments.familyId, familyId),
           eq(volunteerAssignments.sessionId, sessionId),

@@ -10,6 +10,7 @@ import {
 import { calculateFeeFromRules, parseStoredSessionFeeRules } from '@/lib/session-fee-rules'
 import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { syncClassCharges, type FeeTransaction } from '@/lib/class-fee-ledger'
 
 export interface FeeCalculationResult {
   registrationFee: number
@@ -21,10 +22,11 @@ export interface FeeCalculationResult {
 
 export async function calculateFamilySessionFees(
   sessionId: string, 
-  familyId: string
+  familyId: string,
+  connection: typeof db | FeeTransaction = db
 ): Promise<FeeCalculationResult> {
   // Get session fee configuration
-  const feeConfig = await db
+  const feeConfig = await connection
     .select()
     .from(sessionFeeConfigs)
     .where(eq(sessionFeeConfigs.sessionId, sessionId))
@@ -37,7 +39,7 @@ export async function calculateFamilySessionFees(
   const config = feeConfig[0]
 
   // Get all children registered for classes in this session
-  const registeredChildren = await db
+  const registeredChildren = await connection
     .select({
       childId: classRegistrations.childId,
       classFee: classTeachingRequests.feeAmount,
@@ -90,12 +92,16 @@ export async function calculateFamilySessionFees(
 
 export async function createOrUpdateFamilySessionFee(
   sessionId: string,
-  familyId: string
+  familyId: string,
+  transaction?: FeeTransaction
 ): Promise<string> {
-  const calculation = await calculateFamilySessionFees(sessionId, familyId)
+  if (!transaction) return db.transaction((tx) => createOrUpdateFamilySessionFee(sessionId, familyId, tx))
+  const calculation = await calculateFamilySessionFees(sessionId, familyId, transaction)
+  calculation.classFees = await syncClassCharges(sessionId, familyId, transaction)
+  calculation.totalFee = Math.round((calculation.registrationFee + calculation.classFees) * 100) / 100
 
   // Check if family session fee already exists
-  const existingFee = await db
+  const existingFee = await transaction
     .select()
     .from(familySessionFees)
     .where(and(
@@ -107,7 +113,7 @@ export async function createOrUpdateFamilySessionFee(
     if (existingFee.length > 0) {
     const overpaymentAmount = Math.max(0, existingFee[0].paidAmount - calculation.totalFee)
       // Update existing fee
-    await db
+    await transaction
       .update(familySessionFees)
       .set({
         registrationFee: calculation.registrationFee,
@@ -131,7 +137,7 @@ export async function createOrUpdateFamilySessionFee(
   } else {
     // Create new fee record
     const feeId = randomUUID()
-    await db
+    await transaction
       .insert(familySessionFees)
       .values({
         id: feeId,
@@ -150,6 +156,12 @@ export async function createOrUpdateFamilySessionFee(
 
     return feeId
   }
+}
+
+export async function refreshRegistrationFees(sessionId: string, familyId: string, tx: FeeTransaction) {
+  const [config] = await tx.select({ id: sessionFeeConfigs.id }).from(sessionFeeConfigs).where(eq(sessionFeeConfigs.sessionId, sessionId)).limit(1)
+  if (config) await createOrUpdateFamilySessionFee(sessionId, familyId, tx)
+  else await syncClassCharges(sessionId, familyId, tx)
 }
 
 export async function getFamilySessionFeeStatus(

@@ -21,7 +21,7 @@ const client = createClient({ url: ':memory:' })
 const schema = load('lib/schema.ts')
 const db = drizzle(client, { schema })
 try {
-  for (const table of [schema.children, schema.classRegistrations, schema.schedules, schema.classTeachingRequests, schema.sessionFeeConfigs]) {
+  for (const table of [schema.children, schema.classRegistrations, schema.schedules, schema.classTeachingRequests, schema.sessionFeeConfigs, schema.familyClassCharges]) {
     const { name, columns } = getTableConfig(table)
     // Only columns used by the queries need fixture values.
     const definitions = columns.map(column => `"${column.name}" ${column.getSQLType()}`)

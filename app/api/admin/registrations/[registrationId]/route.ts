@@ -5,6 +5,8 @@ import { classRegistrations, schedules, classTeachingRequests } from '@/lib/sche
 import { and, eq, or, inArray, gt } from 'drizzle-orm'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
 import { getStudentTeacherAssignment } from '@/lib/student-teachers'
+import { refreshRegistrationFees } from '@/lib/fee-calculation'
+import { syncClassCharges } from '@/lib/class-fee-ledger'
 
 export async function PATCH(
   request: Request,
@@ -72,7 +74,11 @@ export async function PATCH(
       }
     }
 
-    const updated = await db
+    const updated = await db.transaction(async (tx) => {
+      const [previous] = await tx.select().from(classRegistrations).where(eq(classRegistrations.id, registrationId)).limit(1)
+      if (!previous) return []
+      await syncClassCharges(previous.sessionId, previous.familyId, tx)
+      const result = await tx
       .update(classRegistrations)
       .set({
         ...(scheduleId ? { scheduleId } : {}),
@@ -81,6 +87,9 @@ export async function PATCH(
       })
       .where(eq(classRegistrations.id, registrationId))
       .returning()
+      await refreshRegistrationFees(previous.sessionId, previous.familyId, tx)
+      return result
+    })
 
     if (!updated.length) {
       return NextResponse.json({ error: 'Registration not found' }, { status: 404 })

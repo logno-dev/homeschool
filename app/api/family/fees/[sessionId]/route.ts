@@ -52,19 +52,19 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid overpayment disposition' }, { status: 400 })
     }
 
-    const fee = await db.select().from(familySessionFees).where(and(
-      eq(familySessionFees.sessionId, sessionId),
-      eq(familySessionFees.familyId, guardian.familyId)
-    )).limit(1)
-    if (!fee[0]) return NextResponse.json({ error: 'Fee record not found' }, { status: 404 })
-
-    const amount = Math.max(0, fee[0].paidAmount - fee[0].totalFee)
-    if (amount <= 0 || fee[0].overpaymentStatus !== 'pending') {
-      return NextResponse.json({ error: 'No unresolved overpayment is available' }, { status: 400 })
-    }
-
     const now = new Date().toISOString()
-    await db.transaction(async (tx) => {
+    const failure = await db.transaction(async (tx) => {
+      const fee = await tx.select().from(familySessionFees).where(and(
+        eq(familySessionFees.sessionId, sessionId),
+        eq(familySessionFees.familyId, guardian.familyId)
+      )).limit(1)
+      if (!fee[0]) return 'Fee record not found'
+
+      const amount = Math.max(0, fee[0].paidAmount - fee[0].totalFee)
+      if (amount <= 0 || fee[0].overpaymentStatus !== 'pending') {
+        return 'No unresolved overpayment is available'
+      }
+
       if (disposition === 'credit') {
         await tx.insert(familyFeeCredits).values({
           id: randomUUID(),
@@ -96,7 +96,9 @@ export async function POST(
         overpaymentResolutionNotes: disposition === 'credit' ? 'Held as account credit' : 'Donated to scholarship fund',
         updatedAt: now
       }).where(eq(familySessionFees.id, fee[0].id))
+      return null
     })
+    if (failure) return NextResponse.json({ error: failure }, { status: 409 })
 
     return NextResponse.json({ success: true })
   } catch (error) {

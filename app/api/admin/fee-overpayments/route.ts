@@ -33,13 +33,12 @@ export async function POST(request: Request) {
     const { feeId, disposition, notes } = await request.json()
     if (!feeId || !['cash', 'wire'].includes(disposition)) return NextResponse.json({ error: 'Fee and cash or wire disposition are required' }, { status: 400 })
 
-    const fee = await db.select().from(familySessionFees).where(eq(familySessionFees.id, feeId)).limit(1)
-    if (!fee[0]) return NextResponse.json({ error: 'Fee record not found' }, { status: 404 })
-    const amount = Math.max(0, fee[0].paidAmount - fee[0].totalFee)
-    if (amount <= 0 || fee[0].overpaymentStatus !== 'pending') return NextResponse.json({ error: 'No unresolved overpayment is available' }, { status: 400 })
-
     const now = new Date().toISOString()
-    await db.transaction(async (tx) => {
+    const failure = await db.transaction(async (tx) => {
+      const fee = await tx.select().from(familySessionFees).where(eq(familySessionFees.id, feeId)).limit(1)
+      if (!fee[0]) return 'Fee record not found'
+      const amount = Math.max(0, Math.round((fee[0].paidAmount - fee[0].totalFee) * 100) / 100)
+      if (amount <= 0 || fee[0].overpaymentStatus !== 'pending') return 'No unresolved overpayment is available'
       await tx.insert(feePayments).values({
         id: randomUUID(),
         familySessionFeeId: fee[0].id,
@@ -61,7 +60,9 @@ export async function POST(request: Request) {
         overpaymentResolutionNotes: notes?.trim() || `Refunded by ${disposition}`,
         updatedAt: now
       }).where(eq(familySessionFees.id, fee[0].id))
+      return null
     })
+    if (failure) return NextResponse.json({ error: failure }, { status: 409 })
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Error resolving admin overpayment:', error)
