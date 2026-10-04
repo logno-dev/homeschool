@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { children, classRegistrations, classTeachingRequests, familyClassCharges, schedules, sessionFeeConfigs } from '@/lib/schema'
 import type { FamilySessionFee } from '@/lib/schema'
 import { calculateFeeFromRules, parseStoredSessionFeeRules } from '@/lib/session-fee-rules'
+import type { FeeTransaction } from '@/lib/class-fee-ledger'
 
 export interface FinancialLineItem {
   description: string
@@ -12,9 +13,10 @@ export interface FinancialLineItem {
 // Stored fee totals are authoritative. Current enrollment details are only used
 // when they reconcile with the billed class-fee subtotal.
 export async function getFinancialLineItems(
-  fee: Pick<FamilySessionFee, 'sessionId' | 'familyId' | 'registrationFee' | 'classFees' | 'totalFee'>
+  fee: Pick<FamilySessionFee, 'sessionId' | 'familyId' | 'registrationFee' | 'classFees' | 'totalFee'>,
+  connection: typeof db | FeeTransaction = db
 ): Promise<FinancialLineItem[]> {
-  const registrations = await db.select({
+  const registrations = await connection.select({
     childId: classRegistrations.childId,
     registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
     childName: children.firstName,
@@ -32,7 +34,7 @@ export async function getFinancialLineItems(
     .orderBy(asc(children.firstName), asc(classTeachingRequests.className))
 
   const cents = (amount: number) => Math.round(amount * 100)
-  const [config] = await db.select().from(sessionFeeConfigs)
+  const [config] = await connection.select().from(sessionFeeConfigs)
     .where(eq(sessionFeeConfigs.sessionId, fee.sessionId)).limit(1)
   const childCount = new Set(registrations.filter((row) => !row.registrationFeeExempt).map((row) => row.childId)).size
   const exemptCount = new Set(registrations.map((row) => row.childId)).size - childCount
@@ -64,10 +66,10 @@ export async function getFinancialLineItems(
   }
 
   const items: FinancialLineItem[] = [{ description: registrationDescription, amount: fee.registrationFee }]
-  const charges = await db.select().from(familyClassCharges)
+  const charges = await connection.select().from(familyClassCharges)
     .where(and(eq(familyClassCharges.sessionId, fee.sessionId), eq(familyClassCharges.familyId, fee.familyId)))
     .orderBy(asc(familyClassCharges.childName), asc(familyClassCharges.className))
-  const classItems = charges.length ? charges.map((charge) => ({
+  const classItems = charges.length ? charges.filter((charge) => charge.billingTreatment !== 'already_removed').map((charge) => ({
     description: `${charge.childName} — ${charge.className}${charge.status === 'review' ? ' (dropped; refund review pending)' : charge.status === 'retained' ? ' (dropped; retained fee)' : ''}${charge.refundedCents ? ` ($${(charge.refundedCents / 100).toFixed(2)} refunded/waived)` : ''}`,
     amount: (charge.amountCents - charge.refundedCents) / 100
   })) : registrations.map((registration) => ({

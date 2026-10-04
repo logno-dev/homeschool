@@ -28,6 +28,8 @@ interface PaymentData {
 function PaymentDetailsDialog({ payment, onClose }: { payment: PaymentData; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
   const [breakdown, setBreakdown] = useState<{
+    source: 'transaction_snapshot' | 'current_bill'
+    capturedAt?: string
     lineItems: { description: string; amount: number }[]
     totalFee: number
     paidAmount: number
@@ -108,8 +110,8 @@ function PaymentDetailsDialog({ payment, onClose }: { payment: PaymentData; onCl
           </div>
         ) : breakdown ? (
           <section className="border-t border-gray-200 pt-4">
-            <h3 className="text-sm font-semibold">Current session fee breakdown</h3>
-            <p className="mt-1 text-xs text-gray-500">These are the current charges for the family's session bill. Individual payments are applied to the overall balance; a registration-versus-class allocation is not recorded for this transaction.</p>
+            <h3 className="text-sm font-semibold">{breakdown.source === 'transaction_snapshot' ? 'Fee breakdown when this transaction was recorded' : 'Current session fee breakdown (historical snapshot unavailable)'}</h3>
+            <p className="mt-1 text-xs text-gray-500">{breakdown.source === 'transaction_snapshot' ? 'This saved breakdown and balance are preserved from the time this transaction was recorded. Later class changes and refunds do not change it.' : 'This older transaction has no saved itemization. The amounts below reflect the current bill, not necessarily the original charges.'} Payments apply to the overall bill; this is not an allocation of this payment to specific classes.</p>
             <dl className="mt-3 space-y-2 text-sm">
               {breakdown.lineItems.map((item, index) => (
                 <div key={index} className="flex justify-between gap-4">

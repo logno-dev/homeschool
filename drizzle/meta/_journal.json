@@ -225,6 +225,13 @@
       "when": 1791072000000,
       "tag": "0059_class_fee_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1791158400000,
+      "tag": "0060_payment_billing_snapshots",
+      "breakpoints": true
     }
   ]
 }

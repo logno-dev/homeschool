@@ -8,6 +8,7 @@ import { getGuardianById } from '@/lib/database'
 import { familySessionFees, familyFeeCredits, feePayments, scholarshipFundTransactions, sessions, families } from '@/lib/schema'
 import { sendPaymentConfirmationEmail } from '@/lib/email'
 import { getFinancialLineItems } from '@/lib/financial-line-items'
+import { createPaymentSnapshot } from '@/lib/payment-snapshots'
 
 export const maxDuration = 120
 import {
@@ -240,6 +241,7 @@ async function recordFeePayment(familySessionFeeId: string, metadata: ParsedFeeM
 
     if (paymentAmount > 0) {
       await tx.insert(feePayments).values({
+        billingSnapshot: await createPaymentSnapshot(tx, familySessionFeeId),
         id: randomUUID(), familySessionFeeId, familyId: fee.familyId, sessionId: fee.sessionId,
         amount: paymentAmount, paymentDate: new Date().toISOString(), paymentMethod: 'online',
         notes: `PayPal order payment - Order ID: ${orderId}`
@@ -247,6 +249,7 @@ async function recordFeePayment(familySessionFeeId: string, metadata: ParsedFeeM
     }
     if (creditAmount > 0) {
       await tx.insert(feePayments).values({
+        billingSnapshot: await createPaymentSnapshot(tx, familySessionFeeId),
         id: randomUUID(), familySessionFeeId, familyId: fee.familyId, sessionId: fee.sessionId,
         amount: creditAmount, paymentDate: new Date().toISOString(), paymentMethod: 'credit',
         notes: 'Applied available account credit'

@@ -5,6 +5,7 @@ import { getAuthenticatedUser } from '@/lib/server-auth'
 import { getGuardianById } from '@/lib/database'
 import { db } from '@/lib/db'
 import { familyFeeCredits, familySessionFees, feePayments } from '@/lib/schema'
+import { createPaymentSnapshot } from '@/lib/payment-snapshots'
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       }).where(eq(familySessionFees.id, fee.id))
 
       await tx.insert(feePayments).values({
+        billingSnapshot: await createPaymentSnapshot(tx, fee.id),
         id: randomUUID(),
         familySessionFeeId: fee.id,
         familyId: fee.familyId,

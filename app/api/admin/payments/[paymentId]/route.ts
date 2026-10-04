@@ -14,7 +14,7 @@ export async function GET(
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
     const { paymentId } = await params
-    const [record] = await db.select({ paymentId: feePayments.id, fee: familySessionFees })
+    const [record] = await db.select({ paymentId: feePayments.id, billingSnapshot: feePayments.billingSnapshot, fee: familySessionFees })
       .from(feePayments)
       .leftJoin(familySessionFees, and(
         eq(feePayments.familySessionFeeId, familySessionFees.id),
@@ -24,11 +24,13 @@ export async function GET(
       .limit(1)
 
     if (!record) return NextResponse.json({ error: 'Payment not found' }, { status: 404 })
+    if (record.billingSnapshot) return NextResponse.json({ breakdown: { ...JSON.parse(record.billingSnapshot), source: 'transaction_snapshot' } })
     if (!record.fee) return NextResponse.json({ breakdown: null })
 
     const fee = record.fee
     return NextResponse.json({
       breakdown: {
+        source: 'current_bill',
         lineItems: await getFinancialLineItems(fee),
         totalFee: fee.totalFee,
         paidAmount: fee.paidAmount,

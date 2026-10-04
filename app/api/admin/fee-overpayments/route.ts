@@ -4,6 +4,7 @@ import { and, desc, eq, gt } from 'drizzle-orm'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { families, familySessionFees, feePayments, sessions } from '@/lib/schema'
+import { createPaymentSnapshot } from '@/lib/payment-snapshots'
 
 export async function GET() {
   const auth = await getAuthenticatedAdmin('payments')
@@ -39,8 +40,9 @@ export async function POST(request: Request) {
       if (!fee[0]) return 'Fee record not found'
       const amount = Math.max(0, Math.round((fee[0].paidAmount - fee[0].totalFee) * 100) / 100)
       if (amount <= 0 || fee[0].overpaymentStatus !== 'pending') return 'No unresolved overpayment is available'
+      const paymentId = randomUUID()
       await tx.insert(feePayments).values({
-        id: randomUUID(),
+        id: paymentId,
         familySessionFeeId: fee[0].id,
         familyId: fee[0].familyId,
         sessionId: fee[0].sessionId,
@@ -60,6 +62,7 @@ export async function POST(request: Request) {
         overpaymentResolutionNotes: notes?.trim() || `Refunded by ${disposition}`,
         updatedAt: now
       }).where(eq(familySessionFees.id, fee[0].id))
+      await tx.update(feePayments).set({ billingSnapshot: await createPaymentSnapshot(tx, fee[0].id) }).where(eq(feePayments.id, paymentId))
       return null
     })
     if (failure) return NextResponse.json({ error: failure }, { status: 409 })

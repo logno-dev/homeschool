@@ -372,6 +372,7 @@ export const familyClassCharges = sqliteTable('family_class_charges', {
   className: text('class_name').notNull(),
   amountCents: integer('amount_cents').notNull(),
   refundedCents: integer('refunded_cents').notNull().default(0),
+  billingTreatment: text('billing_treatment').notNull().default('included'), // included, already_removed
   status: text('status').notNull().default('active'), // active, review, retained, refunded
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -411,6 +412,7 @@ export const feePayments = sqliteTable('fee_payments', {
   paymentDate: text('payment_date').notNull(),
   paymentMethod: text('payment_method').notNull(), // cash, check, online
   notes: text('notes'),
+  billingSnapshot: text('billing_snapshot'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { createPaymentSnapshot } from '@/lib/payment-snapshots'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { scholarshipApplications, familySessionFees, feePayments, scholarshipFundTransactions } from '@/lib/schema'
@@ -83,7 +84,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
     const newPaidAmount = fee.paidAmount + awardAmount
     const newStatus = newPaidAmount >= fee.totalFee ? 'paid' : 'partial'
 
-    await db
+    await db.transaction(async (tx) => {
+    await tx
       .update(familySessionFees)
       .set({
         paidAmount: newPaidAmount,
@@ -92,7 +94,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
       })
       .where(eq(familySessionFees.id, fee.id))
 
-    await db.insert(feePayments).values({
+    await tx.insert(feePayments).values({
+      billingSnapshot: await createPaymentSnapshot(tx, fee.id),
       id: randomUUID(),
       familySessionFeeId: fee.id,
       familyId: fee.familyId,
@@ -103,7 +106,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
       notes: reviewNotes?.trim() || 'Scholarship fund award'
     })
 
-    await db.insert(scholarshipFundTransactions).values({
+    await tx.insert(scholarshipFundTransactions).values({
       id: randomUUID(),
       amount: -awardAmount,
       transactionType: 'award',
@@ -116,7 +119,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
       createdAt: new Date().toISOString()
     })
 
-    await db
+    await tx
       .update(scholarshipApplications)
       .set({
         status: 'approved',
@@ -127,6 +130,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
         updatedAt: new Date().toISOString()
       })
       .where(eq(scholarshipApplications.id, applicationId))
+    })
 
     return NextResponse.json({ success: true })
   } catch (error) {

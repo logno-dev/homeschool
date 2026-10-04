@@ -11,6 +11,7 @@ import {
 } from '@/lib/schema'
 import { eq, desc, sql, inArray } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { createPaymentSnapshot } from '@/lib/payment-snapshots'
 
 export async function GET(request: NextRequest) {
   try {
@@ -150,7 +151,8 @@ export async function POST(request: NextRequest) {
 
     // Create the payment record
     const paymentId = randomUUID()
-    await db.insert(feePayments).values({
+    await db.transaction(async (tx) => {
+    await tx.insert(feePayments).values({
       id: paymentId,
       familySessionFeeId,
       familyId,
@@ -163,7 +165,7 @@ export async function POST(request: NextRequest) {
 
     // Update the family session fee if it exists
     if (familySessionFeeId) {
-      const currentFee = await db
+      const currentFee = await tx
         .select()
         .from(familySessionFees)
         .where(eq(familySessionFees.id, familySessionFeeId))
@@ -174,7 +176,7 @@ export async function POST(request: NextRequest) {
         const newStatus = newPaidAmount >= currentFee[0].totalFee ? 'paid' : 
                          newPaidAmount > 0 ? 'partial' : 'pending'
 
-        await db
+        await tx
           .update(familySessionFees)
           .set({
             paidAmount: newPaidAmount,
@@ -184,6 +186,8 @@ export async function POST(request: NextRequest) {
           .where(eq(familySessionFees.id, familySessionFeeId))
       }
     }
+    await tx.update(feePayments).set({ billingSnapshot: await createPaymentSnapshot(tx, familySessionFeeId) }).where(eq(feePayments.id, paymentId))
+    })
 
     // Return the created payment
     const createdPayment = await db

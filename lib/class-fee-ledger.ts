@@ -29,7 +29,7 @@ export async function syncClassCharges(sessionId: string, familyId: string, tx: 
       // A return after a refund is a new charge; credit any retained amount
       // toward it rather than silently granting a permanent discount.
       if (previous.every((charge) => charge.status !== 'active')) {
-        const retained = previous.reduce((sum, charge) => sum + charge.amountCents - charge.refundedCents, 0)
+        const retained = previous.reduce((sum, charge) => sum + (charge.billingTreatment === 'already_removed' ? 0 : charge.amountCents - charge.refundedCents), 0)
         const extra = Math.max(0, Math.round((registration.amount || 0) * 100) - retained)
         if (extra > 0) await tx.insert(familyClassCharges).values({
           id: randomUUID(), sessionId, familyId, childId: registration.childId,
@@ -48,9 +48,10 @@ export async function syncClassCharges(sessionId: string, familyId: string, tx: 
   }
   const charges = await tx.select().from(familyClassCharges).where(and(eq(familyClassCharges.sessionId, sessionId), eq(familyClassCharges.familyId, familyId)))
   for (const charge of charges) {
+    if (charge.billingTreatment === 'already_removed') continue
     const key = `${sessionId}:${familyId}:${charge.childId}:${charge.classTeachingRequestId}`
     const status = active.has(key) ? 'active' : charge.status === 'active' ? 'review' : charge.status
     if (status !== charge.status) await tx.update(familyClassCharges).set({ status, updatedAt: now }).where(eq(familyClassCharges.id, charge.id))
   }
-  return charges.reduce((sum, charge) => sum + charge.amountCents - charge.refundedCents, 0) / 100
+  return charges.reduce((sum, charge) => sum + (charge.billingTreatment === 'already_removed' ? 0 : charge.amountCents - charge.refundedCents), 0) / 100
 }

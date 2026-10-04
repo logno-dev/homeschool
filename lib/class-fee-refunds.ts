@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto'
 import { and, eq, sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 import { classFeeRefunds, familyClassCharges, familySessionFees, feePayments } from '@/lib/schema'
+import { createPaymentSnapshot } from '@/lib/payment-snapshots'
 
 export class RefundError extends Error {}
 export interface RefundInput {
@@ -43,6 +44,7 @@ export async function recordClassFeeRefund(input: RefundInput, recordedBy: strin
     }
     const [charge] = await tx.select().from(familyClassCharges).where(eq(familyClassCharges.id, input.chargeId))
     if (!charge || charge.status === 'active') throw new RefundError('Only dropped-class charges can be reviewed here.')
+    if (charge.billingTreatment === 'already_removed') throw new RefundError('Use the historical refund form for a charge already removed from the bill.')
     if (amountCents > charge.amountCents - charge.refundedCents) throw new RefundError('Refund exceeds the remaining class charge.')
     if (input.method === 'retain' && charge.status !== 'review') throw new RefundError('This charge has already been reviewed.')
 
@@ -52,7 +54,7 @@ export async function recordClassFeeRefund(input: RefundInput, recordedBy: strin
     const paidCents = Math.round(fee.paidAmount * 100)
     const totalCents = Math.round(fee.totalFee * 100)
     const [ledger] = await tx.select({ cents: sql<number>`coalesce(sum(${familyClassCharges.amountCents} - ${familyClassCharges.refundedCents}), 0)` })
-      .from(familyClassCharges).where(and(eq(familyClassCharges.familyId, charge.familyId), eq(familyClassCharges.sessionId, charge.sessionId)))
+      .from(familyClassCharges).where(and(eq(familyClassCharges.familyId, charge.familyId), eq(familyClassCharges.sessionId, charge.sessionId), eq(familyClassCharges.billingTreatment, 'included')))
     if (ledger.cents !== classCents) throw new RefundError('The recorded bill and class-charge ledger differ. Reconcile the family bill before recording a refund.')
     const cashRefund = !['retain', 'waiver'].includes(input.method)
     if (amountCents > classCents || amountCents > totalCents) throw new RefundError('The bill must be reconciled before recording this refund.')
@@ -91,6 +93,7 @@ export async function recordClassFeeRefund(input: RefundInput, recordedBy: strin
       overpaymentAmount, overpaymentStatus: overpaymentAmount > 0 ? 'pending' : 'none',
       updatedAt: now
     }).where(eq(familySessionFees.id, fee.id))
+    if (paymentId) await tx.update(feePayments).set({ billingSnapshot: await createPaymentSnapshot(tx, fee.id) }).where(eq(feePayments.id, paymentId))
     return input.id
   })
 }

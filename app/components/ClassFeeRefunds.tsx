@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import HistoricalClassRefund from './HistoricalClassRefund'
 
 interface Review {
-  charge: { id: string; childName: string; className: string; amountCents: number; refundedCents: number; status: string }
+  charge: { id: string; childName: string; className: string; amountCents: number; refundedCents: number; status: string; billingTreatment: string }
   familyName: string
   sessionName: string
   paidAmount: number | null
@@ -79,6 +80,7 @@ export default function ClassFeeRefunds({ onRecorded }: { onRecorded: () => void
       </div>
       {error && <div role="alert" className="rounded-lg bg-red-50 p-4 text-red-800">{error}<button type="button" disabled={saving} onClick={() => { setError(''); void load() }} className="ml-3 underline">Reload</button></div>}
       {success && <p role="status" className="rounded-lg bg-green-50 p-4 text-green-800">{success}</p>}
+      <HistoricalClassRefund onRecorded={() => { void load(); onRecorded() }} />
       {loading ? <p role="status">Loading refund reviews…</p> : (
         <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
           <table className="min-w-full text-left text-sm">
@@ -89,7 +91,7 @@ export default function ClassFeeRefunds({ onRecorded }: { onRecorded: () => void
                 <td className="px-4 py-3">{review.charge.childName}<div className="text-xs text-gray-500">{review.charge.className}</div></td>
                 <td className="px-4 py-3">{money(review.charge.amountCents / 100)}</td>
                 <td className="px-4 py-3">{money(review.charge.refundedCents / 100)}</td>
-                <td className="px-4 py-3">{money((review.charge.amountCents - review.charge.refundedCents) / 100)}</td>
+                <td className="px-4 py-3">{review.charge.billingTreatment === 'already_removed' ? <span className="text-xs text-gray-500">Already removed from bill</span> : money((review.charge.amountCents - review.charge.refundedCents) / 100)}</td>
                 <td className="px-4 py-3"><button type="button" disabled={saving} onClick={() => choose(review)} className="rounded-lg px-3 py-2 font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50">{review.charge.status === 'review' ? 'Review refund' : 'View / adjust'}</button></td>
               </tr>)}
             </tbody>
@@ -99,8 +101,9 @@ export default function ClassFeeRefunds({ onRecorded }: { onRecorded: () => void
       )}
       {selected && <section className="rounded-xl border border-blue-200 bg-white p-6">
         <h3 className="font-semibold">{selected.familyName}: {selected.charge.childName} — {selected.charge.className}</h3>
-        <p className="mt-2 text-sm text-gray-600">Remaining class charge: {money(remaining)} · Family paid: {money(selected.paidAmount || 0)} · Bill total: {money(selected.totalFee || 0)}</p>
-        {remaining > 0 && <form onSubmit={submit} className="mt-4 grid gap-4 sm:grid-cols-2">
+        <p className="mt-2 text-sm text-gray-600">{selected.charge.billingTreatment === 'already_removed' ? 'Original fee not yet refunded' : 'Remaining class charge'}: {money(remaining)} · Family paid: {money(selected.paidAmount || 0)} · Bill total: {money(selected.totalFee || 0)}</p>
+        {selected.charge.billingTreatment === 'already_removed' && <p className="mt-3 text-sm text-gray-600">This fee was already removed from the bill. Use “Record a historical class refund” above for any further partial refund, with the same original fee.</p>}
+        {remaining > 0 && selected.charge.billingTreatment !== 'already_removed' && <form onSubmit={submit} className="mt-4 grid gap-4 sm:grid-cols-2">
           <fieldset disabled={saving} className="contents">
             <label className="text-sm">Decision / refund method<select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value, reference: '' })} className="mt-1 block w-full rounded-lg border p-2">
               <option value="paypal">Record PayPal refund</option><option value="cash">Record cash refund</option><option value="check">Record check refund</option><option value="wire">Record wire refund</option><option value="waiver">Waive unpaid class fee (no money returned)</option>{selected.charge.status === 'review' && <option value="retain">Retain fee — no refund</option>}

@@ -5,6 +5,7 @@ import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, Ses
 import { incrementGradeValue } from './grades'
 import { ensureFamilyGroupMembership, getRegistrationAccess } from './user-groups'
 import { getAppTimezone, parseAppDate } from './app-time'
+import { createPaymentSnapshot } from './payment-snapshots'
 
 // Helper function to generate sharing codes
 function generateSharingCode(): string {
@@ -348,7 +349,10 @@ export async function recordFeePayment(paymentData: Omit<NewFeePayment, 'id' | '
     createdAt: new Date().toISOString()
   }
   
-  const result = await db.insert(feePayments).values(newPayment).returning()
+  const result = await db.transaction(async (tx) => tx.insert(feePayments).values({
+    ...newPayment,
+    billingSnapshot: await createPaymentSnapshot(tx, newPayment.familySessionFeeId)
+  }).returning())
   
   // Update family fee status
   await updateFamily(paymentData.familyId, { 

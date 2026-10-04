@@ -23,7 +23,7 @@ export async function GET() {
         teacherFirstName: guardians.firstName,
         teacherLastName: guardians.lastName,
         enrolledCount: sql<number>`COALESCE(COUNT(${classRegistrations.id}), 0)`,
-        totalFees: sql<number>`COALESCE((SELECT SUM(${familyClassCharges.amountCents} - ${familyClassCharges.refundedCents}) / 100.0 FROM ${familyClassCharges} WHERE ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id}), 0)`,
+        totalFees: sql<number>`COALESCE((SELECT SUM(${familyClassCharges.amountCents} - ${familyClassCharges.refundedCents}) / 100.0 FROM ${familyClassCharges} WHERE ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id} AND ${familyClassCharges.billingTreatment} = 'included'), 0)`,
         refundedFees: sql<number>`COALESCE((SELECT SUM(${familyClassCharges.refundedCents}) / 100.0 FROM ${familyClassCharges} WHERE ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id}), 0)`,
         allocatedReimbursements: sql<number>`COALESCE((SELECT SUM(${teacherReimbursements.amount}) FROM ${teacherReimbursements} WHERE ${teacherReimbursements.classTeachingRequestId} = ${classTeachingRequests.id} AND ${teacherReimbursements.status} IN ('pending', 'paid')), 0)`
       })
