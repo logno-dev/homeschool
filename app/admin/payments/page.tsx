@@ -26,6 +26,37 @@ interface PaymentData {
 
 function PaymentDetailsDialog({ payment, onClose }: { payment: PaymentData; onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null)
+  const [breakdown, setBreakdown] = useState<{
+    lineItems: { description: string; amount: number }[]
+    totalFee: number
+    paidAmount: number
+    remainingBalance: number
+    status: string
+  } | null>(null)
+  const [breakdownLoading, setBreakdownLoading] = useState(true)
+  const [breakdownError, setBreakdownError] = useState<string | null>(null)
+  const [loadAttempt, setLoadAttempt] = useState(0)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setBreakdownLoading(true)
+    setBreakdownError(null)
+    setBreakdown(null)
+    const loadBreakdown = async () => {
+      try {
+        const response = await fetch(`/api/admin/payments/${encodeURIComponent(payment.id)}`, { signal: controller.signal })
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Unable to load the fee breakdown')
+        if (!controller.signal.aborted) setBreakdown(data.breakdown)
+      } catch (error) {
+        if (!controller.signal.aborted) setBreakdownError(error instanceof Error ? error.message : 'Unable to load the fee breakdown')
+      } finally {
+        if (!controller.signal.aborted) setBreakdownLoading(false)
+      }
+    }
+    void loadBreakdown()
+    return () => controller.abort()
+  }, [payment.id, loadAttempt])
   const currency = (amount: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
   const date = (value: string) => {
     // Date-only payments are calendar dates, not UTC instants.
@@ -67,21 +98,32 @@ function PaymentDetailsDialog({ payment, onClose }: { payment: PaymentData; onCl
           <h3 className="text-sm font-semibold">Notes and transaction references</h3>
           <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-gray-50 p-4 text-sm text-gray-700">{payment.notes || 'No notes recorded.'}</p>
         </section>
-        {payment.familySessionFeeId ? (
+        {breakdownLoading ? (
+          <p role="status" className="text-sm text-gray-500">Loading itemized fees…</p>
+        ) : breakdownError ? (
+          <div role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-800">
+            <p>{breakdownError}</p>
+            <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)} className="mt-2 font-semibold underline">Try again</button>
+          </div>
+        ) : breakdown ? (
           <section className="border-t border-gray-200 pt-4">
             <h3 className="text-sm font-semibold">Current session fee breakdown</h3>
             <p className="mt-1 text-xs text-gray-500">These are the current charges for the family's session bill. Individual payments are applied to the overall balance; a registration-versus-class allocation is not recorded for this transaction.</p>
             <dl className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between gap-4"><dt>Registration fees</dt><dd>{payment.registrationFee === null ? 'Unavailable' : currency(payment.registrationFee)}</dd></div>
-              <div className="flex justify-between gap-4"><dt>Class fees</dt><dd>{payment.classFees === null ? 'Unavailable' : currency(payment.classFees)}</dd></div>
-              {payment.registrationFee !== null && payment.classFees !== null && Math.round(payment.totalFee * 100) !== Math.round(payment.registrationFee * 100) + Math.round(payment.classFees * 100) && (
-                <div className="flex justify-between gap-4"><dt>Fee adjustment</dt><dd>{currency((Math.round(payment.totalFee * 100) - Math.round(payment.registrationFee * 100) - Math.round(payment.classFees * 100)) / 100)}</dd></div>
-              )}
-              <div className="flex justify-between gap-4 border-t border-gray-100 pt-2 font-medium"><dt>Total fees</dt><dd>{currency(payment.totalFee)}</dd></div>
-              <div className="flex justify-between gap-4"><dt>Total paid toward this bill</dt><dd>{currency(payment.paidAmount)}</dd></div>
-              <div className="flex justify-between gap-4 font-semibold"><dt>Remaining balance</dt><dd>{currency(payment.remainingBalance)}</dd></div>
-              <div className="flex justify-between gap-4"><dt>Fee status</dt><dd className="capitalize">{payment.status}</dd></div>
+              {breakdown.lineItems.map((item, index) => (
+                <div key={index} className="flex justify-between gap-4">
+                  <dt className="min-w-0 break-words">{item.description}</dt>
+                  <dd className="shrink-0 tabular-nums">{currency(item.amount)}</dd>
+                </div>
+              ))}
+              <div className="flex justify-between gap-4 border-t border-gray-100 pt-2 font-medium"><dt>Total fees</dt><dd>{currency(breakdown.totalFee)}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Total paid toward this bill</dt><dd>{currency(breakdown.paidAmount)}</dd></div>
+              <div className="flex justify-between gap-4 font-semibold"><dt>Remaining balance</dt><dd>{currency(breakdown.remainingBalance)}</dd></div>
+              <div className="flex justify-between gap-4"><dt>Fee status</dt><dd className="capitalize">{breakdown.status}</dd></div>
             </dl>
+            {breakdown.lineItems.some((item) => item.description === 'Class fees (recorded subtotal)') && (
+              <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">Current enrollment charges no longer match the recorded class-fee total. Only the recorded subtotal is shown because an exact historical class breakdown is not stored.</p>
+            )}
           </section>
         ) : <p className="text-sm text-gray-500">This transaction is not linked to a session fee record.</p>}
       </div>

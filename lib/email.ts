@@ -468,7 +468,7 @@ export async function sendFinancialReportTestEmail(input: { type: Extract<Report
       : { emailType: 'donation_confirmation' as const, title: 'DVCLC Donation Receipt', filename: 'DVCLC-Donation-Receipt-Test.pdf', totalAmount: 50, amountPaid: 50, balanceDue: 0, dueDate: undefined, footer: (await getGlobalSetting('invoiceDonationStatement')) || undefined }
   const pdf = await createFinancialReportPdf(input.type, {
     lineItems: input.type === 'donation_receipt' ? undefined : [
-      { description: 'Session registration fee', amount: 200 },
+      { description: 'Session registration fee — 2 children; 2-child family rate', amount: 200 },
       { description: 'Sam — Art Studio', amount: 30 },
       { description: 'Taylor — Science Lab', amount: 20 }
     ],

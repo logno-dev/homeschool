@@ -30,7 +30,13 @@ must be updated to render the new field; a strict schema must also allow it.
 The bundled samples include registration and per-child class charges.
 
 The registration fee is a family-level line item because pricing rules may price
-the family as a group. Class charges are shown per child when current enrollment
+the family as a group. Its description includes the distinct child count and
+matching pricing tier (or first-child/additional-child calculation for legacy
+pricing). Children enrolled only in registration-exempt classes are excluded and
+noted. If the current calculation differs from the recorded registration fee,
+the description identifies it as a recorded amount rather than attributing it
+to a current tier. These descriptions use the existing `lineItems` contract.
+Class charges are shown per child when current enrollment
 charges reconcile with the stored billed subtotal; otherwise the recorded class
 subtotal is shown rather than inventing historical detail. Any difference between
 the component fees and recorded total is displayed as a fee adjustment. Paid and

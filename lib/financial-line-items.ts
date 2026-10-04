@@ -1,7 +1,8 @@
 import { and, asc, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { children, classRegistrations, classTeachingRequests, schedules } from '@/lib/schema'
+import { children, classRegistrations, classTeachingRequests, schedules, sessionFeeConfigs } from '@/lib/schema'
 import type { FamilySessionFee } from '@/lib/schema'
+import { calculateFeeFromRules, parseStoredSessionFeeRules } from '@/lib/session-fee-rules'
 
 export interface FinancialLineItem {
   description: string
@@ -14,6 +15,8 @@ export async function getFinancialLineItems(
   fee: Pick<FamilySessionFee, 'sessionId' | 'familyId' | 'registrationFee' | 'classFees' | 'totalFee'>
 ): Promise<FinancialLineItem[]> {
   const registrations = await db.select({
+    childId: classRegistrations.childId,
+    registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
     childName: children.firstName,
     className: classTeachingRequests.className,
     amount: classTeachingRequests.feeAmount
@@ -29,7 +32,38 @@ export async function getFinancialLineItems(
     .orderBy(asc(children.firstName), asc(classTeachingRequests.className))
 
   const cents = (amount: number) => Math.round(amount * 100)
-  const items: FinancialLineItem[] = [{ description: 'Session registration fee', amount: fee.registrationFee }]
+  const [config] = await db.select().from(sessionFeeConfigs)
+    .where(eq(sessionFeeConfigs.sessionId, fee.sessionId)).limit(1)
+  const childCount = new Set(registrations.filter((row) => !row.registrationFeeExempt).map((row) => row.childId)).size
+  const exemptCount = new Set(registrations.map((row) => row.childId)).size - childCount
+  const countLabel = `${childCount} ${childCount === 1 ? 'child' : 'children'}`
+  let registrationDescription = 'Session registration fee — recorded amount; pricing details unavailable'
+
+  if (config) {
+    const rules = parseStoredSessionFeeRules(config.pricingRules)
+    const ruleFee = calculateFeeFromRules(childCount, rules)
+    const calculatedFee = ruleFee ?? (childCount > 0 ? config.firstChildFee + (childCount - 1) * config.additionalChildFee : 0)
+    if (cents(calculatedFee) === cents(fee.registrationFee)) {
+      const rule = rules.find((item) => childCount >= item.minChildren && (item.maxChildren === null || childCount <= item.maxChildren))
+      if (childCount === 0) {
+        registrationDescription = 'Session registration fee — no children subject to registration fees'
+      } else if (rule) {
+        const tier = rule.maxChildren === rule.minChildren
+          ? `${rule.minChildren}-child`
+          : rule.maxChildren === null ? `${rule.minChildren}+ children` : `${rule.minChildren}–${rule.maxChildren} children`
+        registrationDescription = `Session registration fee — ${countLabel}; ${tier} family rate`
+      } else {
+        const additional = childCount - 1
+        registrationDescription = `Session registration fee — ${countLabel}; first child $${config.firstChildFee.toFixed(2)}`
+          + (additional > 0 ? ` + ${additional} additional ${additional === 1 ? 'child' : 'children'} × $${config.additionalChildFee.toFixed(2)}` : '')
+      }
+      if (exemptCount > 0) registrationDescription += ` (${exemptCount} ${exemptCount === 1 ? 'child' : 'children'} enrolled only in registration-exempt classes excluded)`
+    } else {
+      registrationDescription = 'Session registration fee — recorded amount; current enrollment/pricing no longer matches this charge'
+    }
+  }
+
+  const items: FinancialLineItem[] = [{ description: registrationDescription, amount: fee.registrationFee }]
   const classItems = registrations.map((registration) => ({
     description: `${registration.childName} — ${registration.className}`,
     amount: registration.amount || 0
