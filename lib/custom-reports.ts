@@ -1,7 +1,7 @@
 import 'server-only'
-import { and, eq, sum } from 'drizzle-orm'
+import { and, eq, inArray, sum } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { classRegistrations, classTeachingRequests, children, families, familySessionFees, guardians, schedules, sessions, users } from '@/lib/schema'
+import { classRegistrations, classTeachingRequests, children, families, familySessionFees, guardians, schedules, sessions, users, volunteerAssignments, volunteerJobs } from '@/lib/schema'
 import { isFieldAvailable, REPORT_FIELDS, type ReportDefinition, type ReportField, type ReportFilter } from '@/lib/report-fields'
 export { REPORT_FIELDS }
 export type { ReportDefinition, ReportField, ReportFilter }
@@ -48,26 +48,44 @@ export async function executeReport(definition: ReportDefinition) {
       .limit(5000)
     return filterRows(rows.map((row) => ({ ...row, userName: [row.userName, row.userLastName].filter(Boolean).join(' ') })), definition)
   }
-  const rows = await db.select({
-    sessionName: sessions.name, familyName: families.name, familyEmail: families.email, familyPhone: families.phone, familyAddress: families.address,
-    guardianName: guardians.firstName, guardianLastName: guardians.lastName, guardianEmail: guardians.email, guardianPhone: guardians.phone,
-    childName: children.firstName, childLastName: children.lastName, childGrade: children.grade, childAllergies: children.allergies, childMedicalNotes: children.medicalNotes,
-    className: classTeachingRequests.className, registrationStatus: classRegistrations.status, registrationEmergencyContact: classRegistrations.emergencyContact, registrationEmergencyPhone: classRegistrations.emergencyPhone,
-  }).from(classRegistrations)
-    .innerJoin(sessions, eq(classRegistrations.sessionId, sessions.id))
-    .innerJoin(families, eq(classRegistrations.familyId, families.id))
-    .innerJoin(children, eq(classRegistrations.childId, children.id))
-    .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
-    .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-    .innerJoin(guardians, eq(classRegistrations.registeredBy, guardians.id))
-    .leftJoin(users, eq(guardians.id, users.id))
-    .where(definition.sessionId ? eq(classRegistrations.sessionId, definition.sessionId) : undefined)
-    .limit(5000)
+  const [rows, volunteerJobRows] = await Promise.all([
+    db.select({
+      sessionName: sessions.name, familyId: families.id, familyName: families.name, familyEmail: families.email, familyPhone: families.phone, familyAddress: families.address,
+      guardianName: guardians.firstName, guardianLastName: guardians.lastName, guardianEmail: guardians.email, guardianPhone: guardians.phone,
+      childName: children.firstName, childLastName: children.lastName, childGrade: children.grade, childAllergies: children.allergies, childMedicalNotes: children.medicalNotes,
+      className: classTeachingRequests.className, registrationStatus: classRegistrations.status, registrationEmergencyContact: classRegistrations.emergencyContact, registrationEmergencyPhone: classRegistrations.emergencyPhone,
+    }).from(classRegistrations)
+      .innerJoin(sessions, eq(classRegistrations.sessionId, sessions.id))
+      .innerJoin(families, eq(classRegistrations.familyId, families.id))
+      .innerJoin(children, eq(classRegistrations.childId, children.id))
+      .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
+      .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
+      .innerJoin(guardians, eq(classRegistrations.registeredBy, guardians.id))
+      .leftJoin(users, eq(guardians.id, users.id))
+      .where(definition.sessionId ? eq(classRegistrations.sessionId, definition.sessionId) : undefined)
+      .limit(5000),
+    db.select({ familyId: volunteerAssignments.familyId, title: volunteerJobs.title })
+      .from(volunteerAssignments)
+      .innerJoin(volunteerJobs, eq(volunteerAssignments.volunteerJobId, volunteerJobs.id))
+      .where(and(
+        definition.sessionId ? eq(volunteerAssignments.sessionId, definition.sessionId) : undefined,
+        eq(volunteerAssignments.volunteerType, 'volunteer_job'),
+        inArray(volunteerAssignments.status, ['assigned', 'pending', 'completed'])
+      ))
+  ])
+
+  const volunteerJobsByFamily = new Map<string, string[]>()
+  for (const job of volunteerJobRows) {
+    const titles = volunteerJobsByFamily.get(job.familyId) || []
+    titles.push(job.title)
+    volunteerJobsByFamily.set(job.familyId, titles)
+  }
 
   const mapped = rows.map((row) => ({
     ...row,
     guardianName: [row.guardianName, row.guardianLastName].filter(Boolean).join(' '),
     childName: [row.childName, row.childLastName].filter(Boolean).join(' '),
+    registrationVolunteerJobs: (volunteerJobsByFamily.get(row.familyId) || []).sort().join(', '),
   })) as Record<string, unknown>[]
   return filterRows(mapped, definition)
 }
