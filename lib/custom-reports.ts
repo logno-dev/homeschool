@@ -11,7 +11,7 @@ const allowedOperators = new Set<ReportFilter['operator']>(['contains', 'equals'
 
 export function normalizeDefinition(input: unknown): ReportDefinition {
   const value = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>
-  const scope = value.scope === 'users' ? 'users' : 'roster'
+  const scope = value.scope === 'users' || value.scope === 'volunteerJobs' ? value.scope : 'roster'
   const columns = Array.isArray(value.columns) ? value.columns.filter((column): column is ReportField => typeof column === 'string' && allowedFields.has(column) && isFieldAvailable(column as ReportField, scope)) : []
   const filters = Array.isArray(value.filters) ? value.filters.flatMap((filter) => {
     if (!filter || typeof filter !== 'object') return []
@@ -48,48 +48,51 @@ export async function executeReport(definition: ReportDefinition) {
       .limit(5000)
     return filterRows(rows.map((row) => ({ ...row, userName: [row.userName, row.userLastName].filter(Boolean).join(' ') })), definition)
   }
-  const [rows, volunteerJobRows] = await Promise.all([
-    db.select({
-      sessionName: sessions.name, familyId: families.id, familyName: families.name, familyEmail: families.email, familyPhone: families.phone, familyAddress: families.address,
+  if (definition.scope === 'volunteerJobs') {
+    const rows = await db.select({
+      sessionName: sessions.name,
+      familyName: families.name, familyEmail: families.email, familyPhone: families.phone, familyAddress: families.address,
       guardianName: guardians.firstName, guardianLastName: guardians.lastName, guardianEmail: guardians.email, guardianPhone: guardians.phone,
-      childName: children.firstName, childLastName: children.lastName, childGrade: children.grade, childAllergies: children.allergies, childMedicalNotes: children.medicalNotes,
-      className: classTeachingRequests.className, registrationStatus: classRegistrations.status, registrationEmergencyContact: classRegistrations.emergencyContact, registrationEmergencyPhone: classRegistrations.emergencyPhone,
-    }).from(classRegistrations)
-      .innerJoin(sessions, eq(classRegistrations.sessionId, sessions.id))
-      .innerJoin(families, eq(classRegistrations.familyId, families.id))
-      .innerJoin(children, eq(classRegistrations.childId, children.id))
-      .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
-      .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-      .innerJoin(guardians, eq(classRegistrations.registeredBy, guardians.id))
-      .leftJoin(users, eq(guardians.id, users.id))
-      .where(definition.sessionId ? eq(classRegistrations.sessionId, definition.sessionId) : undefined)
-      .limit(5000),
-    db.select({ familyId: volunteerAssignments.familyId, title: volunteerJobs.title, period: volunteerAssignments.period })
+      registrationVolunteerJobs: volunteerJobs.title, registrationVolunteerJobHours: volunteerAssignments.period, volunteerAssignmentStatus: volunteerAssignments.status,
+    })
       .from(volunteerAssignments)
+      .innerJoin(sessions, eq(volunteerAssignments.sessionId, sessions.id))
+      .innerJoin(families, eq(volunteerAssignments.familyId, families.id))
+      .innerJoin(guardians, eq(volunteerAssignments.guardianId, guardians.id))
       .innerJoin(volunteerJobs, eq(volunteerAssignments.volunteerJobId, volunteerJobs.id))
       .where(and(
         definition.sessionId ? eq(volunteerAssignments.sessionId, definition.sessionId) : undefined,
         eq(volunteerAssignments.volunteerType, 'volunteer_job'),
         inArray(volunteerAssignments.status, ['assigned', 'pending', 'completed'])
       ))
-  ])
-
-  const volunteerJobsByFamily = new Map<string, Array<{ title: string; hour: string; hourOrder: number }>>()
-  for (const job of volunteerJobRows) {
-    const jobs = volunteerJobsByFamily.get(job.familyId) || []
-    const hour = ({ '1': 'First Hour', first: 'First Hour', '2': 'Second Hour', second: 'Second Hour', lunch: 'Lunch', '3': 'Third Hour', third: 'Third Hour', non_period: 'General' } as Record<string, string>)[job.period] || job.period
-    const hourOrder = ({ '1': 1, first: 1, '2': 2, second: 2, lunch: 3, '3': 4, third: 4, non_period: 5 } as Record<string, number>)[job.period] || 6
-    jobs.push({ title: job.title, hour, hourOrder })
-    volunteerJobsByFamily.set(job.familyId, jobs)
+      .limit(5000)
+    return filterRows(rows.map((row) => ({
+      ...row,
+      guardianName: [row.guardianName, row.guardianLastName].filter(Boolean).join(' '),
+      registrationVolunteerJobHours: ({ '1': 'First Hour', first: 'First Hour', '2': 'Second Hour', second: 'Second Hour', lunch: 'Lunch', '3': 'Third Hour', third: 'Third Hour', non_period: 'General' } as Record<string, string>)[row.registrationVolunteerJobHours] || row.registrationVolunteerJobHours,
+    })), definition)
   }
-  for (const jobs of volunteerJobsByFamily.values()) jobs.sort((a, b) => a.hourOrder - b.hourOrder || a.title.localeCompare(b.title))
+
+  const rows = await db.select({
+    sessionName: sessions.name, familyName: families.name, familyEmail: families.email, familyPhone: families.phone, familyAddress: families.address,
+    guardianName: guardians.firstName, guardianLastName: guardians.lastName, guardianEmail: guardians.email, guardianPhone: guardians.phone,
+    childName: children.firstName, childLastName: children.lastName, childGrade: children.grade, childAllergies: children.allergies, childMedicalNotes: children.medicalNotes,
+    className: classTeachingRequests.className, registrationStatus: classRegistrations.status, registrationEmergencyContact: classRegistrations.emergencyContact, registrationEmergencyPhone: classRegistrations.emergencyPhone,
+  }).from(classRegistrations)
+    .innerJoin(sessions, eq(classRegistrations.sessionId, sessions.id))
+    .innerJoin(families, eq(classRegistrations.familyId, families.id))
+    .innerJoin(children, eq(classRegistrations.childId, children.id))
+    .innerJoin(schedules, eq(classRegistrations.scheduleId, schedules.id))
+    .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
+    .innerJoin(guardians, eq(classRegistrations.registeredBy, guardians.id))
+    .leftJoin(users, eq(guardians.id, users.id))
+    .where(definition.sessionId ? eq(classRegistrations.sessionId, definition.sessionId) : undefined)
+    .limit(5000)
 
   const mapped = rows.map((row) => ({
     ...row,
     guardianName: [row.guardianName, row.guardianLastName].filter(Boolean).join(' '),
     childName: [row.childName, row.childLastName].filter(Boolean).join(' '),
-    registrationVolunteerJobs: (volunteerJobsByFamily.get(row.familyId) || []).map((job) => job.title).join(', '),
-    registrationVolunteerJobHours: (volunteerJobsByFamily.get(row.familyId) || []).map((job) => job.hour).join(', '),
   })) as Record<string, unknown>[]
   return filterRows(mapped, definition)
 }
