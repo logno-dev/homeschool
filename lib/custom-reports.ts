@@ -53,7 +53,7 @@ export async function executeReport(definition: ReportDefinition) {
       sessionName: sessions.name,
       familyName: families.name, familyEmail: families.email, familyPhone: families.phone, familyAddress: families.address,
       guardianName: guardians.firstName, guardianLastName: guardians.lastName, guardianEmail: guardians.email, guardianPhone: guardians.phone,
-      registrationVolunteerJobs: volunteerJobs.title, registrationVolunteerJobHours: volunteerAssignments.period, volunteerAssignmentStatus: volunteerAssignments.status,
+      registrationVolunteerJobs: volunteerJobs.title, hour: volunteerAssignments.period, volunteerAssignmentStatus: volunteerAssignments.status,
     })
       .from(volunteerAssignments)
       .innerJoin(sessions, eq(volunteerAssignments.sessionId, sessions.id))
@@ -69,7 +69,7 @@ export async function executeReport(definition: ReportDefinition) {
     return filterRows(rows.map((row) => ({
       ...row,
       guardianName: [row.guardianName, row.guardianLastName].filter(Boolean).join(' '),
-      registrationVolunteerJobHours: ({ '1': 'First Hour', first: 'First Hour', '2': 'Second Hour', second: 'Second Hour', lunch: 'Lunch', '3': 'Third Hour', third: 'Third Hour', non_period: 'General' } as Record<string, string>)[row.registrationVolunteerJobHours] || row.registrationVolunteerJobHours,
+      hour: reportHour(row.hour),
     })), definition)
   }
 
@@ -77,7 +77,7 @@ export async function executeReport(definition: ReportDefinition) {
     sessionName: sessions.name, familyName: families.name, familyEmail: families.email, familyPhone: families.phone, familyAddress: families.address,
     guardianName: guardians.firstName, guardianLastName: guardians.lastName, guardianEmail: guardians.email, guardianPhone: guardians.phone,
     childName: children.firstName, childLastName: children.lastName, childGrade: children.grade, childAllergies: children.allergies, childMedicalNotes: children.medicalNotes,
-    className: classTeachingRequests.className, registrationStatus: classRegistrations.status, registrationEmergencyContact: classRegistrations.emergencyContact, registrationEmergencyPhone: classRegistrations.emergencyPhone,
+    className: classTeachingRequests.className, hour: schedules.period, registrationStatus: classRegistrations.status, registrationEmergencyContact: classRegistrations.emergencyContact, registrationEmergencyPhone: classRegistrations.emergencyPhone,
   }).from(classRegistrations)
     .innerJoin(sessions, eq(classRegistrations.sessionId, sessions.id))
     .innerJoin(families, eq(classRegistrations.familyId, families.id))
@@ -93,8 +93,13 @@ export async function executeReport(definition: ReportDefinition) {
     ...row,
     guardianName: [row.guardianName, row.guardianLastName].filter(Boolean).join(' '),
     childName: [row.childName, row.childLastName].filter(Boolean).join(' '),
+    hour: reportHour(row.hour),
   })) as Record<string, unknown>[]
   return filterRows(mapped, definition)
+}
+
+function reportHour(period: string) {
+  return ({ '1': 'First Hour', first: 'First Hour', '2': 'Second Hour', second: 'Second Hour', lunch: 'Lunch', '3': 'Third Hour', third: 'Third Hour', non_period: 'General' } as Record<string, string>)[period] || period
 }
 
 function filterRows(rows: Record<string, unknown>[], definition: ReportDefinition) {
