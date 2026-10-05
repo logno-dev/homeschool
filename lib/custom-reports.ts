@@ -19,7 +19,7 @@ export function normalizeDefinition(input: unknown): ReportDefinition {
      if (typeof item.field !== 'string' || !allowedFields.has(item.field) || !isFieldAvailable(item.field as ReportField, scope) || typeof item.operator !== 'string' || !allowedOperators.has(item.operator as ReportFilter['operator'])) return []
     return [{ field: item.field as ReportField, operator: item.operator as ReportFilter['operator'], value: typeof item.value === 'string' ? item.value.slice(0, 200) : '' }]
   }) : []
-  return { scope, sessionId: scope === 'users' ? '' : (typeof value.sessionId === 'string' ? value.sessionId : ''), columns: [...new Set(columns)].slice(0, 30), filters: filters.slice(0, 10) }
+  return { scope, sessionId: scope === 'users' ? '' : (typeof value.sessionId === 'string' ? value.sessionId : ''), columns: [...new Set(columns)].slice(0, 30), filters: filters.slice(0, 10), distinctRows: value.distinctRows === true }
 }
 
 export async function executeReport(definition: ReportDefinition) {
@@ -64,7 +64,7 @@ export async function executeReport(definition: ReportDefinition) {
       .leftJoin(users, eq(guardians.id, users.id))
       .where(definition.sessionId ? eq(classRegistrations.sessionId, definition.sessionId) : undefined)
       .limit(5000),
-    db.select({ familyId: volunteerAssignments.familyId, title: volunteerJobs.title })
+    db.select({ familyId: volunteerAssignments.familyId, title: volunteerJobs.title, period: volunteerAssignments.period })
       .from(volunteerAssignments)
       .innerJoin(volunteerJobs, eq(volunteerAssignments.volunteerJobId, volunteerJobs.id))
       .where(and(
@@ -74,18 +74,22 @@ export async function executeReport(definition: ReportDefinition) {
       ))
   ])
 
-  const volunteerJobsByFamily = new Map<string, string[]>()
+  const volunteerJobsByFamily = new Map<string, Array<{ title: string; hour: string; hourOrder: number }>>()
   for (const job of volunteerJobRows) {
-    const titles = volunteerJobsByFamily.get(job.familyId) || []
-    titles.push(job.title)
-    volunteerJobsByFamily.set(job.familyId, titles)
+    const jobs = volunteerJobsByFamily.get(job.familyId) || []
+    const hour = ({ '1': 'First Hour', first: 'First Hour', '2': 'Second Hour', second: 'Second Hour', lunch: 'Lunch', '3': 'Third Hour', third: 'Third Hour', non_period: 'General' } as Record<string, string>)[job.period] || job.period
+    const hourOrder = ({ '1': 1, first: 1, '2': 2, second: 2, lunch: 3, '3': 4, third: 4, non_period: 5 } as Record<string, number>)[job.period] || 6
+    jobs.push({ title: job.title, hour, hourOrder })
+    volunteerJobsByFamily.set(job.familyId, jobs)
   }
+  for (const jobs of volunteerJobsByFamily.values()) jobs.sort((a, b) => a.hourOrder - b.hourOrder || a.title.localeCompare(b.title))
 
   const mapped = rows.map((row) => ({
     ...row,
     guardianName: [row.guardianName, row.guardianLastName].filter(Boolean).join(' '),
     childName: [row.childName, row.childLastName].filter(Boolean).join(' '),
-    registrationVolunteerJobs: (volunteerJobsByFamily.get(row.familyId) || []).sort().join(', '),
+    registrationVolunteerJobs: (volunteerJobsByFamily.get(row.familyId) || []).map((job) => job.title).join(', '),
+    registrationVolunteerJobHours: (volunteerJobsByFamily.get(row.familyId) || []).map((job) => job.hour).join(', '),
   })) as Record<string, unknown>[]
   return filterRows(mapped, definition)
 }
@@ -99,7 +103,15 @@ function filterRows(rows: Record<string, unknown>[], definition: ReportDefinitio
     if (filter.operator === 'startsWith') return value.startsWith(target)
     return value.includes(target)
   }))
-  return filtered.map((row) => Object.fromEntries(definition.columns.map((column) => [column, row[column] ?? ''])))
+  const projected = filtered.map((row) => Object.fromEntries(definition.columns.map((column) => [column, row[column] ?? ''])))
+  if (!definition.distinctRows) return projected
+  const seen = new Set<string>()
+  return projected.filter((row) => {
+    const key = JSON.stringify(row)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 export function csvValue(value: unknown) {
