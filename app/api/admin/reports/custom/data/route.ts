@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { executeReport, csvValue, normalizeDefinition } from '@/lib/custom-reports'
-import { REPORT_FIELDS } from '@/lib/report-fields'
+import { getReportColumnLabel } from '@/lib/report-fields'
 
 export async function POST(request: Request) {
   const auth = await getAuthenticatedAdmin('reports')
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   if ((sessionRequired && !definition.sessionId) || !definition.columns.length) return NextResponse.json({ error: `${sessionRequired ? 'Session and ' : ''}at least one column are required` }, { status: 400 })
   const rows = await executeReport(definition)
   if (body.format === 'csv') {
-    const labels = definition.columns.map((column) => REPORT_FIELDS.find((field) => field.key === column)?.label || column)
+    const labels = definition.columns.map((column) => getReportColumnLabel(column, definition.scope))
     const csv = [labels, ...rows.map((row) => definition.columns.map((column) => csvValue(row[column])))] .map((row) => row.join(',')).join('\n')
     return new NextResponse(csv, { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="custom-report.csv"' } })
   }
