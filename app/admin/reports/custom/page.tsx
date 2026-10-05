@@ -8,17 +8,20 @@ import { getReportColumnLabel, isFieldAvailable, REPORT_FIELD_GROUPS, REPORT_FIE
 
 type Session = { id: string; name: string; startDate: string; isActive: boolean }
 type SavedReport = { id: string; name: string; definition: ReportDefinition }
+const newReportDefinition = (): ReportDefinition => ({ scope: 'users', sessionId: '', columns: ['userName', 'userEmail'], filters: [], distinctRows: false })
 
 export default function CustomReportsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [sessions, setSessions] = useState<Session[]>([])
   const [saved, setSaved] = useState<SavedReport[]>([])
+  const [selectedReportId, setSelectedReportId] = useState<string | null>(null)
   const [name, setName] = useState('')
-  const [definition, setDefinition] = useState<ReportDefinition>({ scope: 'users', sessionId: '', columns: ['userName', 'userEmail'], filters: [], distinctRows: false })
+  const [definition, setDefinition] = useState<ReportDefinition>(newReportDefinition)
   const [rows, setRows] = useState<Record<string, unknown>[]>([])
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const sessionRequired = definition.scope !== 'users' || definition.columns.some((column) => ['paymentStatus', 'paidAmount', 'totalAmount'].includes(column))
   const defaultSessionId = sessions.find((session) => session.isActive)?.id || sessions[0]?.id || ''
@@ -48,6 +51,12 @@ export default function CustomReportsPage() {
     const field = availableFields[0]?.key
     if (field) setDefinition((current) => ({ ...current, filters: [...current.filters, { field, operator: 'contains', value: '' }] }))
   }
+  const createNewReport = () => {
+    setSelectedReportId(null); setName(''); setDefinition(newReportDefinition()); setRows([]); setMessage('New report')
+  }
+  const editReport = (report: SavedReport) => {
+    setSelectedReportId(report.id); setName(report.name); setDefinition({ ...report.definition, sessionId: report.definition.scope === 'users' ? '' : defaultSessionId }); setRows([]); setMessage('')
+  }
   const changeScope = (scope: ReportDefinition['scope']) => {
     setDefinition((current) => ({ ...current, scope, sessionId: scope === 'users' ? '' : current.sessionId || defaultSessionId, columns: current.columns.filter((column) => isFieldAvailable(column, scope)), filters: current.filters.filter((filter) => isFieldAvailable(filter.field, scope)) }))
     setRows([]); setMessage('')
@@ -64,10 +73,26 @@ export default function CustomReportsPage() {
   }
   const save = async () => {
     if (!name.trim()) { setMessage('Enter a report name'); return }
-     const response = await fetch('/api/admin/reports/custom', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, definition: { ...definition, sessionId: '' } }) })
-    const data = await response.json() as { error?: string }
-    setMessage(response.ok ? 'Report saved' : data.error || 'Unable to save report')
-    if (response.ok) await load()
+    if (!definition.columns.length) { setMessage('Select at least one column'); return }
+    setSaving(true); setMessage('')
+    try {
+      const response = await fetch('/api/admin/reports/custom', { method: selectedReportId ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: selectedReportId, name, definition: { ...definition, sessionId: '' } }) })
+      const data = await response.json() as { report?: SavedReport; error?: string }
+      if (!response.ok) throw new Error(data.error || 'Unable to save report')
+      if (data.report) setSelectedReportId(data.report.id)
+      setMessage(selectedReportId ? 'Changes saved' : 'Report created')
+      await load()
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to save report') } finally { setSaving(false) }
+  }
+  const remove = async () => {
+    if (!selectedReportId || !window.confirm(`Delete "${name}"? This cannot be undone.`)) return
+    setSaving(true); setMessage('')
+    try {
+      const response = await fetch(`/api/admin/reports/custom?id=${encodeURIComponent(selectedReportId)}`, { method: 'DELETE' })
+      const data = await response.json() as { error?: string }
+      if (!response.ok) throw new Error(data.error || 'Unable to delete report')
+      createNewReport(); await load(); setMessage('Report deleted')
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to delete report') } finally { setSaving(false) }
   }
   const exportCsv = async () => {
     if (!canRun) { setMessage(sessionRequired && !definition.sessionId ? 'Select a session to export this report' : 'Select at least one column'); return }
@@ -82,13 +107,14 @@ export default function CustomReportsPage() {
     <main className="mx-auto max-w-7xl py-6 sm:px-6 lg:px-8"><div className="space-y-6 px-4 sm:px-0">
       <div><h1 className="text-2xl font-bold text-gray-900">Custom report builder</h1><p className="mt-1 text-sm text-gray-600">Choose what each row represents, then add attributes from related records.</p></div>
       <div className="grid gap-6 lg:grid-cols-[18rem_1fr]">
-         <aside className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"><h2 className="font-semibold">Saved reports</h2><div className="mt-3 space-y-1">{saved.map((report) => <button key={report.id} onClick={() => { setName(report.name); setDefinition({ ...report.definition, sessionId: report.definition.scope === 'users' ? '' : defaultSessionId }); setRows([]); setMessage('Loaded report') }} className="block w-full rounded px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50">{report.name}</button>)}{!saved.length && <p className="text-sm text-gray-500">No saved reports yet.</p>}</div></aside>
-        <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
-           <div className={`grid gap-4 ${sessionRequired ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}><label className="text-sm font-medium">One row per<select value={definition.scope} onChange={(event) => changeScope(event.target.value as ReportDefinition['scope'])} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal"><option value="users">User</option><option value="roster">Class registration</option><option value="classes">Scheduled class</option><option value="volunteerJobs">Volunteer assignment</option></select></label>{sessionRequired && <label className="text-sm font-medium">Session<select value={definition.sessionId} onChange={(event) => { setDefinition({ ...definition, sessionId: event.target.value }); setRows([]); setMessage('') }} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal"><option value="">Select session</option>{sessions.map((session) => <option key={session.id} value={session.id}>{session.name}{session.isActive ? ' (active)' : ''}</option>)}</select></label>}<label className="text-sm font-medium">Save as<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Report name" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label></div>
+         <aside className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"><div className="flex items-center justify-between gap-2"><h2 className="font-semibold">Saved reports</h2><button onClick={createNewReport} className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white">New report</button></div><div className="mt-3 space-y-1">{saved.map((report) => <button key={report.id} onClick={() => editReport(report)} className={`block w-full rounded px-3 py-2 text-left text-sm ${selectedReportId === report.id ? 'bg-blue-100 font-medium text-blue-900' : 'text-gray-700 hover:bg-blue-50'}`}>{report.name}</button>)}{!saved.length && <p className="text-sm text-gray-500">No saved reports yet.</p>}</div></aside>
+         <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+           <div className={`mb-5 rounded-md border px-4 py-3 ${selectedReportId ? 'border-blue-200 bg-blue-50' : 'border-emerald-200 bg-emerald-50'}`}><p className="text-sm font-semibold text-gray-900">{selectedReportId ? `Editing "${saved.find((report) => report.id === selectedReportId)?.name || name}"` : 'Creating a new report'}</p><p className="mt-0.5 text-sm text-gray-600">{selectedReportId ? 'Save changes will update this saved report.' : 'Create report will add a new item to Saved reports.'}</p></div>
+           <div className={`grid gap-4 ${sessionRequired ? 'md:grid-cols-3' : 'md:grid-cols-2'}`}><label className="text-sm font-medium">One row per<select value={definition.scope} onChange={(event) => changeScope(event.target.value as ReportDefinition['scope'])} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal"><option value="users">User</option><option value="roster">Class registration</option><option value="classes">Scheduled class</option><option value="volunteerJobs">Volunteer assignment</option></select></label>{sessionRequired && <label className="text-sm font-medium">Session<select value={definition.sessionId} onChange={(event) => { setDefinition({ ...definition, sessionId: event.target.value }); setRows([]); setMessage('') }} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal"><option value="">Select session</option>{sessions.map((session) => <option key={session.id} value={session.id}>{session.name}{session.isActive ? ' (active)' : ''}</option>)}</select></label>}<label className="text-sm font-medium">Report name<input value={name} onChange={(event) => setName(event.target.value)} placeholder="Report name" className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label></div>
            <fieldset className="mt-6"><legend className="font-semibold">Columns</legend><p className="mt-1 text-sm text-gray-500">Open a related item to choose its attributes.</p><div className="mt-3 grid items-start gap-3 md:grid-cols-2">{availableFieldGroups.map((group) => { const selectedCount = group.fields.filter((field) => definition.columns.includes(field.key)).length; return <details key={group.label} open={selectedCount > 0} className="rounded-md border border-gray-200 bg-gray-50 open:bg-white"><summary className="cursor-pointer select-none px-3 py-2 font-medium text-gray-800">{group.label}<span className="ml-2 text-xs font-normal text-gray-500">{selectedCount ? `${selectedCount} selected` : ''}</span></summary><div className="space-y-2 border-t border-gray-200 px-3 py-3">{group.fields.map((field) => <label key={field.key} className="flex items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={definition.columns.includes(field.key)} onChange={() => toggleColumn(field.key)} />{field.label}</label>)}</div></details> })}</div></fieldset>
            <label className="mt-4 flex items-start gap-2 text-sm text-gray-700"><input type="checkbox" className="mt-0.5" checked={definition.distinctRows} onChange={(event) => setDefinition({ ...definition, distinctRows: event.target.checked })} /><span><span className="font-medium">Remove duplicate rows</span><span className="block text-gray-500">Keep one row when all selected column values are identical.</span></span></label>
            <div className="mt-6"><div className="flex items-center justify-between"><h2 className="font-semibold">Filters</h2><button onClick={addFilter} className="text-sm text-blue-600">Add filter</button></div><div className="mt-2 space-y-2">{definition.filters.map((filter, index) => <div key={index} className="flex flex-wrap gap-2"><select value={filter.field} onChange={(event) => { const filters = [...definition.filters]; filters[index] = { ...filter, field: event.target.value as ReportField }; setDefinition({ ...definition, filters }) }} className="rounded border border-gray-300 px-2 py-2 text-sm">{availableFields.map((field) => <option key={field.key} value={field.key}>{getReportColumnLabel(field.key, definition.scope)}</option>)}</select><select value={filter.operator} onChange={(event) => { const filters = [...definition.filters]; filters[index] = { ...filter, operator: event.target.value as ReportFilter['operator'] }; setDefinition({ ...definition, filters }) }} className="rounded border border-gray-300 px-2 py-2 text-sm"><option value="contains">contains</option><option value="equals">equals</option><option value="startsWith">starts with</option><option value="isEmpty">is empty</option></select>{filter.operator !== 'isEmpty' && <input value={filter.value || ''} onChange={(event) => { const filters = [...definition.filters]; filters[index] = { ...filter, value: event.target.value }; setDefinition({ ...definition, filters }) }} className="min-w-40 flex-1 rounded border border-gray-300 px-2 py-2 text-sm" placeholder="Value" />}<button onClick={() => setDefinition({ ...definition, filters: definition.filters.filter((_, itemIndex) => itemIndex !== index) })} className="px-2 text-sm text-red-600">Remove</button></div>)}{!definition.filters.length && <p className="text-sm text-gray-500">No filters. All rows from this source will be included.</p>}</div></div>
-           <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-5"><button onClick={preview} disabled={busy || !canRun} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">{busy ? 'Running...' : 'Preview'}</button><button onClick={save} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium">Save report</button><button onClick={exportCsv} disabled={!canRun} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50">Export CSV</button>{!canRun && <span className="text-sm text-amber-700">{!definition.columns.length ? 'Choose at least one column.' : 'Choose a session.'}</span>}{canRun && message && <span className="text-sm text-gray-600">{message}</span>}</div>
+           <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-5"><button onClick={save} disabled={saving || !name.trim() || !definition.columns.length} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">{saving ? 'Saving...' : selectedReportId ? 'Save changes' : 'Create report'}</button><button onClick={preview} disabled={busy || !canRun} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50">{busy ? 'Running...' : 'Preview'}</button><button onClick={exportCsv} disabled={!canRun} className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50">Export CSV</button>{selectedReportId && <button onClick={remove} disabled={saving} className="rounded-md border border-red-200 px-4 py-2 text-sm font-medium text-red-700 disabled:opacity-50">Delete report</button>}{!canRun && <span className="text-sm text-amber-700">{!definition.columns.length ? 'Choose at least one column.' : 'Choose a session.'}</span>}{message && <span className="text-sm text-gray-600">{message}</span>}</div>
            {rows.length > 0 && <div className="mt-6"><div className="mb-2 flex items-center justify-between"><h2 className="font-semibold">Preview</h2><span className="text-sm text-gray-500">{rows.length} rows</span></div><div className="overflow-x-auto rounded-md border border-gray-200"><table className="min-w-full divide-y divide-gray-200 text-left text-sm"><thead className="bg-gray-50"><tr>{definition.columns.map((column) => <th key={column} className="whitespace-nowrap px-3 py-2 font-semibold">{getReportColumnLabel(column, definition.scope)}</th>)}</tr></thead><tbody className="divide-y divide-gray-100">{rows.map((row, index) => <tr key={index}>{definition.columns.map((column) => <td key={column} className="whitespace-nowrap px-3 py-2">{String(row[column] ?? '')}</td>)}</tr>)}</tbody></table></div></div>}
         </section>
       </div>

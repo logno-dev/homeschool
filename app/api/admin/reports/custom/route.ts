@@ -35,3 +35,12 @@ export async function PUT(request: Request) {
   const [report] = await db.update(customReports).set({ name: String(body.name).trim().slice(0, 100), definition: JSON.stringify(definition), updatedAt: new Date().toISOString() }).where(eq(customReports.id, body.id)).returning()
   return report ? NextResponse.json({ report: { ...report, definition } }) : NextResponse.json({ error: 'Report not found' }, { status: 404 })
 }
+
+export async function DELETE(request: Request) {
+  const auth = await getAuthenticatedAdmin('reports')
+  if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
+  const id = new URL(request.url).searchParams.get('id')
+  if (!id) return NextResponse.json({ error: 'Report id is required' }, { status: 400 })
+  const [report] = await db.delete(customReports).where(eq(customReports.id, id)).returning({ id: customReports.id })
+  return report ? NextResponse.json({ deleted: true }) : NextResponse.json({ error: 'Report not found' }, { status: 404 })
+}
