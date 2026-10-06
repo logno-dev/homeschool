@@ -22,8 +22,12 @@ export async function GET() {
         guardianId: classTeachingRequests.guardianId,
         teacherFirstName: guardians.firstName,
         teacherLastName: guardians.lastName,
-        enrolledCount: sql<number>`COALESCE(COUNT(${classRegistrations.id}), 0)`,
-        totalFees: sql<number>`COALESCE((SELECT SUM(${familyClassCharges.amountCents} - ${familyClassCharges.refundedCents}) / 100.0 FROM ${familyClassCharges} WHERE ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id} AND ${familyClassCharges.billingTreatment} = 'included'), 0)`,
+        enrolledCount: sql<number>`COALESCE(COUNT(DISTINCT ${classRegistrations.id}), 0)`,
+        totalFees: sql<number>`CASE
+          WHEN EXISTS (SELECT 1 FROM ${familyClassCharges} WHERE ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id})
+          THEN COALESCE((SELECT SUM(${familyClassCharges.amountCents} - ${familyClassCharges.refundedCents}) / 100.0 FROM ${familyClassCharges} WHERE ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id} AND ${familyClassCharges.billingTreatment} = 'included'), 0)
+          ELSE COALESCE(${classTeachingRequests.feeAmount}, 0) * COUNT(DISTINCT ${classRegistrations.id})
+        END`,
         refundedFees: sql<number>`COALESCE((SELECT SUM(${familyClassCharges.refundedCents}) / 100.0 FROM ${familyClassCharges} WHERE ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id}), 0)`,
         allocatedReimbursements: sql<number>`COALESCE((SELECT SUM(${teacherReimbursements.amount}) FROM ${teacherReimbursements} WHERE ${teacherReimbursements.classTeachingRequestId} = ${classTeachingRequests.id} AND ${teacherReimbursements.status} IN ('pending', 'paid')), 0)`
       })
