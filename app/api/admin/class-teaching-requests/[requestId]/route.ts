@@ -9,9 +9,10 @@ import {
 } from '@/lib/database'
 import { getGradeRangeFromLabel } from '@/lib/grades'
 import { db } from '@/lib/db'
-import { children, guardians } from '@/lib/schema'
+import { children, classCategories, guardians } from '@/lib/schema'
 import { syncTeacherGroupMembership } from '@/lib/user-groups'
 import { and, eq } from 'drizzle-orm'
+import { isClassPeriodPreference } from '@/lib/class-teaching'
 
 export async function GET(
   request: Request,
@@ -97,6 +98,12 @@ export async function PATCH(
       const currentRequest = await getClassTeachingRequestById(requestId)
       
       if (editData.className !== undefined) updateData.className = editData.className.trim()
+      if (editData.categoryId !== undefined) {
+        const categoryId = String(editData.categoryId || '')
+        const [category] = categoryId ? await db.select({ id: classCategories.id }).from(classCategories).where(eq(classCategories.id, categoryId)).limit(1) : []
+        if (categoryId && !category) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
+        updateData.categoryId = category?.id || null
+      }
       if (editData.description !== undefined) updateData.description = editData.description.trim()
       if (editData.gradeRange !== undefined) updateData.gradeRange = editData.gradeRange.trim()
       if (editData.gradeRangeFrom !== undefined) updateData.gradeRangeFrom = editData.gradeRangeFrom
@@ -120,6 +127,10 @@ export async function PATCH(
       if (editData.registrationFeeExempt !== undefined) updateData.registrationFeeExempt = Boolean(editData.registrationFeeExempt)
       if (editData.requiresFee !== undefined) updateData.requiresFee = editData.requiresFee
       if (editData.feeAmount !== undefined) updateData.feeAmount = editData.requiresFee ? parseFloat(editData.feeAmount) : null
+      if (editData.preferredPeriod !== undefined) {
+        if (!isClassPeriodPreference(editData.preferredPeriod)) return NextResponse.json({ error: 'Choose a valid preferred hour' }, { status: 400 })
+        updateData.preferredPeriod = editData.preferredPeriod
+      }
       if (editData.schedulingRequirements !== undefined) updateData.schedulingRequirements = editData.schedulingRequirements?.trim() || null
       if (editData.teacherId !== undefined || editData.teacherName !== undefined) {
         const teacherId = String(editData.teacherId || '')

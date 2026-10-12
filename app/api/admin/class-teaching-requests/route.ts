@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { getClassTeachingRequestsWithSession } from '@/lib/database'
 import { db } from '@/lib/db'
-import { children, classTeachingRequests, guardians, sessions } from '@/lib/schema'
-import { and, eq } from 'drizzle-orm'
+import { children, classCategories, classTeachingRequests, guardians, sessions } from '@/lib/schema'
+import { and, asc, eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { getGradeRangeFromLabel } from '@/lib/grades'
 import { syncTeacherGroupMembership } from '@/lib/user-groups'
+import { isClassPeriodPreference } from '@/lib/class-teaching'
 
 export async function GET() {
   try {
@@ -17,13 +18,15 @@ export async function GET() {
 
     const sessionsList = await db.select().from(sessions)
     const teachers = await db.select({ id: guardians.id, familyId: guardians.familyId, firstName: guardians.firstName, lastName: guardians.lastName, email: guardians.email }).from(guardians)
-    const [requests, studentTeachers] = await Promise.all([
+    const [requests, studentTeachers, categories] = await Promise.all([
       getClassTeachingRequestsWithSession(),
-      db.select({ id: children.id, familyId: children.familyId, firstName: children.firstName, lastName: children.lastName, grade: children.grade }).from(children)
+      db.select({ id: children.id, familyId: children.familyId, firstName: children.firstName, lastName: children.lastName, grade: children.grade }).from(children),
+      db.select().from(classCategories).orderBy(asc(classCategories.orderIndex), asc(classCategories.name))
     ])
     const teacherNames = new Map(teachers.map((teacher) => [teacher.id, `${teacher.firstName} ${teacher.lastName}`.trim()]))
     const studentTeacherNames = new Map(studentTeachers.map((child) => [child.id, `${child.firstName} ${child.lastName}`.trim()]))
-    return NextResponse.json({ requests: requests.map((request) => ({ ...request, teacherDisplayName: request.teacherName || (request.guardianId ? teacherNames.get(request.guardianId) : null) || 'Unassigned', studentTeacherDisplayName: request.studentTeacherChildId ? studentTeacherNames.get(request.studentTeacherChildId) || null : null, studentCoTeacherDisplayName: request.studentCoTeacherChildId ? studentTeacherNames.get(request.studentCoTeacherChildId) || null : null })), sessions: sessionsList, teachers, children: studentTeachers })
+    const categoryNames = new Map(categories.map((category) => [category.id, category.name]))
+    return NextResponse.json({ requests: requests.map((request) => ({ ...request, categoryName: request.categoryId ? categoryNames.get(request.categoryId) || null : null, teacherDisplayName: request.teacherName || (request.guardianId ? teacherNames.get(request.guardianId) : null) || 'Unassigned', studentTeacherDisplayName: request.studentTeacherChildId ? studentTeacherNames.get(request.studentTeacherChildId) || null : null, studentCoTeacherDisplayName: request.studentCoTeacherChildId ? studentTeacherNames.get(request.studentCoTeacherChildId) || null : null })), sessions: sessionsList, teachers, children: studentTeachers, categories })
   } catch (error) {
     console.error('Error fetching class teaching requests:', error)
     return NextResponse.json(
@@ -49,6 +52,10 @@ export async function POST(request: Request) {
     const resolvedGradeRange = { from: Number.isFinite(parsedFrom) ? parsedFrom : parsedGradeRange.from, to: Number.isFinite(parsedTo) ? parsedTo : parsedGradeRange.to }
     if (resolvedGradeRange.from === null || resolvedGradeRange.to === null) return NextResponse.json({ error: 'Choose a supported grade range' }, { status: 400 })
     if (resolvedGradeRange.from > resolvedGradeRange.to) return NextResponse.json({ error: 'Grade range start must be before its end' }, { status: 400 })
+    const preferredPeriod = body.preferredPeriod || 'any'
+    if (!isClassPeriodPreference(preferredPeriod)) return NextResponse.json({ error: 'Choose a valid preferred hour' }, { status: 400 })
+    const [category] = body.categoryId ? await db.select({ id: classCategories.id }).from(classCategories).where(eq(classCategories.id, String(body.categoryId))).limit(1) : []
+    if (body.categoryId && !category) return NextResponse.json({ error: 'Category not found' }, { status: 404 })
 
     const [session] = await db.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, sessionId)).limit(1)
     if (!session) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
@@ -89,6 +96,7 @@ export async function POST(request: Request) {
       guardianId,
       teacherName: guardianId ? null : requestedTeacherName,
       className,
+      categoryId: category?.id || null,
       description,
       gradeRange,
       gradeRangeFrom: resolvedGradeRange.from,
@@ -103,6 +111,7 @@ export async function POST(request: Request) {
       registrationFeeExempt: Boolean(body.registrationFeeExempt),
       requiresFee: Boolean(body.requiresFee),
       feeAmount: body.feeAmount === '' || body.feeAmount === undefined ? null : Number(body.feeAmount),
+      preferredPeriod,
       schedulingRequirements: String(body.schedulingRequirements || '').trim() || null,
       status: 'approved',
       reviewedBy: auth.session.user.id,

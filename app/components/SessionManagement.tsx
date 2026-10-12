@@ -7,6 +7,7 @@ import { format, parseISO } from 'date-fns'
 import type { Session } from '@/lib/schema'
 import { useToast } from './ToastContainer'
 import Modal from './Modal'
+import { parseClassTeachingGroupIds, type ClassTeachingAccessMode } from '@/lib/class-teaching'
 
 interface SessionManagementProps {
   initialSessions: Session[]
@@ -22,12 +23,24 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
   
   const router = useRouter()
   const { showError } = useToast()
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string
+    startDate: string
+    endDate: string
+    classTeachingRegistrationStartDate: string
+    classTeachingRegistrationEndDate: string
+    classTeachingAccessMode: ClassTeachingAccessMode
+    classTeachingAllowedGroupIds: string[]
+    description: string
+    isActive: boolean
+  }>({
     name: '',
     startDate: '',
     endDate: '',
     classTeachingRegistrationStartDate: '',
     classTeachingRegistrationEndDate: '',
+    classTeachingAccessMode: 'closed',
+    classTeachingAllowedGroupIds: [],
     description: '',
     isActive: false
   })
@@ -39,6 +52,8 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
       endDate: '',
       classTeachingRegistrationStartDate: '',
       classTeachingRegistrationEndDate: '',
+      classTeachingAccessMode: 'closed',
+      classTeachingAllowedGroupIds: [],
       description: '',
       isActive: false
     })
@@ -60,6 +75,8 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
       endDate: formatDateForInput(session.endDate),
       classTeachingRegistrationStartDate: session.classTeachingRegistrationStartDate ? formatDateForInput(session.classTeachingRegistrationStartDate) : '',
       classTeachingRegistrationEndDate: session.classTeachingRegistrationEndDate ? formatDateForInput(session.classTeachingRegistrationEndDate) : '',
+      classTeachingAccessMode: session.classTeachingAccessMode === 'closed' || session.classTeachingAccessMode === 'selected_groups' ? session.classTeachingAccessMode : 'open',
+      classTeachingAllowedGroupIds: parseClassTeachingGroupIds(session.classTeachingAllowedGroupIds).filter((id) => groups.some((group) => group.id === id)),
       description: session.description || '',
       isActive: session.isActive
     })
@@ -114,11 +131,10 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
         body: JSON.stringify(submissionData),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to save session')
-      }
-
       const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save session')
+      }
       const savedSession = data.session
       const windowsResponse = await fetch(`/api/admin/sessions/${savedSession.id}/registration-windows`, {
         method: 'PUT',
@@ -138,7 +154,7 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
       resetForm()
     } catch (error) {
       console.error('Error saving session:', error)
-      showError('Failed to save session')
+      showError(error instanceof Error ? error.message : 'Failed to save session')
     } finally {
       setIsLoading(false)
     }
@@ -324,6 +340,23 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
               <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="block text-sm font-medium text-gray-700">Opens<input type="date" required value={formData.classTeachingRegistrationStartDate} onChange={(e) => setFormData({ ...formData, classTeachingRegistrationStartDate: e.target.value })} className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" /></label>
                 <label className="block text-sm font-medium text-gray-700">Closes<input type="date" required value={formData.classTeachingRegistrationEndDate} onChange={(e) => setFormData({ ...formData, classTeachingRegistrationEndDate: e.target.value })} className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" /></label>
+              </div>
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700">Access State
+                  <select value={formData.classTeachingAccessMode} onChange={(event) => setFormData({ ...formData, classTeachingAccessMode: event.target.value as ClassTeachingAccessMode })} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal">
+                    <option value="closed">Closed</option>
+                    <option value="selected_groups">Selected User Groups</option>
+                    <option value="open">Open to Everyone</option>
+                  </select>
+                </label>
+                {formData.classTeachingAccessMode === 'selected_groups' && (
+                  <div className="mt-3 rounded-md border border-amber-200 bg-white p-3">
+                    <p className="text-xs text-gray-600">Only users directly assigned to at least one selected group can submit or edit requests during the date window.</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {groups.map((group) => <label key={group.id} className="flex items-center gap-2 text-sm text-gray-800"><input type="checkbox" checked={formData.classTeachingAllowedGroupIds.includes(group.id)} onChange={(event) => setFormData({ ...formData, classTeachingAllowedGroupIds: event.target.checked ? [...formData.classTeachingAllowedGroupIds, group.id] : formData.classTeachingAllowedGroupIds.filter((id) => id !== group.id) })} className="h-4 w-4 rounded border-gray-300 text-blue-600" />{group.name}</label>)}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

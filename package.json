@@ -10,6 +10,7 @@
     "test:queued-jobs": "node scripts/test-queued-jobs.mjs",
     "db:generate": "drizzle-kit generate",
     "db:baseline": "node scripts/baseline-pushed-db.mjs",
+    "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio"
   },

@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { sessions } from '@/lib/schema'
 import { ensureSessionClassrooms, ensureSessionVolunteerJobs } from '@/lib/database'
 import { eq } from 'drizzle-orm'
+import { validateClassTeachingAccessSettings } from '@/lib/class-teaching-access'
 
 export async function GET(
   request: Request,
@@ -53,9 +54,19 @@ export async function PATCH(
       endDate, 
       classTeachingRegistrationStartDate,
       classTeachingRegistrationEndDate,
+      classTeachingAccessMode,
+      classTeachingAllowedGroupIds,
       description,
       isActive 
     } = body
+
+    const [existingSession] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1)
+    if (!existingSession) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+    const access = await validateClassTeachingAccessSettings(
+      classTeachingAccessMode ?? existingSession.classTeachingAccessMode,
+      classTeachingAllowedGroupIds ?? existingSession.classTeachingAllowedGroupIds
+    )
+    if ('error' in access) return NextResponse.json({ error: access.error }, { status: 400 })
 
     // If setting this session as active, deactivate all other sessions
     if (isActive) {
@@ -68,6 +79,8 @@ export async function PATCH(
       ...(endDate && { endDate }),
       ...(classTeachingRegistrationStartDate !== undefined && { classTeachingRegistrationStartDate }),
       ...(classTeachingRegistrationEndDate !== undefined && { classTeachingRegistrationEndDate }),
+      ...(classTeachingAccessMode !== undefined && { classTeachingAccessMode: access.mode }),
+      ...(classTeachingAllowedGroupIds !== undefined && { classTeachingAllowedGroupIds: access.serializedGroupIds }),
       ...(description !== undefined && { description }),
       ...(isActive !== undefined && { isActive }),
       updatedAt: new Date().toISOString(),

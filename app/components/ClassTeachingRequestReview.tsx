@@ -1,20 +1,23 @@
 'use client'
 
 import { useState } from 'react'
-import type { ClassTeachingRequest, Session } from '@/lib/schema'
+import type { ClassCategory, ClassTeachingRequest, Session } from '@/lib/schema'
 import { BUILT_IN_GRADE_RANGES } from '@/lib/grades'
+import { CLASS_PERIOD_PREFERENCES } from '@/lib/class-teaching'
 import SessionOptions from './SessionOptions'
 
-type ReviewRequest = ClassTeachingRequest & { session?: Session; teacherDisplayName?: string; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
+type ReviewRequest = ClassTeachingRequest & { session?: Session; categoryName?: string | null; teacherDisplayName?: string; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
+type AdminDisplayRequest = ClassTeachingRequest & { session: Session; categoryName?: string | null; teacherDisplayName?: string; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
 
 interface ClassTeachingRequestReviewProps {
-  initialRequests: (ClassTeachingRequest & { session: Session; teacherDisplayName?: string; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null })[]
+  initialRequests: AdminDisplayRequest[]
   teachers?: Array<{ id: string; familyId: string; firstName: string; lastName: string; email: string }>
   children?: Array<{ id: string; familyId: string; firstName: string; lastName: string; grade: string }>
+  categories?: ClassCategory[]
 }
 
-export default function ClassTeachingRequestReview({ initialRequests, teachers = [], children = [] }: ClassTeachingRequestReviewProps) {
-  const [requests, setRequests] = useState<(ClassTeachingRequest & { session: Session; teacherDisplayName?: string; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null })[]>(initialRequests)
+export default function ClassTeachingRequestReview({ initialRequests, teachers = [], children = [], categories = [] }: ClassTeachingRequestReviewProps) {
+  const [requests, setRequests] = useState<AdminDisplayRequest[]>(initialRequests)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<ReviewRequest | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
@@ -86,6 +89,7 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
       const data = await response.json()
       const updatedDisplay = {
         ...data.request,
+        categoryName: categories.find((category) => category.id === data.request.categoryId)?.name || null,
         studentTeacherDisplayName: children.find((child) => child.id === data.request.studentTeacherChildId) ? `${children.find((child) => child.id === data.request.studentTeacherChildId)?.firstName} ${children.find((child) => child.id === data.request.studentTeacherChildId)?.lastName}` : null,
         studentCoTeacherDisplayName: children.find((child) => child.id === data.request.studentCoTeacherChildId) ? `${children.find((child) => child.id === data.request.studentCoTeacherChildId)?.firstName} ${children.find((child) => child.id === data.request.studentCoTeacherChildId)?.lastName}` : null
       }
@@ -219,7 +223,8 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                               setSelectedRequest(request)
                               setIsEditMode(false)
                                setEditFormData({
-                                className: request.className,
+                                 className: request.className,
+                                 categoryId: request.categoryId,
                                 description: request.description,
                                 gradeRange: request.gradeRange,
                                 maxStudents: request.maxStudents,
@@ -231,8 +236,9 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                                  classroomNeeds: request.classroomNeeds,
                                  registrationFeeExempt: request.registrationFeeExempt,
                                  requiresFee: request.requiresFee,
-                                feeAmount: request.feeAmount,
-                                 schedulingRequirements: request.schedulingRequirements
+                                 feeAmount: request.feeAmount,
+                                  preferredPeriod: request.preferredPeriod,
+                                  schedulingRequirements: request.schedulingRequirements
                                })
                                setEditTeacherId(request.teacherName ? '' : request.guardianId || '')
                                setEditTeacherName(request.teacherName || '')
@@ -254,6 +260,8 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                       <div>
                         <span className="font-medium">Grade Range:</span> {request.gradeRange}
                       </div>
+                      <div><span className="font-medium">Preferred Hour:</span> {CLASS_PERIOD_PREFERENCES.find((period) => period.id === request.preferredPeriod)?.label || 'Any Hour'}</div>
+                      {request.categoryName && <div><span className="font-medium">Category:</span> {request.categoryName}</div>}
                       {request.coTeacher && (
                         <div>
                           <span className="font-medium">Co-Teacher:</span> {request.coTeacher}
@@ -326,6 +334,7 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                       // Initialize form data when entering edit mode
                       setEditFormData({
                         className: selectedRequest.className,
+                        categoryId: selectedRequest.categoryId,
                         description: selectedRequest.description,
                         gradeRange: selectedRequest.gradeRange,
                         maxStudents: selectedRequest.maxStudents,
@@ -337,6 +346,7 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                         classroomNeeds: selectedRequest.classroomNeeds,
                         requiresFee: selectedRequest.requiresFee,
                         feeAmount: selectedRequest.feeAmount,
+                        preferredPeriod: selectedRequest.preferredPeriod,
                         schedulingRequirements: selectedRequest.schedulingRequirements
                       })
                       setEditTeacherId(selectedRequest.teacherName ? '' : selectedRequest.guardianId || '')
@@ -365,6 +375,21 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                         onChange={(e) => setEditFormData({ ...editFormData, className: e.target.value })}
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Category / Subject</label>
+                      <select value={editFormData.categoryId || ''} onChange={(e) => setEditFormData({ ...editFormData, categoryId: e.target.value || null })} className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white">
+                        <option value="">No category</option>
+                        {categories.map((category) => <option key={category.id} value={category.id}>{category.name}{category.isActive ? '' : ' (inactive)'}</option>)}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Hour</label>
+                      <select value={editFormData.preferredPeriod || 'any'} onChange={(e) => setEditFormData({ ...editFormData, preferredPeriod: e.target.value })} className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white">
+                        {CLASS_PERIOD_PREFERENCES.map((period) => <option key={period.id} value={period.id}>{period.label}</option>)}
+                      </select>
                     </div>
 
                     <div>

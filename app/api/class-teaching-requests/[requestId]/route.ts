@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
-import { getClassTeachingRequestById, getGuardianById, updateClassTeachingRequest } from '@/lib/database'
+import { getClassTeachingRequestById, getGuardianById, isClassTeachingRegistrationOpen, updateClassTeachingRequest } from '@/lib/database'
 import { getGradeRangeFromLabel } from '@/lib/grades'
 import { db } from '@/lib/db'
-import { children } from '@/lib/schema'
+import { children, classCategories } from '@/lib/schema'
 import { and, eq } from 'drizzle-orm'
+import { isClassPeriodPreference } from '@/lib/class-teaching'
 
 export async function PATCH(
   request: Request,
@@ -40,9 +41,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'Only pending requests can be edited' }, { status: 400 })
     }
 
+    const registrationStatus = await isClassTeachingRegistrationOpen(session.user.id, existingRequest.sessionId)
+    if (!registrationStatus.isOpen || registrationStatus.session?.id !== existingRequest.sessionId) {
+      return NextResponse.json({ error: registrationStatus.reason || 'Class teaching registration is not open' }, { status: 400 })
+    }
+
     const body = await request.json()
     const {
       className,
+      categoryId,
       description,
       gradeRange,
       gradeRangeFrom,
@@ -54,6 +61,7 @@ export async function PATCH(
       classroomNeeds,
       requiresFee,
       feeAmount,
+      preferredPeriod,
       schedulingRequirements
     } = body
 
@@ -63,6 +71,17 @@ export async function PATCH(
         { status: 400 }
       )
     }
+
+    const resolvedPeriod = preferredPeriod || 'any'
+    if (!isClassPeriodPreference(resolvedPeriod)) {
+      return NextResponse.json({ error: 'Choose a valid preferred hour' }, { status: 400 })
+    }
+
+    const [category] = categoryId
+      ? await db.select({ id: classCategories.id }).from(classCategories).where(eq(classCategories.id, String(categoryId))).limit(1)
+      : []
+    const [configuredCategory] = await db.select({ id: classCategories.id }).from(classCategories).where(eq(classCategories.isActive, true)).limit(1)
+    if (configuredCategory && !category) return NextResponse.json({ error: 'Choose a valid category' }, { status: 400 })
 
     const fallbackRange = getGradeRangeFromLabel(gradeRange)
     const resolvedFrom = typeof gradeRangeFrom === 'number' ? gradeRangeFrom : fallbackRange.from
@@ -96,6 +115,7 @@ export async function PATCH(
 
     const updatedRequest = await updateClassTeachingRequest(requestId, {
       className: className.trim(),
+      categoryId: category?.id || null,
       description: description.trim(),
       gradeRange: gradeRange.trim(),
       gradeRangeFrom: resolvedFrom,
@@ -107,6 +127,7 @@ export async function PATCH(
       classroomNeeds: classroomNeeds?.trim() || null,
        requiresFee: requiresFee || false,
       feeAmount: requiresFee ? feeAmount : null,
+      preferredPeriod: resolvedPeriod,
       schedulingRequirements: schedulingRequirements?.trim() || null,
       status: 'pending'
     })

@@ -232,6 +232,20 @@
       "when": 1791158400000,
       "tag": "0060_payment_billing_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791763200000,
+      "tag": "0061_class_teaching_slots_categories",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791849600000,
+      "tag": "0062_class_teaching_access",
+      "breakpoints": true
     }
   ]
 }

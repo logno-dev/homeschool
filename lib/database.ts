@@ -3,9 +3,10 @@ import { db, client, hasDatabaseConnection } from './db'
 import { families, guardians, children, feePayments, users, sessions, classrooms, sessionClassrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments, globalSettings, volunteerJobs, sessionVolunteerJobs, faqs } from './schema'
 import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, SessionClassroom, Schedule, ScheduleDraft, ScheduleDraftEntry, ClassTeachingRequest, ScheduleComment, NewFamily, NewGuardian, NewChild, NewFeePayment, NewUser, NewSession, NewClassroom, NewSessionClassroom, NewSchedule, NewScheduleDraft, NewScheduleDraftEntry, NewClassTeachingRequest, NewScheduleComment, NewSessionVolunteerJob } from './schema'
 import { incrementGradeValue } from './grades'
-import { ensureFamilyGroupMembership, getRegistrationAccess } from './user-groups'
+import { ensureFamilyGroupMembership, getRegistrationAccess, getUserGroups } from './user-groups'
 import { getAppTimezone, parseAppDate } from './app-time'
 import { createPaymentSnapshot } from './payment-snapshots'
+import { isClassTeachingAccessMode, parseClassTeachingGroupIds } from './class-teaching'
 
 // Helper function to generate sharing codes
 function generateSharingCode(): string {
@@ -613,33 +614,57 @@ export async function isRegistrationOpen(guardianId?: string): Promise<{ isOpen:
   return { isOpen: access.isOpen, session: activeSession, reason: access.reason }
 }
 
-// Class teaching registration timing (different from regular registration)
-export async function isClassTeachingRegistrationOpen(): Promise<{ isOpen: boolean, session: Session | null, reason?: string }> {
-  const activeSession = await getActiveSession()
-  
-  if (!activeSession) {
-    return { isOpen: false, session: null, reason: 'No active session' }
+async function getClassTeachingSessionAccess(session: Session, userId: string, userGroupIds?: string[]): Promise<{ isOpen: boolean, session: Session, reason?: string }> {
+  const accessMode = session.classTeachingAccessMode
+  if (!isClassTeachingAccessMode(accessMode) || accessMode === 'closed') {
+    return { isOpen: false, session, reason: 'Class teaching requests are currently closed.' }
+  }
+  if (accessMode === 'selected_groups') {
+    const allowedGroupIds = parseClassTeachingGroupIds(session.classTeachingAllowedGroupIds)
+    const memberships = userGroupIds || (await getUserGroups(userId)).map(({ group }) => group.id)
+    if (allowedGroupIds.length === 0 || !memberships.some((groupId) => allowedGroupIds.includes(groupId))) {
+      return { isOpen: false, session, reason: 'Class teaching requests are currently limited to selected user groups.' }
+    }
   }
 
   const now = new Date()
   const timezone = await getAppTimezone()
-  const sessionStart = parseAppDate(activeSession.classTeachingRegistrationStartDate || activeSession.createdAt, timezone)
-  const sessionEnd = parseAppDate(activeSession.classTeachingRegistrationEndDate || activeSession.registrationStartDate, timezone, true)
+  const sessionStart = parseAppDate(session.classTeachingRegistrationStartDate || session.createdAt, timezone)
+  const sessionEnd = parseAppDate(session.classTeachingRegistrationEndDate || session.registrationStartDate, timezone, true)
 
   if (now < sessionStart) {
-    return { isOpen: false, session: activeSession, reason: `Class teaching registration opens on ${sessionStart.toLocaleDateString()}` }
+    return { isOpen: false, session, reason: `Class teaching registration opens on ${sessionStart.toLocaleDateString()}` }
   }
 
   if (now <= sessionEnd) {
-    return { isOpen: true, session: activeSession }
+    return { isOpen: true, session }
   }
 
-  // After regular registration starts, class teaching registration closes
-  return { 
-    isOpen: false, 
-    session: activeSession, 
+  return {
+    isOpen: false,
+    session,
     reason: `Class teaching registration closed on ${sessionEnd.toLocaleDateString()}`
   }
+}
+
+export async function getOpenClassTeachingSessions(userId: string): Promise<Session[]> {
+  const allSessions = await db.select().from(sessions).orderBy(asc(sessions.startDate))
+  const userGroupIds = (await getUserGroups(userId)).map(({ group }) => group.id)
+  const statuses = await Promise.all(allSessions.map((session) => getClassTeachingSessionAccess(session, userId, userGroupIds)))
+  return statuses.filter((status) => status.isOpen).map((status) => status.session)
+}
+
+// Teaching-request windows are independent of which session is active.
+export async function isClassTeachingRegistrationOpen(userId: string, sessionId?: string): Promise<{ isOpen: boolean, session: Session | null, reason?: string }> {
+  if (sessionId) {
+    const session = await getSessionById(sessionId)
+    if (!session) return { isOpen: false, session: null, reason: 'Session not found' }
+    return getClassTeachingSessionAccess(session, userId)
+  }
+
+  const openSessions = await getOpenClassTeachingSessions(userId)
+  if (openSessions.length > 0) return { isOpen: true, session: openSessions[0] }
+  return { isOpen: false, session: null, reason: 'No class teaching request windows are currently open for your user groups.' }
 }
 
 // Class teaching request functions
@@ -667,6 +692,7 @@ export async function getClassTeachingRequestsWithSession(): Promise<(ClassTeach
          guardianId: classTeachingRequests.guardianId,
        teacherName: classTeachingRequests.teacherName,
       className: classTeachingRequests.className,
+      categoryId: classTeachingRequests.categoryId,
       description: classTeachingRequests.description,
       gradeRange: classTeachingRequests.gradeRange,
       gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
@@ -681,6 +707,7 @@ export async function getClassTeachingRequestsWithSession(): Promise<(ClassTeach
        registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
        requiresFee: classTeachingRequests.requiresFee,
       feeAmount: classTeachingRequests.feeAmount,
+      preferredPeriod: classTeachingRequests.preferredPeriod,
       schedulingRequirements: classTeachingRequests.schedulingRequirements,
       status: classTeachingRequests.status,
       reviewedBy: classTeachingRequests.reviewedBy,
@@ -724,6 +751,7 @@ export async function getClassTeachingRequestsByGuardianWithSession(guardianId: 
        guardianId: classTeachingRequests.guardianId,
        teacherName: classTeachingRequests.teacherName,
       className: classTeachingRequests.className,
+      categoryId: classTeachingRequests.categoryId,
       description: classTeachingRequests.description,
       gradeRange: classTeachingRequests.gradeRange,
       gradeRangeFrom: classTeachingRequests.gradeRangeFrom,
@@ -738,6 +766,7 @@ export async function getClassTeachingRequestsByGuardianWithSession(guardianId: 
        registrationFeeExempt: classTeachingRequests.registrationFeeExempt,
        requiresFee: classTeachingRequests.requiresFee,
       feeAmount: classTeachingRequests.feeAmount,
+      preferredPeriod: classTeachingRequests.preferredPeriod,
       schedulingRequirements: classTeachingRequests.schedulingRequirements,
       status: classTeachingRequests.status,
       reviewedBy: classTeachingRequests.reviewedBy,

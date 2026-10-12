@@ -6,16 +6,18 @@ import { useRouter } from 'next/navigation'
 import AdminLayout from '@/app/components/AdminLayout'
 import ClassTeachingRequestReview from '@/app/components/ClassTeachingRequestReview'
 import AdminClassCreateForm from '@/app/components/AdminClassCreateForm'
-import type { ClassTeachingRequest, Session } from '@/lib/schema'
+import ClassCategoryManager from '@/app/components/ClassCategoryManager'
+import type { ClassCategory, ClassTeachingRequest, Session } from '@/lib/schema'
 
 export default function AdminClassRequestsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const [classRequests, setClassRequests] = useState<(ClassTeachingRequest & { session: Session; teacherDisplayName?: string })[]>([])
+  const [classRequests, setClassRequests] = useState<(ClassTeachingRequest & { session: Session; categoryName?: string | null; teacherDisplayName?: string })[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [sessions, setSessions] = useState<Session[]>([])
   const [teachers, setTeachers] = useState<Array<{ id: string; familyId: string; firstName: string; lastName: string; email: string }>>([])
   const [children, setChildren] = useState<Array<{ id: string; familyId: string; firstName: string; lastName: string; grade: string }>>([])
+  const [categories, setCategories] = useState<ClassCategory[]>([])
 
   useEffect(() => {
     if (loading) return
@@ -34,7 +36,8 @@ export default function AdminClassRequestsPage() {
            setClassRequests(data.requests || [])
            setSessions(data.sessions || [])
             setTeachers(data.teachers || [])
-            setChildren(data.children || [])
+             setChildren(data.children || [])
+             setCategories(data.categories || [])
         }
       } catch (error) {
         console.error('Error fetching class requests:', error)
@@ -71,8 +74,9 @@ export default function AdminClassRequestsPage() {
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <div className="space-y-6">
-            <AdminClassCreateForm sessions={sessions} teachers={teachers} children={children} onCreated={() => window.location.reload()} />
-            <ClassTeachingRequestReview initialRequests={classRequests} teachers={teachers} children={children} />
+            <ClassCategoryManager initialCategories={categories} onChange={setCategories} />
+            <AdminClassCreateForm sessions={sessions} teachers={teachers} children={children} categories={categories} onCreated={() => window.location.reload()} />
+            <ClassTeachingRequestReview initialRequests={classRequests} teachers={teachers} children={children} categories={categories} />
           </div>
         </div>
       </main>

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
 
-import { isClassTeachingRegistrationOpen } from '@/lib/database'
+import { getOpenClassTeachingSessions, isClassTeachingRegistrationOpen } from '@/lib/database'
 
 export async function GET() {
   try {
@@ -19,9 +19,12 @@ export async function GET() {
       )
     }
 
-    const registrationStatus = await isClassTeachingRegistrationOpen()
+    const [registrationStatus, openSessions] = await Promise.all([
+      isClassTeachingRegistrationOpen(session.user.id),
+      getOpenClassTeachingSessions(session.user.id)
+    ])
     
-    return NextResponse.json(registrationStatus)
+    return NextResponse.json({ ...registrationStatus, openSessions })
   } catch (error) {
     console.error('Error checking class teaching registration status:', error)
     return NextResponse.json(

@@ -3,11 +3,15 @@
 import { useState, useEffect } from 'react'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 import { BUILT_IN_GRADE_RANGES, CHILD_GRADE_OPTIONS, getGradeRangeFromLabel, getGradeIndex, getGradeLabel } from '@/lib/grades'
+import { CLASS_PERIOD_PREFERENCES } from '@/lib/class-teaching'
 
 interface ClassTeachingFormProps {
   onSuccess: () => void
   onCancel: () => void
   initialRequest?: ClassTeachingRequest & { session?: Session }
+  session?: Session | null
+  categories?: Array<{ id: string; name: string }>
+  initialSlot?: { preferredPeriod: string; gradeRange: string } | null
   mode?: 'create' | 'edit'
 }
 
@@ -18,15 +22,19 @@ export default function ClassTeachingForm({
   onSuccess,
   onCancel,
   initialRequest,
+  session: selectedSession,
+  categories = [],
+  initialSlot,
   mode = 'create'
 }: ClassTeachingFormProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [currentSession, setCurrentSession] = useState<Session | null>(null)
+  const [currentSession, setCurrentSession] = useState<Session | null>(initialRequest?.session || selectedSession || null)
   const [children, setChildren] = useState<FamilyChild[]>([])
   const [formData, setFormData] = useState({
     className: '',
+    categoryId: '',
     description: '',
-    gradeRange: '',
+    gradeRange: initialSlot?.gradeRange || '',
     gradeRangeFrom: '',
     gradeRangeTo: '',
     maxStudents: '15',
@@ -36,6 +44,7 @@ export default function ClassTeachingForm({
     classroomNeeds: '',
     requiresFee: false,
     feeAmount: '',
+    preferredPeriod: initialSlot?.preferredPeriod || 'any',
     schedulingRequirements: ''
   })
   const [useCustomGradeRange, setUseCustomGradeRange] = useState(false)
@@ -54,6 +63,7 @@ export default function ClassTeachingForm({
       setCurrentSession(initialRequest.session || null)
       setFormData({
         className: initialRequest.className || '',
+        categoryId: initialRequest.categoryId || '',
         description: initialRequest.description || '',
         gradeRange: isCustomRange ? '' : initialRequest.gradeRange,
         gradeRangeFrom: isCustomRange ? fromLabel : '',
@@ -65,25 +75,14 @@ export default function ClassTeachingForm({
         classroomNeeds: initialRequest.classroomNeeds || '',
         requiresFee: Boolean(initialRequest.requiresFee),
         feeAmount: initialRequest.requiresFee ? String(initialRequest.feeAmount ?? '') : '',
+        preferredPeriod: initialRequest.preferredPeriod || 'any',
         schedulingRequirements: initialRequest.schedulingRequirements || ''
       })
       return
     }
 
-    // Fetch current session info
-    const fetchSession = async () => {
-      try {
-        const response = await fetch('/api/sessions/active')
-        if (response.ok) {
-          const data = await response.json()
-          setCurrentSession(data.session)
-        }
-      } catch (error) {
-        console.error('Error fetching session:', error)
-      }
-    }
-    fetchSession()
-  }, [initialRequest])
+    setCurrentSession(selectedSession || null)
+  }, [initialRequest, selectedSession])
 
   useEffect(() => {
     fetch('/api/family/profile')
@@ -115,6 +114,7 @@ export default function ClassTeachingForm({
 
       const submitData = {
         ...formData,
+        sessionId: initialRequest?.sessionId || selectedSession?.id,
         gradeRange: useCustomGradeRange
           ? `${formData.gradeRangeFrom}-${formData.gradeRangeTo}`
           : formData.gradeRange,
@@ -210,6 +210,16 @@ export default function ClassTeachingForm({
               />
             </div>
 
+            {categories.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Category / Subject *</label>
+                <select required value={formData.categoryId} onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })} className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <option value="">Select category</option>
+                  {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Grade Range *
@@ -292,6 +302,14 @@ export default function ClassTeachingForm({
           </div>
 
           <div className="space-y-6 sm:space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Hour *</label>
+              <select required value={formData.preferredPeriod} onChange={(e) => setFormData({ ...formData, preferredPeriod: e.target.value })} className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                {CLASS_PERIOD_PREFERENCES.map((period) => <option key={period.id} value={period.id}>{period.label}</option>)}
+              </select>
+              <p className="mt-2 text-sm text-gray-500">Choose Any Hour if you are flexible. This is a preference, not a guaranteed assignment.</p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Maximum Students *

@@ -63,6 +63,8 @@ export const sessions = sqliteTable('sessions', {
   teacherRegistrationStartDate: text('teacher_registration_start_date'), // Early registration for teachers
   classTeachingRegistrationStartDate: text('class_teaching_registration_start_date'),
   classTeachingRegistrationEndDate: text('class_teaching_registration_end_date'),
+  classTeachingAccessMode: text('class_teaching_access_mode').notNull().default('open'), // closed, selected_groups, open
+  classTeachingAllowedGroupIds: text('class_teaching_allowed_group_ids').notNull().default('[]'),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(false), // Only one active session at a time
   description: text('description'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -208,6 +210,17 @@ export const scheduleDraftEntries = sqliteTable('schedule_draft_entries', {
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const classCategories = sqliteTable('class_categories', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  orderIndex: integer('order_index').notNull().default(0),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  nameUnique: uniqueIndex('class_categories_name_idx').on(table.name),
+}))
+
 // Class teaching requests table
 export const classTeachingRequests = sqliteTable('class_teaching_requests', {
   id: text('id').primaryKey(),
@@ -215,6 +228,7 @@ export const classTeachingRequests = sqliteTable('class_teaching_requests', {
   guardianId: text('guardian_id').references(() => guardians.id, { onDelete: 'cascade' }),
   teacherName: text('teacher_name'),
   className: text('class_name').notNull(),
+  categoryId: text('category_id').references(() => classCategories.id, { onDelete: 'set null' }),
   description: text('description').notNull(),
   gradeRange: text('grade_range').notNull(), // e.g., "K-2", "3-5", "6-8", or custom input
   gradeRangeFrom: integer('grade_range_from'),
@@ -229,6 +243,7 @@ export const classTeachingRequests = sqliteTable('class_teaching_requests', {
   registrationFeeExempt: integer('registration_fee_exempt', { mode: 'boolean' }).notNull().default(false),
   requiresFee: integer('requires_fee', { mode: 'boolean' }).notNull().default(false),
   feeAmount: real('fee_amount'), // Dollar amount if fee is required
+  preferredPeriod: text('preferred_period').notNull().default('any'), // first, second, third, or any
   schedulingRequirements: text('scheduling_requirements'), // Optional scheduling notes
   status: text('status').notNull().default('pending'), // pending, approved, rejected
   reviewedBy: text('reviewed_by').references(() => guardians.id), // Admin/moderator who reviewed
@@ -376,7 +391,10 @@ export const familyClassCharges = sqliteTable('family_class_charges', {
   status: text('status').notNull().default('active'), // active, review, retained, refunded
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-})
+}, (table) => ({
+  familySessionIdx: index('idx_class_charges_family_session').on(table.familyId, table.sessionId),
+  classIdx: index('idx_class_charges_class').on(table.classTeachingRequestId),
+}))
 
 export const classFeeRefunds = sqliteTable('class_fee_refunds', {
   id: text('id').primaryKey(), // Client request key, for safe retries
@@ -389,7 +407,9 @@ export const classFeeRefunds = sqliteTable('class_fee_refunds', {
   recordedBy: text('recorded_by').notNull(),
   refundedAt: text('refunded_at').notNull(),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-})
+}, (table) => ({
+  referenceUnique: uniqueIndex('idx_class_refund_reference').on(table.method, table.reference).where(sql`${table.reference} IS NOT NULL`),
+}))
 
 export const familyFeeCredits = sqliteTable('family_fee_credits', {
   id: text('id').primaryKey(),
@@ -656,6 +676,7 @@ export type SessionClassroom = typeof sessionClassrooms.$inferSelect
 export type Schedule = typeof schedules.$inferSelect
 export type ScheduleDraft = typeof scheduleDrafts.$inferSelect
 export type ScheduleDraftEntry = typeof scheduleDraftEntries.$inferSelect
+export type ClassCategory = typeof classCategories.$inferSelect
 export type ClassTeachingRequest = typeof classTeachingRequests.$inferSelect
 export type ScheduleComment = typeof scheduleComments.$inferSelect
 export type VolunteerJob = typeof volunteerJobs.$inferSelect
@@ -689,6 +710,7 @@ export type NewSessionClassroom = typeof sessionClassrooms.$inferInsert
 export type NewSchedule = typeof schedules.$inferInsert
 export type NewScheduleDraft = typeof scheduleDrafts.$inferInsert
 export type NewScheduleDraftEntry = typeof scheduleDraftEntries.$inferInsert
+export type NewClassCategory = typeof classCategories.$inferInsert
 export type NewClassTeachingRequest = typeof classTeachingRequests.$inferInsert
 export type NewScheduleComment = typeof scheduleComments.$inferInsert
 export type NewVolunteerJob = typeof volunteerJobs.$inferInsert

@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import type { Session } from '@/lib/schema'
+import type { ClassCategory, Session } from '@/lib/schema'
 import { BUILT_IN_GRADE_RANGES, CHILD_GRADE_OPTIONS, getGradeIndex } from '@/lib/grades'
 import SessionOptions from './SessionOptions'
 
 interface Teacher { id: string; familyId: string; firstName: string; lastName: string; email: string }
 interface FamilyChild { id: string; familyId: string; firstName: string; lastName: string; grade: string }
-interface Props { sessions: Session[]; teachers: Teacher[]; children: FamilyChild[]; onCreated: () => void }
+interface Props { sessions: Session[]; teachers: Teacher[]; children: FamilyChild[]; categories: ClassCategory[]; onCreated: () => void }
 interface ScheduleDraft { id: string; name: string; updatedAt: string }
 interface DraftEntry { classTeachingRequestId: string; classroomId: string; sessionClassroomId?: string | null; period: string }
 interface SessionClassroom { id: string; name: string }
@@ -21,11 +21,11 @@ const HOURS = [
 
 const gradeOptions = BUILT_IN_GRADE_RANGES
 const initialForm = {
-  sessionId: '', className: '', description: '', gradeRange: '', gradeRangeFrom: '', gradeRangeTo: '', maxStudents: '15', helpersNeeded: '2',
+  sessionId: '', className: '', categoryId: '', description: '', gradeRange: '', gradeRangeFrom: '', gradeRangeTo: '', maxStudents: '15', helpersNeeded: '2',
   teacherId: '', teacherName: 'Staff Instructor', coTeacherId: '', coTeacher: '', studentTeacherChildId: '', studentCoTeacherChildId: '', classroomNeeds: '', registrationFeeExempt: false, requiresFee: false, feeAmount: '', schedulingRequirements: ''
 }
 
-export default function AdminClassCreateForm({ sessions, teachers, children, onCreated }: Props) {
+export default function AdminClassCreateForm({ sessions, teachers, children, categories, onCreated }: Props) {
   const [form, setForm] = useState(initialForm)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -116,7 +116,7 @@ export default function AdminClassCreateForm({ sessions, teachers, children, onC
     setMessage('')
     setBusy(true)
     const customRange = form.gradeRange === 'custom'
-    const submitData = { ...form, gradeRange: customRange ? `${form.gradeRangeFrom}-${form.gradeRangeTo}` : form.gradeRange, gradeRangeFrom: customRange ? getGradeIndex(form.gradeRangeFrom) : undefined, gradeRangeTo: customRange ? getGradeIndex(form.gradeRangeTo) : undefined }
+    const submitData = { ...form, preferredPeriod: selectedHour, gradeRange: customRange ? `${form.gradeRangeFrom}-${form.gradeRangeTo}` : form.gradeRange, gradeRangeFrom: customRange ? getGradeIndex(form.gradeRangeFrom) : undefined, gradeRangeTo: customRange ? getGradeIndex(form.gradeRangeTo) : undefined }
     const response = await fetch('/api/admin/class-teaching-requests', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(submitData) })
     const payload = await response.json()
     setBusy(false)
@@ -161,6 +161,7 @@ export default function AdminClassCreateForm({ sessions, teachers, children, onC
           <label className="text-sm font-medium text-gray-700">Session<select required value={form.sessionId} onChange={(event) => { setForm({ ...form, sessionId: event.target.value }); loadScheduleOptions(event.target.value) }} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Select session...</option><SessionOptions sessions={sessions} /></select></label>
           <label className="text-sm font-medium text-gray-700">Class Name<input required value={form.className} onChange={(event) => setForm({ ...form, className: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 font-normal" /></label>
         </div>
+        {categories.length > 0 && <label className="block text-sm font-medium text-gray-700">Category / Subject<select required value={form.categoryId} onChange={(event) => setForm({ ...form, categoryId: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Select category...</option>{categories.filter((category) => category.isActive).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>}
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="text-sm font-medium text-gray-700">Schedule Draft<select required disabled={loadingScheduleOptions || !form.sessionId} value={selectedDraftId} onChange={(event) => loadDraftEntries(event.target.value)} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">{loadingScheduleOptions ? 'Loading drafts...' : 'Select draft...'}</option>{drafts.map((draft) => <option key={draft.id} value={draft.id}>{draft.name}</option>)}</select></label>
           <label className="text-sm font-medium text-gray-700">Hour<select required disabled={!selectedDraftId} value={selectedHour} onChange={(event) => { setSelectedHour(event.target.value); setSelectedClassroomId('') }} className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 font-normal"><option value="">Select hour...</option>{availableHours.map((hour) => <option key={hour.id} value={hour.id}>{hour.label}</option>)}</select></label>

@@ -3,6 +3,7 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
 import { sessions, type NewSession } from '@/lib/schema'
 import { ensureSessionClassrooms, ensureSessionVolunteerJobs } from '@/lib/database'
+import { validateClassTeachingAccessSettings } from '@/lib/class-teaching-access'
 
 // Helper function to generate IDs (same as in database.ts)
 function generateId(): string {
@@ -42,6 +43,8 @@ export async function POST(request: Request) {
       endDate, 
       classTeachingRegistrationStartDate,
       classTeachingRegistrationEndDate,
+      classTeachingAccessMode,
+      classTeachingAllowedGroupIds,
       description,
       isActive 
     } = body
@@ -53,6 +56,9 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+
+    const access = await validateClassTeachingAccessSettings(classTeachingAccessMode || 'closed', classTeachingAllowedGroupIds || [])
+    if ('error' in access) return NextResponse.json({ error: access.error }, { status: 400 })
 
     // If setting this session as active, deactivate all other sessions
     if (isActive) {
@@ -70,6 +76,8 @@ export async function POST(request: Request) {
       teacherRegistrationStartDate: null,
       classTeachingRegistrationStartDate: classTeachingRegistrationStartDate || startDate,
       classTeachingRegistrationEndDate: classTeachingRegistrationEndDate || startDate,
+      classTeachingAccessMode: access.mode,
+      classTeachingAllowedGroupIds: access.serializedGroupIds,
       description: description || null,
       isActive: isActive || false,
     }
