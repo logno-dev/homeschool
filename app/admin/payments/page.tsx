@@ -147,9 +147,16 @@ interface TeacherReimbursement {
   teacherFirstName: string | null
   teacherLastName: string | null
   amount: number
+  requestedAmount?: number | null
   status: string
   paidDate?: string | null
   notes?: string | null
+  receiptFilename?: string | null
+  submittedByTeacher: boolean
+  reviewNotes?: string | null
+  reviewedAt?: string | null
+  dueDate?: string | null
+  isLate: boolean
   createdAt: string
 }
 
@@ -202,6 +209,7 @@ export default function PaymentsPage() {
   const [overpayments, setOverpayments] = useState<FeeOverpayment[]>([])
   const [updatingReimbursementId, setUpdatingReimbursementId] = useState<string | null>(null)
   const [editingReimbursement, setEditingReimbursement] = useState<{ id: string; amount: string } | null>(null)
+  const [reimbursementReviewNotes, setReimbursementReviewNotes] = useState<Record<string, string>>({})
   
   // Filter and sort states
   const [searchTerm, setSearchTerm] = useState('')
@@ -469,11 +477,10 @@ export default function PaymentsPage() {
     finally { setUpdatingReimbursementId(null) }
   }
 
-  const handleReimbursementStatusToggle = async (reimbursement: TeacherReimbursement) => {
+  const updateReimbursementStatus = async (reimbursement: TeacherReimbursement, status: 'approved' | 'rejected' | 'paid') => {
     try {
       setUpdatingReimbursementId(reimbursement.id)
-      const nextStatus = reimbursement.status === 'paid' ? 'pending' : 'paid'
-      const paidDate = nextStatus === 'paid'
+      const paidDate = status === 'paid'
         ? new Date().toISOString().split('T')[0]
         : null
       const response = await fetch('/api/admin/teacher-reimbursements', {
@@ -481,8 +488,9 @@ export default function PaymentsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: reimbursement.id,
-          status: nextStatus,
-          paidDate
+          status,
+          paidDate,
+          reviewNotes: reimbursementReviewNotes[reimbursement.id] ?? reimbursement.reviewNotes ?? ''
         })
       })
       if (!response.ok) {
@@ -617,12 +625,6 @@ export default function PaymentsPage() {
   if (!user) return null
 
   const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
-  const reimbursementLookup = new Map(
-    reimbursements.map(reimbursement => [
-      `${reimbursement.classTeachingRequestId}-${reimbursement.sessionId}`,
-      reimbursement
-    ])
-  )
   const totalClassFees = classFeeSummaries.reduce((sum, item) => sum + item.totalFees, 0)
   const selectedClassFeeSummary = classFeeSummaries.find(
     item => item.classTeachingRequestId === reimbursementForm.classTeachingRequestId
@@ -1005,9 +1007,6 @@ export default function PaymentsPage() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {classFeeSummaries.map(summary => {
-                      const reimbursement = reimbursementLookup.get(
-                        `${summary.classTeachingRequestId}-${summary.sessionId}`
-                      )
                       return (
                         <tr key={`${summary.classTeachingRequestId}-${summary.sessionId}`} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{summary.sessionName}</td>
@@ -1025,17 +1024,7 @@ export default function PaymentsPage() {
                             {formatCurrency(summary.totalFees)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            {reimbursement ? (
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                                reimbursement.status === 'paid'
-                                  ? 'bg-green-100 text-green-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}>
-                                {reimbursement.status}
-                              </span>
-                            ) : (
-                              <span className="text-sm text-gray-500">Not recorded</span>
-                            )}
+                            {summary.allocatedReimbursements > 0 ? <span className="text-sm font-medium text-gray-900">{formatCurrency(summary.allocatedReimbursements)} allocated</span> : <span className="text-sm text-gray-500">Not recorded</span>}
                           </td>
                         </tr>
                       )
@@ -1157,8 +1146,7 @@ export default function PaymentsPage() {
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Fee Total</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Reimbursement</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid Date</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receipt / Notes</th>
                       <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                     </tr>
                   </thead>
@@ -1187,34 +1175,18 @@ export default function PaymentsPage() {
                           </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            reimbursement.status === 'paid'
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-yellow-100 text-yellow-800'
+                            reimbursement.status === 'paid' ? 'bg-green-100 text-green-800' : reimbursement.status === 'approved' ? 'bg-blue-100 text-blue-800' : reimbursement.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'
                           }`}>
-                            {reimbursement.status}
+                            {reimbursement.status === 'paid' ? 'reimbursed' : reimbursement.status}
                           </span>
+                          {reimbursement.isLate && <div className="mt-1 text-xs font-medium text-amber-700">Submitted late</div>}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {reimbursement.paidDate ? formatDate(reimbursement.paidDate) : '—'}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">{reimbursement.notes}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs"><div>{reimbursement.notes || 'No purchase notes'}</div>{reimbursement.receiptFilename ? <a href={`/api/teacher-reimbursements/${reimbursement.id}/receipt`} target="_blank" rel="noreferrer" className="mt-1 inline-block font-medium text-blue-700 hover:underline">View receipt</a> : <span className="mt-1 block text-xs text-gray-400">Admin-created record; no receipt</span>}{reimbursement.reviewNotes && <div className="mt-2 text-xs"><strong>Review:</strong> {reimbursement.reviewNotes}</div>}{reimbursement.paidDate && <div className="mt-1 text-xs">Reimbursed {formatDate(reimbursement.paidDate)}</div>}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleReimbursementStatusToggle(reimbursement)}
-                            disabled={updatingReimbursementId === reimbursement.id}
-                            className={`px-3 py-1 rounded-md text-sm font-medium ${
-                              reimbursement.status === 'paid'
-                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                : 'bg-green-600 text-white hover:bg-green-700'
-                            } disabled:opacity-50`}
-                          >
-                            {updatingReimbursementId === reimbursement.id
-                              ? 'Updating...'
-                              : reimbursement.status === 'paid'
-                              ? 'Mark Pending'
-                              : 'Mark Paid'}
-                          </button>
+                          {reimbursement.status === 'pending' && <div className="w-56 space-y-2"><textarea aria-label="Review notes" rows={2} value={reimbursementReviewNotes[reimbursement.id] ?? reimbursement.reviewNotes ?? ''} onChange={(event) => setReimbursementReviewNotes((current) => ({ ...current, [reimbursement.id]: event.target.value }))} placeholder="Optional review note" className="w-full rounded border border-gray-300 px-2 py-1 text-sm" /><div className="flex justify-end gap-2"><button type="button" onClick={() => updateReimbursementStatus(reimbursement, 'rejected')} disabled={updatingReimbursementId === reimbursement.id} className="rounded bg-red-50 px-3 py-1 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50">Reject</button><button type="button" onClick={() => updateReimbursementStatus(reimbursement, 'approved')} disabled={updatingReimbursementId === reimbursement.id} className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Approve</button></div></div>}
+                          {reimbursement.status === 'approved' && <button type="button" onClick={() => updateReimbursementStatus(reimbursement, 'paid')} disabled={updatingReimbursementId === reimbursement.id} className="rounded bg-green-600 px-3 py-1 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">{updatingReimbursementId === reimbursement.id ? 'Updating...' : 'Mark Reimbursed'}</button>}
+                          {reimbursement.status === 'rejected' && <span className="text-xs text-gray-500">No payment due</span>}
+                          {reimbursement.status === 'paid' && <span className="text-xs font-medium text-green-700">Complete</span>}
                         </td>
                       </tr>
                       )

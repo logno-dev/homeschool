@@ -29,7 +29,7 @@ export async function GET() {
           ELSE COALESCE(${classTeachingRequests.feeAmount}, 0) * COUNT(DISTINCT ${classRegistrations.id})
         END`,
         refundedFees: sql<number>`COALESCE((SELECT SUM(${familyClassCharges.refundedCents}) / 100.0 FROM ${familyClassCharges} WHERE ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id}), 0)`,
-        allocatedReimbursements: sql<number>`COALESCE((SELECT SUM(${teacherReimbursements.amount}) FROM ${teacherReimbursements} WHERE ${teacherReimbursements.classTeachingRequestId} = ${classTeachingRequests.id} AND ${teacherReimbursements.status} IN ('pending', 'paid')), 0)`
+        allocatedReimbursements: sql<number>`COALESCE((SELECT SUM(${teacherReimbursements.amount}) FROM ${teacherReimbursements} WHERE ${teacherReimbursements.classTeachingRequestId} = ${classTeachingRequests.id} AND ${teacherReimbursements.status} IN ('pending', 'approved', 'paid')), 0)`
       })
       .from(classTeachingRequests)
       .leftJoin(schedules, eq(schedules.classTeachingRequestId, classTeachingRequests.id))

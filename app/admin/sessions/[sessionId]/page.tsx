@@ -20,7 +20,7 @@ export default function AdminSessionDetailPage() {
   const [session, setSession] = useState<Session | null>(null)
   const [groups, setGroups] = useState<Group[]>([])
   const [windows, setWindows] = useState<WindowEntry[]>([])
-  const [form, setForm] = useState<{ name: string; startDate: string; endDate: string; classTeachingRegistrationStartDate: string; classTeachingRegistrationEndDate: string; classTeachingAccessMode: ClassTeachingAccessMode; classTeachingAllowedGroupIds: string[]; description: string; isActive: boolean }>({ name: '', startDate: '', endDate: '', classTeachingRegistrationStartDate: '', classTeachingRegistrationEndDate: '', classTeachingAccessMode: 'closed', classTeachingAllowedGroupIds: [], description: '', isActive: false })
+  const [form, setForm] = useState<{ name: string; startDate: string; endDate: string; classTeachingRegistrationStartDate: string; classTeachingRegistrationEndDate: string; classTeachingAccessMode: ClassTeachingAccessMode; classTeachingAllowedGroupIds: string[]; teacherReimbursementDueDate: string; description: string; isActive: boolean }>({ name: '', startDate: '', endDate: '', classTeachingRegistrationStartDate: '', classTeachingRegistrationEndDate: '', classTeachingAccessMode: 'closed', classTeachingAllowedGroupIds: [], teacherReimbursementDueDate: '', description: '', isActive: false })
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
 
@@ -38,7 +38,7 @@ export default function AdminSessionDetailPage() {
     setGroups(nextGroups)
     const formatWindowForInput = (value: string, endOfDay: boolean) => value.includes('T') ? value.slice(0, 16) : `${value}T${endOfDay ? '23:59' : '00:00'}`
     setWindows(((await windowResponse.json()).windows || []).map((entry: WindowEntry) => ({ groupId: entry.groupId, startDate: formatWindowForInput(entry.startDate, false), endDate: formatWindowForInput(entry.endDate, true) })))
-    setForm({ name: nextSession.name, startDate: nextSession.startDate, endDate: nextSession.endDate, classTeachingRegistrationStartDate: nextSession.classTeachingRegistrationStartDate || '', classTeachingRegistrationEndDate: nextSession.classTeachingRegistrationEndDate || '', classTeachingAccessMode: nextSession.classTeachingAccessMode === 'closed' || nextSession.classTeachingAccessMode === 'selected_groups' ? nextSession.classTeachingAccessMode : 'open', classTeachingAllowedGroupIds: parseClassTeachingGroupIds(nextSession.classTeachingAllowedGroupIds).filter((id) => nextGroups.some((group: Group) => group.id === id)), description: nextSession.description || '', isActive: nextSession.isActive })
+    setForm({ name: nextSession.name, startDate: nextSession.startDate, endDate: nextSession.endDate, classTeachingRegistrationStartDate: nextSession.classTeachingRegistrationStartDate || '', classTeachingRegistrationEndDate: nextSession.classTeachingRegistrationEndDate || '', classTeachingAccessMode: nextSession.classTeachingAccessMode === 'closed' || nextSession.classTeachingAccessMode === 'selected_groups' ? nextSession.classTeachingAccessMode : 'open', classTeachingAllowedGroupIds: parseClassTeachingGroupIds(nextSession.classTeachingAllowedGroupIds).filter((id) => nextGroups.some((group: Group) => group.id === id)), teacherReimbursementDueDate: nextSession.teacherReimbursementDueDate || '', description: nextSession.description || '', isActive: nextSession.isActive })
   }
 
   useEffect(() => {

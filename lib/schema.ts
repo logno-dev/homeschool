@@ -65,6 +65,7 @@ export const sessions = sqliteTable('sessions', {
   classTeachingRegistrationEndDate: text('class_teaching_registration_end_date'),
   classTeachingAccessMode: text('class_teaching_access_mode').notNull().default('open'), // closed, selected_groups, open
   classTeachingAllowedGroupIds: text('class_teaching_allowed_group_ids').notNull().default('[]'),
+  teacherReimbursementDueDate: text('teacher_reimbursement_due_date'),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(false), // Only one active session at a time
   description: text('description'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
@@ -529,12 +530,24 @@ export const teacherReimbursements = sqliteTable('teacher_reimbursements', {
   classTeachingRequestId: text('class_teaching_request_id').notNull().references(() => classTeachingRequests.id, { onDelete: 'cascade' }),
   guardianId: text('guardian_id').notNull().references(() => guardians.id, { onDelete: 'cascade' }),
   amount: real('amount').notNull(),
-  status: text('status').notNull().default('pending'), // pending, paid
+  requestedAmount: real('requested_amount'),
+  status: text('status').notNull().default('pending'), // pending, approved, rejected, paid
   paidDate: text('paid_date'),
   notes: text('notes'),
+  receiptPathname: text('receipt_pathname'),
+  receiptFilename: text('receipt_filename'),
+  receiptContentType: text('receipt_content_type'),
+  receiptSize: integer('receipt_size'),
+  submittedByTeacher: integer('submitted_by_teacher', { mode: 'boolean' }).notNull().default(false),
+  reviewNotes: text('review_notes'),
+  reviewedBy: text('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt: text('reviewed_at'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-})
+}, (table) => ({
+  guardianCreatedIdx: index('teacher_reimbursements_guardian_created_idx').on(table.guardianId, table.createdAt),
+  classStatusIdx: index('teacher_reimbursements_class_status_idx').on(table.classTeachingRequestId, table.status),
+}))
 
 export const scholarshipApplications = sqliteTable('scholarship_applications', {
   id: text('id').primaryKey(),

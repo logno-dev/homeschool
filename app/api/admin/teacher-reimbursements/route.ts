@@ -24,9 +24,15 @@ export async function GET() {
         teacherFirstName: guardians.firstName,
         teacherLastName: guardians.lastName,
         amount: teacherReimbursements.amount,
+        requestedAmount: teacherReimbursements.requestedAmount,
         status: teacherReimbursements.status,
         paidDate: teacherReimbursements.paidDate,
         notes: teacherReimbursements.notes,
+        receiptFilename: teacherReimbursements.receiptFilename,
+        submittedByTeacher: teacherReimbursements.submittedByTeacher,
+        reviewNotes: teacherReimbursements.reviewNotes,
+        reviewedAt: teacherReimbursements.reviewedAt,
+        dueDate: sessions.teacherReimbursementDueDate,
         createdAt: teacherReimbursements.createdAt
       })
       .from(teacherReimbursements)
@@ -35,7 +41,7 @@ export async function GET() {
       .leftJoin(guardians, eq(teacherReimbursements.guardianId, guardians.id))
       .orderBy(desc(teacherReimbursements.createdAt))
 
-    return NextResponse.json({ reimbursements })
+    return NextResponse.json({ reimbursements: reimbursements.map((item) => ({ ...item, isLate: Boolean(item.dueDate && item.createdAt.slice(0, 10) > item.dueDate) })) })
   } catch (error) {
     console.error('Error fetching reimbursements:', error)
     return NextResponse.json({ error: 'Failed to fetch reimbursements' }, { status: 500 })
@@ -66,6 +72,7 @@ export async function POST(request: NextRequest) {
       classTeachingRequestId,
       guardianId,
       amount,
+      requestedAmount: amount,
       notes: notes?.trim() || null
       })
       return null
@@ -86,28 +93,31 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const { id, status, paidDate, amount } = await request.json()
+    const { id, status, paidDate, amount, reviewNotes } = await request.json()
 
-    if (!id || !['pending', 'paid'].includes(status)) {
+    if (!id || !['pending', 'approved', 'rejected', 'paid'].includes(status)) {
       return NextResponse.json({ error: 'Reimbursement id and status are required' }, { status: 400 })
     }
-    if (amount !== undefined && (typeof amount !== 'number' || !Number.isFinite(amount) || amount < 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001)) {
-      return NextResponse.json({ error: 'Amount must be a nonnegative monetary amount.' }, { status: 400 })
+    if (amount !== undefined && (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001)) {
+      return NextResponse.json({ error: 'Amount must be a positive monetary amount.' }, { status: 400 })
     }
 
     const failure = await db.transaction(async (tx) => {
       const [existing] = await tx.select().from(teacherReimbursements).where(eq(teacherReimbursements.id, id))
       if (!existing) return 'Reimbursement not found.'
-      if (amount !== undefined && existing.status === 'paid') return 'Paid reimbursements cannot be edited.'
-      if ((amount !== undefined || (status === 'paid' && existing.status !== 'paid')) && (amount ?? existing.amount) > await availableClassReimbursement(tx, existing.classTeachingRequestId, existing.id)) {
-        return 'This reimbursement exceeds the class balance after refunds. Review its amount before marking it paid.'
+      if (existing.status === 'paid' && (status !== 'paid' || amount !== undefined)) return 'Reimbursed claims cannot be edited.'
+      if (['pending', 'approved', 'paid'].includes(status) && (amount ?? existing.amount) > await availableClassReimbursement(tx, existing.classTeachingRequestId, existing.id)) {
+        return 'This reimbursement exceeds the class balance after refunds. Review its amount before reserving or reimbursing it.'
       }
+      const reviewed = status === 'approved' || status === 'rejected'
       await tx
       .update(teacherReimbursements)
       .set({
         ...(amount !== undefined ? { amount } : {}),
         status,
-        paidDate: paidDate || null,
+        paidDate: status === 'paid' ? (paidDate || new Date().toISOString().slice(0, 10)) : null,
+        ...(reviewNotes !== undefined ? { reviewNotes: String(reviewNotes).trim().slice(0, 2000) || null } : {}),
+        ...(reviewed ? { reviewedBy: auth.session.user.id, reviewedAt: new Date().toISOString() } : {}),
         updatedAt: new Date().toISOString()
       })
       .where(eq(teacherReimbursements.id, id))

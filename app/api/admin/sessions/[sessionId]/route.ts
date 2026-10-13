@@ -56,12 +56,14 @@ export async function PATCH(
       classTeachingRegistrationEndDate,
       classTeachingAccessMode,
       classTeachingAllowedGroupIds,
+      teacherReimbursementDueDate,
       description,
       isActive 
     } = body
 
     const [existingSession] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1)
     if (!existingSession) return NextResponse.json({ error: 'Session not found' }, { status: 404 })
+    if (teacherReimbursementDueDate && !/^\d{4}-\d{2}-\d{2}$/.test(teacherReimbursementDueDate)) return NextResponse.json({ error: 'Invalid reimbursement due date' }, { status: 400 })
     const access = await validateClassTeachingAccessSettings(
       classTeachingAccessMode ?? existingSession.classTeachingAccessMode,
       classTeachingAllowedGroupIds ?? existingSession.classTeachingAllowedGroupIds
@@ -81,6 +83,7 @@ export async function PATCH(
       ...(classTeachingRegistrationEndDate !== undefined && { classTeachingRegistrationEndDate }),
       ...(classTeachingAccessMode !== undefined && { classTeachingAccessMode: access.mode }),
       ...(classTeachingAllowedGroupIds !== undefined && { classTeachingAllowedGroupIds: access.serializedGroupIds }),
+      ...(teacherReimbursementDueDate !== undefined && { teacherReimbursementDueDate: teacherReimbursementDueDate || null }),
       ...(description !== undefined && { description }),
       ...(isActive !== undefined && { isActive }),
       updatedAt: new Date().toISOString(),

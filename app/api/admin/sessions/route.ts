@@ -45,6 +45,7 @@ export async function POST(request: Request) {
       classTeachingRegistrationEndDate,
       classTeachingAccessMode,
       classTeachingAllowedGroupIds,
+      teacherReimbursementDueDate,
       description,
       isActive 
     } = body
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
+    if (teacherReimbursementDueDate && !/^\d{4}-\d{2}-\d{2}$/.test(teacherReimbursementDueDate)) return NextResponse.json({ error: 'Invalid reimbursement due date' }, { status: 400 })
 
     const access = await validateClassTeachingAccessSettings(classTeachingAccessMode || 'closed', classTeachingAllowedGroupIds || [])
     if ('error' in access) return NextResponse.json({ error: access.error }, { status: 400 })
@@ -78,6 +80,7 @@ export async function POST(request: Request) {
       classTeachingRegistrationEndDate: classTeachingRegistrationEndDate || startDate,
       classTeachingAccessMode: access.mode,
       classTeachingAllowedGroupIds: access.serializedGroupIds,
+      teacherReimbursementDueDate: teacherReimbursementDueDate || null,
       description: description || null,
       isActive: isActive || false,
     }

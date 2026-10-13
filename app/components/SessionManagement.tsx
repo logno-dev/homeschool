@@ -31,6 +31,7 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
     classTeachingRegistrationEndDate: string
     classTeachingAccessMode: ClassTeachingAccessMode
     classTeachingAllowedGroupIds: string[]
+    teacherReimbursementDueDate: string
     description: string
     isActive: boolean
   }>({
@@ -41,6 +42,7 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
     classTeachingRegistrationEndDate: '',
     classTeachingAccessMode: 'closed',
     classTeachingAllowedGroupIds: [],
+    teacherReimbursementDueDate: '',
     description: '',
     isActive: false
   })
@@ -54,6 +56,7 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
       classTeachingRegistrationEndDate: '',
       classTeachingAccessMode: 'closed',
       classTeachingAllowedGroupIds: [],
+      teacherReimbursementDueDate: '',
       description: '',
       isActive: false
     })
@@ -77,6 +80,7 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
       classTeachingRegistrationEndDate: session.classTeachingRegistrationEndDate ? formatDateForInput(session.classTeachingRegistrationEndDate) : '',
       classTeachingAccessMode: session.classTeachingAccessMode === 'closed' || session.classTeachingAccessMode === 'selected_groups' ? session.classTeachingAccessMode : 'open',
       classTeachingAllowedGroupIds: parseClassTeachingGroupIds(session.classTeachingAllowedGroupIds).filter((id) => groups.some((group) => group.id === id)),
+      teacherReimbursementDueDate: session.teacherReimbursementDueDate ? formatDateForInput(session.teacherReimbursementDueDate) : '',
       description: session.description || '',
       isActive: session.isActive
     })
@@ -115,6 +119,7 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
         endDate: formatDateForSubmission(formData.endDate),
         classTeachingRegistrationStartDate: formatDateForSubmission(formData.classTeachingRegistrationStartDate),
         classTeachingRegistrationEndDate: formatDateForSubmission(formData.classTeachingRegistrationEndDate),
+        teacherReimbursementDueDate: formatDateForSubmission(formData.teacherReimbursementDueDate),
       }
 
       const url = editingSession 
@@ -332,6 +337,12 @@ export default function SessionManagement({ initialSessions, groups }: SessionMa
                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
+            </div>
+
+            <div className="rounded-md border border-emerald-100 bg-emerald-50 p-4">
+              <h3 className="text-sm font-semibold text-emerald-900">Teacher Reimbursement Deadline</h3>
+              <p className="mt-1 text-sm text-emerald-800">Teachers will see this deadline, but may still submit late claims.</p>
+              <label className="mt-3 block text-sm font-medium text-gray-700">Submission due date<input type="date" value={formData.teacherReimbursementDueDate} onChange={(event) => setFormData({ ...formData, teacherReimbursementDueDate: event.target.value })} className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 sm:max-w-xs" /></label>
             </div>
 
             <div className="rounded-md border border-amber-100 bg-amber-50 p-4">
