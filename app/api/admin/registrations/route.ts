@@ -14,13 +14,15 @@ import {
   sessionVolunteerJobs,
   families,
   familyRegistrationStatus,
-  familySessionFees
+  familySessionFees,
+  waitlistVacancyFlags
 } from '@/lib/schema'
 import { and, eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
 import { getStudentTeacherAssignment } from '@/lib/student-teachers'
 import { isValidPhoneNumber } from '@/lib/phone'
+import { getNextWaitlistRank } from '@/lib/waitlist'
 
 export async function GET(request: Request) {
   try {
@@ -35,12 +37,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'sessionId is required' }, { status: 400 })
     }
 
-    const [registrationRows, scheduleRows, volunteerRows, volunteerJobRows, guardianRows, childRows, classroomRows, familyRows, familyStatusRows, feeRows] = await Promise.all([
+    const [registrationRows, scheduleRows, volunteerRows, volunteerJobRows, guardianRows, childRows, classroomRows, familyRows, familyStatusRows, feeRows, vacancyFlagRows] = await Promise.all([
       db
         .select({
            id: classRegistrations.id,
            status: classRegistrations.status,
-           holdExpiresAt: classRegistrations.holdExpiresAt,
+            holdExpiresAt: classRegistrations.holdExpiresAt,
+            waitlistRank: classRegistrations.waitlistRank,
+            registeredAt: classRegistrations.registeredAt,
            emergencyContact: classRegistrations.emergencyContact,
            emergencyPhone: classRegistrations.emergencyPhone,
            createdAt: classRegistrations.createdAt,
@@ -136,7 +140,8 @@ export async function GET(request: Request) {
           familyId: guardians.familyId,
           firstName: guardians.firstName,
           lastName: guardians.lastName,
-          email: guardians.email
+          email: guardians.email,
+          phone: guardians.phone
         })
         .from(guardians),
 
@@ -186,7 +191,9 @@ export async function GET(request: Request) {
         dueDate: familySessionFees.dueDate,
         overpaymentAmount: familySessionFees.overpaymentAmount,
         overpaymentStatus: familySessionFees.overpaymentStatus
-      }).from(familySessionFees).where(eq(familySessionFees.sessionId, sessionId))
+      }).from(familySessionFees).where(eq(familySessionFees.sessionId, sessionId)),
+
+      db.select().from(waitlistVacancyFlags).where(and(eq(waitlistVacancyFlags.sessionId, sessionId), eq(waitlistVacancyFlags.status, 'open')))
     ])
 
     const registrationCountMap = registrationRows.reduce((acc, row) => {
@@ -204,6 +211,30 @@ export async function GET(request: Request) {
       maxStudents: row.maxStudents,
       currentRegistrations: registrationCountMap[row.id] || 0
     }))
+
+    const occupancyTime = new Date().toISOString()
+    const vacancyFlags = vacancyFlagRows.map((flag) => {
+      const schedule = schedulesResponse.find((item) => item.id === flag.scheduleId)
+      const queue = registrationRows.filter((row) => row.schedule.id === flag.scheduleId && row.status === 'waitlisted').sort((a, b) => (a.waitlistRank ?? Number.MAX_SAFE_INTEGER) - (b.waitlistRank ?? Number.MAX_SAFE_INTEGER) || a.registeredAt.localeCompare(b.registeredAt) || a.id.localeCompare(b.id))
+      const first = queue[0]
+      const family = first ? familyRows.find((item) => item.id === first.child.familyId) : null
+      const occupied = registrationRows.filter((row) => row.schedule.id === flag.scheduleId && (['registered', 'pending'].includes(row.status) || (row.status === 'hold' && Boolean(row.holdExpiresAt && row.holdExpiresAt > occupancyTime)))).length
+      return {
+        ...flag,
+        className: schedule?.className || 'Class',
+        period: schedule?.period || '',
+        currentOpenSlots: schedule ? Math.max(0, schedule.maxStudents - occupied) : 0,
+        currentWaitlistCount: queue.length,
+        nextStudent: first ? {
+          registrationId: first.id,
+          childName: `${first.child.firstName} ${first.child.lastName}`,
+          familyName: family?.name || 'Family',
+          familyEmail: family?.email || '',
+          familyPhone: family?.phone || '',
+          guardians: guardianRows.filter((guardian) => guardian.familyId === first.child.familyId),
+        } : null,
+      }
+    })
 
     const volunteerAssignmentsResponse = volunteerRows.map((row) => ({
       id: row.id,
@@ -321,7 +352,8 @@ export async function GET(request: Request) {
       guardians: guardianRows,
       children: childRows,
       classrooms: classroomRows,
-      familyRegistrations
+      familyRegistrations,
+      vacancyFlags
     })
   } catch (error) {
     console.error('Error loading admin registrations:', error)
@@ -412,6 +444,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Schedule not found' }, { status: 404 })
     }
 
+    if (status === 'waitlisted') {
+      const [existingWaitlist] = await db.select({ id: classRegistrations.id }).from(classRegistrations).where(and(eq(classRegistrations.scheduleId, scheduleId), eq(classRegistrations.childId, childId), eq(classRegistrations.status, 'waitlisted'))).limit(1)
+      if (existingWaitlist) return NextResponse.json({ error: 'Child is already on this waitlist' }, { status: 409 })
+    }
+    if (status === 'registered') {
+      const [firstWaitlisted] = await db.select({ id: classRegistrations.id }).from(classRegistrations).where(and(eq(classRegistrations.scheduleId, scheduleId), eq(classRegistrations.status, 'waitlisted'))).limit(1)
+      if (firstWaitlisted) return NextResponse.json({ error: 'This class has a waitlist. Promote the first waitlisted student before adding another student.', code: 'WAITLIST_ORDER' }, { status: 409 })
+    }
+
     if (status === 'registered') {
       const studentTeacherAssignment = await getStudentTeacherAssignment(sessionId, childId, scheduleData[0].schedule.period)
       if (studentTeacherAssignment) return NextResponse.json({ error: `Child is the student teacher for ${studentTeacherAssignment.className} during this period` }, { status: 400 })
@@ -456,7 +497,8 @@ export async function POST(request: Request) {
         registeredBy: session.user.id,
         emergencyContact: existingEmergencyContact?.emergencyContact || null,
         emergencyPhone: existingEmergencyContact?.emergencyPhone || null,
-        status
+        status,
+        waitlistRank: status === 'waitlisted' ? await getNextWaitlistRank(tx, scheduleId) : null,
       })
       .returning()
       await refreshRegistrationFees(sessionId, child[0].familyId, tx)

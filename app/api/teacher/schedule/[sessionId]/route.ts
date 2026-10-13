@@ -46,7 +46,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
   const studentTeacherIds = reviewSchedule.flatMap((entry) => [entry.studentTeacherChildId, entry.studentCoTeacherChildId]).filter((id): id is string => Boolean(id))
   const [registeredStudents, studentTeachers, classHelpers, sessionRows, registrationWindows] = await Promise.all([
     db
-      .select({ scheduleId: classRegistrations.scheduleId, status: classRegistrations.status, id: children.id, familyId: children.familyId, firstName: children.firstName, lastName: children.lastName, grade: children.grade, allergies: children.allergies })
+      .select({ scheduleId: classRegistrations.scheduleId, status: classRegistrations.status, waitlistRank: classRegistrations.waitlistRank, registeredAt: classRegistrations.registeredAt, registrationId: classRegistrations.id, id: children.id, familyId: children.familyId, firstName: children.firstName, lastName: children.lastName, grade: children.grade, allergies: children.allergies })
       .from(classRegistrations)
       .innerJoin(children, eq(classRegistrations.childId, children.id))
       .where(and(inArray(classRegistrations.scheduleId, scheduleIds), inArray(classRegistrations.status, ['registered', 'waitlisted']))),
@@ -105,8 +105,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
     }),
     classes: teachingClasses.map((entry) => {
       const classStudents = registeredStudents.filter((student) => student.scheduleId === entry.scheduleId)
-      const roster = classStudents.filter((student) => student.status === 'registered').map(({ scheduleId: _scheduleId, status: _status, familyId, ...student }) => ({ ...student, parentEmails: parentEmailsByFamily.get(familyId) || [], role: 'student' }))
-      const waitlist = classStudents.filter((student) => student.status === 'waitlisted').map(({ scheduleId: _scheduleId, status: _status, familyId, allergies: _allergies, ...student }) => ({ ...student, parentEmails: parentEmailsByFamily.get(familyId) || [] }))
+      const roster = classStudents.filter((student) => student.status === 'registered').map(({ scheduleId: _scheduleId, status: _status, familyId, waitlistRank: _waitlistRank, registeredAt: _registeredAt, registrationId: _registrationId, ...student }) => ({ ...student, parentEmails: parentEmailsByFamily.get(familyId) || [], role: 'student' }))
+      const waitlist = classStudents.filter((student) => student.status === 'waitlisted').sort((a, b) => (a.waitlistRank ?? Number.MAX_SAFE_INTEGER) - (b.waitlistRank ?? Number.MAX_SAFE_INTEGER) || a.registeredAt.localeCompare(b.registeredAt) || a.registrationId.localeCompare(b.registrationId)).map(({ scheduleId: _scheduleId, status: _status, familyId, allergies: _allergies, waitlistRank: _waitlistRank, registeredAt: _registeredAt, registrationId: _registrationId, ...student }, index) => ({ ...student, waitlistPosition: index + 1, parentEmails: parentEmailsByFamily.get(familyId) || [] }))
       const studentTeacher = entry.studentTeacherChildId ? studentTeacherById.get(entry.studentTeacherChildId) : undefined
       const studentCoTeacher = entry.studentCoTeacherChildId ? studentTeacherById.get(entry.studentCoTeacherChildId) : undefined
       const withParentEmails = (student: NonNullable<typeof studentTeacher>, role: 'student_teacher' | 'student_co_teacher') => {

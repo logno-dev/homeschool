@@ -13,6 +13,7 @@ import {
 } from '@/lib/schema'
 import { eq, and } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
+import { getNextWaitlistRank } from '@/lib/waitlist'
 import { isGradeWithinRange } from '@/lib/grades'
 import { getRegistrationAccess } from '@/lib/user-groups'
 import { getStudentTeacherAssignment } from '@/lib/student-teachers'
@@ -143,6 +144,10 @@ export async function POST(request: Request) {
     if (!waitlist && currentRegistrations.length >= classTeachingRequest.maxStudents) {
       return NextResponse.json({ error: 'Class is full' }, { status: 400 })
     }
+    if (waitlist) {
+      const [existingWaitlist] = await db.select({ id: classRegistrations.id }).from(classRegistrations).where(and(eq(classRegistrations.scheduleId, scheduleId), eq(classRegistrations.childId, childId), eq(classRegistrations.status, 'waitlisted'))).limit(1)
+      if (existingWaitlist) return NextResponse.json({ error: 'Child is already on this waitlist' }, { status: 409 })
+    }
 
     // Start transaction
     const result = await db.transaction(async (tx) => {
@@ -157,7 +162,8 @@ export async function POST(request: Request) {
           registeredBy: session.user.id,
           emergencyContact: String(emergencyContact).trim(),
           emergencyPhone: String(emergencyPhone).trim(),
-          status: waitlist ? 'waitlisted' : 'registered'
+          status: waitlist ? 'waitlisted' : 'registered',
+          waitlistRank: waitlist ? await getNextWaitlistRank(tx, scheduleId) : null,
       })
 
       // If helper signup is requested, add volunteer assignment

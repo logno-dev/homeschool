@@ -107,21 +107,13 @@ export function RegistrationProvider({
       throw new Error('Missing session information for registration holds.')
     }
 
-    if (modifyMode) {
-      setPendingRegistrations(prev => [
-        ...prev.filter((entry) => !(entry.childId === registration.childId && entry.period === registration.period)),
-        registration
-      ])
-      return
-    }
-
     const existingRegistration = pendingRegistrations.find((entry) =>
       entry.childId === registration.childId &&
       entry.period === registration.period &&
       entry.status !== 'waitlisted'
     )
 
-    if (existingRegistration?.holdId) {
+    if (!modifyMode && registration.status !== 'waitlisted' && existingRegistration?.holdId) {
       await fetch('/api/registration/holds/release', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -134,10 +126,19 @@ export function RegistrationProvider({
         const filtered = prev.filter((entry) => {
           if (entry.childId !== registration.childId) return true
           if (entry.scheduleId === registration.scheduleId) return false
-          return !(entry.period === registration.period && entry.status !== 'waitlisted')
+          return true
         })
         return [...filtered, registration]
       })
+      return
+    }
+
+    if (modifyMode) {
+      setPendingRegistrations(prev => [...prev.filter((entry) => {
+        if (entry.childId !== registration.childId) return true
+        if (entry.scheduleId === registration.scheduleId) return false
+        return entry.period !== registration.period || entry.status === 'waitlisted'
+      }), registration])
       return
     }
 

@@ -15,6 +15,8 @@ interface RegistrationRow {
   status: string
   holdExpiresAt: string | null
   createdAt: string
+  registeredAt: string
+  waitlistRank: number | null
   child: {
     id: string
     firstName: string
@@ -81,6 +83,7 @@ interface GuardianOption {
   firstName: string
   lastName: string
   email: string
+  phone?: string | null
 }
 
 interface ChildOption {
@@ -105,6 +108,25 @@ interface RegistrationsResponse {
   children: ChildOption[]
   classrooms: ClassroomOption[]
   familyRegistrations: FamilyRegistrationSummary[]
+  vacancyFlags: WaitlistVacancyFlag[]
+}
+
+interface WaitlistVacancyFlag {
+  id: string
+  scheduleId: string
+  className: string
+  period: string
+  currentOpenSlots: number
+  currentWaitlistCount: number
+  createdAt: string
+  nextStudent: null | {
+    registrationId: string
+    childName: string
+    familyName: string
+    familyEmail: string
+    familyPhone: string
+    guardians: GuardianOption[]
+  }
 }
 
 const PERIODS = [
@@ -214,6 +236,7 @@ export default function AdminRegistrationsPage() {
   const children = useMemo(() => data?.children ?? [], [data])
   const classrooms = useMemo(() => data?.classrooms ?? [], [data])
   const familyRegistrations = useMemo(() => data?.familyRegistrations ?? [], [data])
+  const vacancyFlags = useMemo(() => data?.vacancyFlags ?? [], [data])
 
   const schedulesByCell = useMemo(() => {
     const map = new Map<string, ScheduleOption>()
@@ -229,7 +252,7 @@ export default function AdminRegistrationsPage() {
   }, [registrationRows, selectedSchedule])
 
   const registeredStudents = registrationsForSchedule.filter((registration) => registration.status === 'registered')
-  const waitlistedStudents = registrationsForSchedule.filter((registration) => registration.status === 'waitlisted').sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  const waitlistedStudents = registrationsForSchedule.filter((registration) => registration.status === 'waitlisted').sort((a, b) => (a.waitlistRank ?? Number.MAX_SAFE_INTEGER) - (b.waitlistRank ?? Number.MAX_SAFE_INTEGER) || a.registeredAt.localeCompare(b.registeredAt) || a.id.localeCompare(b.id))
   const heldStudents = registrationsForSchedule.filter((registration) => registration.status === 'hold' && !registration.holdExpiresAt)
 
   const volunteersForSchedule = useMemo(() => {
@@ -324,14 +347,27 @@ export default function AdminRegistrationsPage() {
     }
   }
 
-  const updateRegistrationStatus = async (registrationId: string, status: string) => {
+  const updateRegistrationStatus = async (registrationId: string, status: string, allowWaitlistOverride = false) => {
     try {
-      const result = await requestWithOverloadConfirmation(`/api/admin/registrations/${registrationId}`, 'PATCH', { status })
+      if (allowWaitlistOverride && !window.confirm('This student is not first on the waitlist. Override the queue order and promote them anyway?')) return
+      const result = await requestWithOverloadConfirmation(`/api/admin/registrations/${registrationId}`, 'PATCH', { status, allowWaitlistOverride })
       if (!result) return
-      showSuccess('Registration updated', 'Status updated successfully.')
+      showSuccess('Registration updated', result.vacancyFlag ? 'Student promoted and a follow-up was created for the newly opened class.' : result.swappedFromScheduleId ? 'Student promoted and moved from their previous class.' : 'Status updated successfully.')
       await refreshData()
     } catch (error) {
       showError('Update failed', error instanceof Error ? error.message : 'Unable to update registration')
+    }
+  }
+
+  const resolveVacancyFlag = async (flagId: string) => {
+    try {
+      const response = await fetch(`/api/admin/waitlist-vacancies/${flagId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'resolved' }) })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error || 'Unable to resolve follow-up')
+      showSuccess('Follow-up resolved', 'The waitlist opportunity was marked resolved.')
+      await refreshData()
+    } catch (error) {
+      showError('Update failed', error instanceof Error ? error.message : 'Unable to resolve follow-up')
     }
   }
 
@@ -478,6 +514,8 @@ export default function AdminRegistrationsPage() {
               </select>
             </div>
           </div>
+
+          {!isLoading && vacancyFlags.length > 0 && <section className="rounded-xl border border-amber-300 bg-amber-50 p-5"><div className="flex items-center justify-between gap-4"><div><h2 className="font-semibold text-amber-950">Waitlist follow-up needed</h2><p className="mt-1 text-sm text-amber-800">A class gained an opening after a student moved. Contact the next family before promoting them.</p></div><span className="rounded-full bg-amber-200 px-3 py-1 text-sm font-semibold text-amber-900">{vacancyFlags.length}</span></div><div className="mt-4 grid gap-3 lg:grid-cols-2">{vacancyFlags.map((flag) => <article key={flag.id} className="rounded-lg border border-amber-200 bg-white p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-gray-900">{flag.className}</p><p className="text-xs text-gray-500">{PERIODS.find((period) => period.id === flag.period)?.name || flag.period} · {flag.currentOpenSlots} open · {flag.currentWaitlistCount} waiting</p></div><button type="button" onClick={() => resolveVacancyFlag(flag.id)} className="text-xs font-medium text-gray-500 hover:text-gray-900">Mark resolved</button></div>{flag.nextStudent ? <div className="mt-3 text-sm"><p><strong>Next:</strong> {flag.nextStudent.childName} ({flag.nextStudent.familyName})</p><div className="mt-2 flex flex-wrap gap-3"><a href={`mailto:${flag.nextStudent.familyEmail}`} className="font-medium text-blue-700 hover:underline">Email family</a><a href={`tel:${flag.nextStudent.familyPhone}`} className="font-medium text-blue-700 hover:underline">Call family</a><button type="button" onClick={() => { const schedule = scheduleOptions.find((item) => item.id === flag.scheduleId); if (schedule) openClassModal(schedule) }} className="font-medium text-blue-700 hover:underline">Review waitlist</button></div></div> : <p className="mt-3 text-sm text-gray-600">The waitlist is now empty. This follow-up can be resolved.</p>}</article>)}</div></section>}
 
           {sessionsLoading || isLoading ? (
             <div className="text-center py-8">
@@ -768,20 +806,21 @@ export default function AdminRegistrationsPage() {
                 <p className="text-sm text-gray-500 mt-2">No waitlisted students.</p>
               ) : (
                 <ul className="mt-2 space-y-2">
-                  {waitlistedStudents.map((registration) => (
-                    <li key={registration.id} className="flex items-center justify-between rounded-md border border-gray-200 px-3 py-2">
+                  {waitlistedStudents.map((registration, index) => (
+                    <li key={registration.id} className={`flex items-center justify-between rounded-md border px-3 py-2 ${index === 0 ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}>
                       <div>
                         <div className="font-medium text-gray-900">
                           {registration.child.firstName} {registration.child.lastName}
                         </div>
-                        <div className="text-xs text-gray-500">Grade {registration.child.grade}</div>
+                        <div className="text-xs text-gray-500"><span className={index === 0 ? 'font-semibold text-green-700' : ''}>#{index + 1}{index === 0 ? ' · First eligible' : ''}</span> · Grade {registration.child.grade} · Joined {new Date(registration.registeredAt).toLocaleDateString()}</div>
                       </div>
                       <div className="flex items-center gap-3">
                         <button
-                          onClick={() => updateRegistrationStatus(registration.id, 'registered')}
-                          className="text-sm text-green-600 hover:text-green-700"
+                          onClick={() => updateRegistrationStatus(registration.id, 'registered', index !== 0)}
+                          title={index === 0 ? 'Promote the first student on the waitlist' : 'Promote this student out of queue order'}
+                          className={index === 0 ? 'text-sm font-semibold text-green-700 hover:text-green-800' : 'text-sm font-medium text-amber-700 hover:text-amber-800'}
                         >
-                          Promote
+                          {index === 0 ? 'Promote' : 'Override order'}
                         </button>
                         <button
                           onClick={() => updateRegistrationStatus(registration.id, 'cancelled')}

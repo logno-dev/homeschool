@@ -366,11 +366,31 @@ export const classRegistrations = sqliteTable('class_registrations', {
   emergencyContact: text('emergency_contact'),
   emergencyPhone: text('emergency_phone'),
   status: text('status').notNull().default('registered'), // registered, waitlisted, cancelled, pending, hold
+  waitlistRank: integer('waitlist_rank'),
   holdExpiresAt: text('hold_expires_at'),
   registeredAt: text('registered_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
+
+export const waitlistVacancyFlags = sqliteTable('waitlist_vacancy_flags', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').notNull().references(() => sessions.id, { onDelete: 'cascade' }),
+  scheduleId: text('schedule_id').notNull().references(() => schedules.id, { onDelete: 'cascade' }),
+  triggerRegistrationId: text('trigger_registration_id').references(() => classRegistrations.id, { onDelete: 'set null' }),
+  triggeredBy: text('triggered_by').notNull().references(() => users.id),
+  status: text('status').notNull().default('open'), // open, resolved, dismissed
+  openSlotsAtCreation: integer('open_slots_at_creation').notNull(),
+  waitlistCountAtCreation: integer('waitlist_count_at_creation').notNull(),
+  resolutionNotes: text('resolution_notes'),
+  resolvedBy: text('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+  resolvedAt: text('resolved_at'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  sessionStatusIdx: index('waitlist_vacancy_flags_session_status_idx').on(table.sessionId, table.status),
+  scheduleStatusIdx: index('waitlist_vacancy_flags_schedule_status_idx').on(table.scheduleId, table.status),
+}))
 
 // Volunteer assignments table (for tracking guardian volunteer commitments)
 export const volunteerAssignments = sqliteTable('volunteer_assignments', {

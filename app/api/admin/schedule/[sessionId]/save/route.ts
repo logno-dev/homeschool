@@ -29,7 +29,7 @@ export async function POST(
       .from(classRegistrations)
       .where(and(
         eq(classRegistrations.sessionId, sessionId),
-        inArray(classRegistrations.status, ['registered', 'pending', 'hold'])
+        inArray(classRegistrations.status, ['registered', 'pending', 'hold', 'waitlisted'])
       ))
     const protectedVolunteerRows = await db
       .select({ scheduleId: volunteerAssignments.scheduleId })

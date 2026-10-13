@@ -25,6 +25,7 @@ import { getRegistrationAccess } from '@/lib/user-groups'
 import { getGlobalSetting } from '@/lib/database'
 import { sendRegistrationOverrideNotificationEmail, sendRegistrationConfirmationEmail } from '@/lib/email'
 import { canSignUpForVolunteerJob, getVisibleVolunteerJobs } from '@/lib/volunteer-job-access'
+import { getNextWaitlistRank } from '@/lib/waitlist'
 
 interface PendingRegistration {
   scheduleId: string
@@ -618,10 +619,13 @@ export async function POST(request: Request) {
     if (modifyRegistration) {
       await withRegistrationRetry(() => db.transaction(async (tx) => {
         await syncClassCharges(sessionId, familyId, tx)
-        await tx.delete(classRegistrations).where(and(
+        const existingRows = await tx.select({ id: classRegistrations.id, childId: classRegistrations.childId, scheduleId: classRegistrations.scheduleId, status: classRegistrations.status }).from(classRegistrations).where(and(
           eq(classRegistrations.familyId, familyId),
           eq(classRegistrations.sessionId, sessionId)
         ))
+        const submittedWaitlists = new Set(registrations.filter((item) => item.status === 'waitlisted').map((item) => `${item.childId}:${item.scheduleId}`))
+        const replaceIds = existingRows.filter((row) => row.status !== 'waitlisted' || !submittedWaitlists.has(`${row.childId}:${row.scheduleId}`)).map((row) => row.id)
+        if (replaceIds.length) await tx.delete(classRegistrations).where(inArray(classRegistrations.id, replaceIds))
         await syncClassCharges(sessionId, familyId, tx)
         await tx.delete(volunteerAssignments).where(and(
           eq(volunteerAssignments.familyId, familyId),
@@ -639,6 +643,17 @@ export async function POST(request: Request) {
         if (registrations && registrations.length > 0) {
           for (const registration of registrations) {
             const registrationStatus = registration.status === 'waitlisted' ? 'waitlisted' : 'pending'
+            const [savedWaitlist] = registrationStatus === 'waitlisted' ? await tx.select({ id: classRegistrations.id }).from(classRegistrations).where(and(
+              eq(classRegistrations.sessionId, sessionId),
+              eq(classRegistrations.familyId, familyId),
+              eq(classRegistrations.childId, registration.childId),
+              eq(classRegistrations.scheduleId, registration.scheduleId),
+              eq(classRegistrations.status, 'waitlisted')
+            )).limit(1) : []
+            if (savedWaitlist) {
+              await tx.update(classRegistrations).set({ emergencyContact: emergencyContact?.name?.trim() || null, emergencyPhone: emergencyContact?.phone?.trim() || null, updatedAt: new Date().toISOString() }).where(eq(classRegistrations.id, savedWaitlist.id))
+              continue
+            }
             const [existingHold] = registrationStatus === 'pending' ? await tx.select({ id: classRegistrations.id }).from(classRegistrations).where(and(
               eq(classRegistrations.sessionId, sessionId),
               eq(classRegistrations.familyId, familyId),
@@ -664,7 +679,8 @@ export async function POST(request: Request) {
                 registeredBy: session.user.id,
                 emergencyContact: emergencyContact?.name?.trim() || null,
                 emergencyPhone: emergencyContact?.phone?.trim() || null,
-                status: registrationStatus
+                status: registrationStatus,
+                waitlistRank: registrationStatus === 'waitlisted' ? await getNextWaitlistRank(tx, registration.scheduleId) : null,
               })
             }
           }
@@ -988,7 +1004,8 @@ export async function POST(request: Request) {
             registeredBy: session.user.id,
             emergencyContact: emergencyContact?.name?.trim() || null,
             emergencyPhone: emergencyContact?.phone?.trim() || null,
-            status: registrationStatus
+            status: registrationStatus,
+            waitlistRank: await getNextWaitlistRank(tx, registration.scheduleId),
           })
         }
 

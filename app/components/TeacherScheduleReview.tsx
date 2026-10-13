@@ -35,7 +35,7 @@ interface TeachingClass {
   classroomName: string
   period: string
   roster: Array<{ id: string; firstName: string; lastName: string; grade: string; allergies: string | null; parentEmails: string[]; role: 'student' | 'student_teacher' | 'student_co_teacher' }>
-  waitlist: Array<{ id: string; firstName: string; lastName: string; grade: string; parentEmails: string[] }>
+  waitlist: Array<{ id: string; firstName: string; lastName: string; grade: string; waitlistPosition: number; parentEmails: string[] }>
   helpers: Array<{ id: string; firstName: string; lastName: string; email: string }>
 }
 
@@ -301,7 +301,7 @@ export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibi
                         {teachingClass.waitlist.map((student) => (
                           <div key={student.id} className="py-3">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium text-gray-900">{student.lastName}, {student.firstName}</span>
+                              <span className="font-medium text-gray-900">#{student.waitlistPosition} {student.lastName}, {student.firstName}</span>
                               <span className="text-xs text-gray-500">Grade {student.grade}</span>
                             </div>
                             <p className="mt-1 text-sm text-gray-600">
