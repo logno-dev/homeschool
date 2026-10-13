@@ -264,6 +264,70 @@ export const scheduleComments = sqliteTable('schedule_comments', {
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
 
+export const classHubPosts = sqliteTable('class_hub_posts', {
+  id: text('id').primaryKey(),
+  scheduleId: text('schedule_id').notNull().references(() => schedules.id, { onDelete: 'cascade' }),
+  authorUserId: text('author_user_id').notNull().references(() => users.id),
+  type: text('type').notNull().default('note'), // note, resource, feedback
+  title: text('title').notNull(),
+  bodyHtml: text('body_html').notNull(),
+  publishedAt: text('published_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  archivedAt: text('archived_at'),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  schedulePublishedIdx: index('class_hub_posts_schedule_published_idx').on(table.scheduleId, table.publishedAt),
+}))
+
+export const classHubAttachments = sqliteTable('class_hub_attachments', {
+  id: text('id').primaryKey(),
+  postId: text('post_id').notNull().references(() => classHubPosts.id, { onDelete: 'cascade' }),
+  uploadedBy: text('uploaded_by').notNull().references(() => users.id),
+  filename: text('filename').notNull(),
+  pathname: text('pathname').notNull(),
+  contentType: text('content_type').notNull(),
+  size: integer('size').notNull(),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  postIdx: index('class_hub_attachments_post_idx').on(table.postId),
+}))
+
+export const classHubFeedbackResponses = sqliteTable('class_hub_feedback_responses', {
+  id: text('id').primaryKey(),
+  postId: text('post_id').notNull().references(() => classHubPosts.id, { onDelete: 'cascade' }),
+  familyId: text('family_id').notNull().references(() => families.id, { onDelete: 'cascade' }),
+  authorUserId: text('author_user_id').notNull().references(() => users.id),
+  body: text('body').notNull(),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  postFamilyUnique: uniqueIndex('class_hub_feedback_post_family_idx').on(table.postId, table.familyId),
+}))
+
+export const classHubThreads = sqliteTable('class_hub_threads', {
+  id: text('id').primaryKey(),
+  scheduleId: text('schedule_id').notNull().references(() => schedules.id, { onDelete: 'cascade' }),
+  familyId: text('family_id').notNull().references(() => families.id, { onDelete: 'cascade' }),
+  createdBy: text('created_by').notNull().references(() => users.id),
+  subject: text('subject').notNull(),
+  status: text('status').notNull().default('open'), // open, resolved
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  scheduleFamilyIdx: index('class_hub_threads_schedule_family_idx').on(table.scheduleId, table.familyId),
+}))
+
+export const classHubMessages = sqliteTable('class_hub_messages', {
+  id: text('id').primaryKey(),
+  threadId: text('thread_id').notNull().references(() => classHubThreads.id, { onDelete: 'cascade' }),
+  authorUserId: text('author_user_id').notNull().references(() => users.id),
+  body: text('body').notNull(),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  threadCreatedIdx: index('class_hub_messages_thread_created_idx').on(table.threadId, table.createdAt),
+}))
+
 // Volunteer jobs table (for managing volunteer opportunities - persists across sessions)
 export const volunteerJobs = sqliteTable('volunteer_jobs', {
   id: text('id').primaryKey(),
@@ -679,6 +743,11 @@ export type ScheduleDraftEntry = typeof scheduleDraftEntries.$inferSelect
 export type ClassCategory = typeof classCategories.$inferSelect
 export type ClassTeachingRequest = typeof classTeachingRequests.$inferSelect
 export type ScheduleComment = typeof scheduleComments.$inferSelect
+export type ClassHubPost = typeof classHubPosts.$inferSelect
+export type ClassHubAttachment = typeof classHubAttachments.$inferSelect
+export type ClassHubFeedbackResponse = typeof classHubFeedbackResponses.$inferSelect
+export type ClassHubThread = typeof classHubThreads.$inferSelect
+export type ClassHubMessage = typeof classHubMessages.$inferSelect
 export type VolunteerJob = typeof volunteerJobs.$inferSelect
 export type SessionVolunteerJob = typeof sessionVolunteerJobs.$inferSelect
 export type ClassRegistration = typeof classRegistrations.$inferSelect

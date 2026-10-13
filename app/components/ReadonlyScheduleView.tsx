@@ -1,5 +1,7 @@
 'use client'
 
+import Link from 'next/link'
+
 interface SessionInfo {
   id: string
   name: string
@@ -80,6 +82,7 @@ export default function ReadonlyScheduleView({
 
   const activeClassRegistrations = classRegistrations.filter((reg) => reg.registration.status !== 'waitlisted' && reg.registration.status !== 'cancelled')
   const waitlistedRegistrations = classRegistrations.filter((reg) => reg.registration.status === 'waitlisted')
+  const canAccessHub = (registration: ClassRegistration) => ['registered', 'pending'].includes(registration.registration.status) || Boolean(registration.registration.role)
 
   // Group only rostered/reserved registrations by period.
   const registrationsByPeriod = activeClassRegistrations.reduce((acc, reg) => {
@@ -164,7 +167,8 @@ export default function ReadonlyScheduleView({
                               <p className="text-xs text-blue-600">
                                 Grade Range: {reg.classTeachingRequest.gradeRange}
                               </p>
-                              {reg.registration.status === 'hold' && <p className="mt-1 text-xs font-semibold text-amber-700">Reserved in cart — not yet confirmed</p>}
+                               {reg.registration.status === 'hold' && <p className="mt-1 text-xs font-semibold text-amber-700">Reserved in cart — not yet confirmed</p>}
+                               {canAccessHub(reg) && <Link href={`/class-hub/${reg.schedule.id}`} className="mt-2 inline-flex rounded-md bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">Class Materials & Messages</Link>}
                             </div>
                           ))}
                         </div>
@@ -236,7 +240,8 @@ export default function ReadonlyScheduleView({
                               {(reg.registration.role === 'student_teacher' || reg.registration.role === 'student_co_teacher') && <p className="text-xs font-medium text-purple-700">{reg.registration.role === 'student_co_teacher' ? 'Student co-teacher' : 'Student teacher'}</p>}
                               <p className="text-xs text-blue-700">Room: {reg.classroom.name}</p>
                               <p className="text-xs text-blue-600">Grade Range: {reg.classTeachingRequest.gradeRange}</p>
-                              {reg.registration.status === 'hold' && <p className="mt-1 text-xs font-semibold text-amber-700">Reserved in cart — not yet confirmed</p>}
+                               {reg.registration.status === 'hold' && <p className="mt-1 text-xs font-semibold text-amber-700">Reserved in cart — not yet confirmed</p>}
+                               {canAccessHub(reg) && <Link href={`/class-hub/${reg.schedule.id}`} className="mt-2 inline-flex rounded-md bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800">Class Materials & Messages</Link>}
                             </div>
                           ))}
                         </div>

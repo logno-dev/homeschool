@@ -96,6 +96,7 @@ export default function TopBar() {
     { label: 'Dashboard', href: '/dashboard' },
     { label: 'Registration', href: '/registration' },
     { label: 'Schedule', href: '/schedule' },
+    { label: 'Class Hubs', href: '/class-hubs' },
     { label: 'Payments', href: '/family/payments' },
     { label: 'Resources', href: '/resources' }
   ]
@@ -135,7 +136,7 @@ export default function TopBar() {
             </Link>
             <div className="hidden lg:flex items-center gap-2">
               {mainNav.map((item) => {
-                const active = pathname.startsWith(item.href)
+                const active = pathname.startsWith(item.href) || (item.href === '/class-hubs' && pathname.startsWith('/class-hub/'))
                 return (
                   <Link
                     key={item.href}

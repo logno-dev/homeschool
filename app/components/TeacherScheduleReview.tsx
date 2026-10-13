@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import type { Session, ScheduleComment } from '@/lib/schema'
 import SessionOptions from './SessionOptions'
 
@@ -245,6 +246,7 @@ export default function TeacherScheduleReview({ onVisibilityChange }: { onVisibi
                   <p className="mt-1 text-sm text-blue-800">{periodNames[teachingClass.period] || teachingClass.period} · {teachingClass.classroomName}</p>
                 </div>
                 <div className="p-4">
+                  <Link href={`/class-hub/${teachingClass.scheduleId}`} className="mb-4 inline-flex w-full items-center justify-center rounded-md bg-slate-800 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-900">Open Class Hub</Link>
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h5 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Roster ({teachingClass.roster.length})</h5>
                     <button

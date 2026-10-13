@@ -8,14 +8,16 @@ import { getRegistrationStatus } from '@/lib/registration-status'
 import { db } from '@/lib/db'
 import { classTeachingRequests, schedules } from '@/lib/schema'
 import { and, eq, inArray, or } from 'drizzle-orm'
+import { getFamilyClassHubs } from '@/lib/family-class-hubs'
 
 export default async function Dashboard() {
   // Server-side authentication and role checking
   const session = await getAuthenticatedUser()
-  const [isAdmin, events, activeSession] = await Promise.all([
+  const [isAdmin, events, activeSession, classHubs] = await Promise.all([
     checkAdminRole(session),
     fetchCalendarEvents(session.user.id),
-    getActiveSession()
+    getActiveSession(),
+    getFamilyClassHubs(session.user.id)
   ])
   const nextEvent = await getNextUpcomingEvent(events)
   const userName = [session.user.firstName, session.user.lastName].filter(Boolean).join(' ') || session.user.email
@@ -131,6 +133,14 @@ export default async function Dashboard() {
             </Link>
           </section>
         )}
+
+        <section className="rounded-xl border border-blue-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-600">Family Classes</p><h2 className="text-xl font-semibold text-slate-900">Class Hubs</h2></div>
+            <Link href="/class-hubs" className="text-xs font-semibold text-blue-700 hover:text-blue-900">View all and past classes <span aria-hidden="true">→</span></Link>
+          </div>
+          {classHubs.current.length === 0 ? <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-500">No current enrolled classes have a Class Hub yet.</p> : <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{classHubs.current.map((classHub) => <Link key={classHub.scheduleId} href={`/class-hub/${classHub.scheduleId}`} className="rounded-md border border-slate-200 px-3 py-2.5 transition hover:border-blue-300 hover:bg-blue-50"><p className="truncate text-sm font-semibold text-slate-900">{classHub.className}</p><p className="mt-0.5 truncate text-xs text-slate-500">{classHub.students.join(', ')} · {classHub.sessionName}</p></Link>)}</div>}
+        </section>
 
         <section className="grid gap-6 lg:grid-cols-[2fr_1fr]">
           <div className="grid gap-6 sm:grid-cols-2">

@@ -246,6 +246,13 @@
       "when": 1791849600000,
       "tag": "0062_class_teaching_access",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791936000000,
+      "tag": "0063_class_hub",
+      "breakpoints": true
     }
   ]
 }
