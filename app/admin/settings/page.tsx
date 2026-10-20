@@ -9,6 +9,7 @@ import { APP_TIMEZONES, DEFAULT_APP_TIMEZONE } from '@/lib/timezones'
 import NotificationSettingsPanel from '@/app/components/NotificationSettingsPanel'
 import InvoiceDetailsPanel from '@/app/components/InvoiceDetailsPanel'
 import ReportTemplateSettingsPanel from '@/app/components/ReportTemplateSettingsPanel'
+import ReimbursementSettingsPanel from '@/app/components/ReimbursementSettingsPanel'
 
 interface SettingsState {
   incrementDate: string
@@ -37,6 +38,7 @@ interface SettingsState {
   invoiceOrganizationWebsite: string
   invoicePaymentInstructions: string
   invoiceDonationStatement: string
+  reimbursementMethods: Array<{ id: string; label: string; detailsLabel: string }>
 }
 
 interface Handbook {
@@ -54,7 +56,7 @@ export default function AdminSettingsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const { showSuccess, showError } = useToast()
-  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', scholarshipRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {}, emailCcs: {}, emailBccs: {}, emailTemplates: {}, emailSubjects: {}, supervisionFormUrl: '', supervisionFormFilename: '', invoiceOrganizationName: '', invoiceOrganizationAddress: '', invoiceOrganizationCity: '', invoiceOrganizationState: '', invoiceOrganizationPostalCode: '', invoiceOrganizationPhone: '', invoiceOrganizationEmail: '', invoiceOrganizationWebsite: '', invoicePaymentInstructions: '', invoiceDonationStatement: '' })
+  const [settings, setSettings] = useState<SettingsState>({ incrementDate: '', lastRun: null, registrationNotificationEmails: '', classRequestNotificationEmails: '', scholarshipRequestNotificationEmails: '', registrationOverrideNotificationEmails: '', appTimezone: DEFAULT_APP_TIMEZONE, emailSenderAliases: '', emailSenders: {}, emailReplyTos: {}, emailCcs: {}, emailBccs: {}, emailTemplates: {}, emailSubjects: {}, supervisionFormUrl: '', supervisionFormFilename: '', invoiceOrganizationName: '', invoiceOrganizationAddress: '', invoiceOrganizationCity: '', invoiceOrganizationState: '', invoiceOrganizationPostalCode: '', invoiceOrganizationPhone: '', invoiceOrganizationEmail: '', invoiceOrganizationWebsite: '', invoicePaymentInstructions: '', invoiceDonationStatement: '', reimbursementMethods: [] })
   const [handbooks, setHandbooks] = useState<Handbook[]>([])
   const [handbookVersion, setHandbookVersion] = useState('')
   const [handbookFile, setHandbookFile] = useState<File | null>(null)
@@ -65,7 +67,7 @@ export default function AdminSettingsPage() {
   const [isUploading, setIsUploading] = useState(false)
   const [isUploadingSupervisionForm, setIsUploadingSupervisionForm] = useState(false)
   const [isPublishing, setIsPublishing] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'general' | 'notifications' | 'invoices' | 'reports'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'notifications' | 'reimbursements' | 'invoices' | 'reports'>('general')
 
   useEffect(() => {
     if (loading) return
@@ -107,7 +109,8 @@ export default function AdminSettingsPage() {
            , invoiceOrganizationEmail: result.invoiceOrganizationEmail || ''
            , invoiceOrganizationWebsite: result.invoiceOrganizationWebsite || ''
            , invoicePaymentInstructions: result.invoicePaymentInstructions || ''
-           , invoiceDonationStatement: result.invoiceDonationStatement || ''
+            , invoiceDonationStatement: result.invoiceDonationStatement || ''
+            , reimbursementMethods: result.reimbursementMethods || []
         })
         const handbooksResponse = await fetch('/api/admin/handbooks')
         if (handbooksResponse.ok) {
@@ -145,6 +148,7 @@ export default function AdminSettingsPage() {
             , emailTemplates: settings.emailTemplates
            , emailSubjects: settings.emailSubjects
            , ...Object.fromEntries(Object.entries(settings).filter(([key]) => key.startsWith('invoice')))
+           , reimbursementMethods: settings.reimbursementMethods
         })
       })
       const result = await response.json()
@@ -259,7 +263,7 @@ export default function AdminSettingsPage() {
                 Configure system-wide policies like grade advancement.
               </p>
             </div>
-             <div className="flex flex-wrap gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1"><button type="button" onClick={() => setActiveTab('general')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'general' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>General</button><button type="button" onClick={() => setActiveTab('notifications')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'notifications' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Notifications</button><button type="button" onClick={() => setActiveTab('invoices')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'invoices' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Invoices and Receipts</button><button type="button" onClick={() => setActiveTab('reports')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'reports' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Report Templates</button></div>
+             <div className="flex flex-wrap gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1"><button type="button" onClick={() => setActiveTab('general')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'general' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>General</button><button type="button" onClick={() => setActiveTab('notifications')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'notifications' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Notifications</button><button type="button" onClick={() => setActiveTab('reimbursements')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'reimbursements' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Reimbursements</button><button type="button" onClick={() => setActiveTab('invoices')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'invoices' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Invoices and Receipts</button><button type="button" onClick={() => setActiveTab('reports')} className={`rounded-md px-4 py-2 text-sm font-medium ${activeTab === 'reports' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}>Report Templates</button></div>
 
             {isLoading ? (
               <div className="text-center py-8">
@@ -270,6 +274,8 @@ export default function AdminSettingsPage() {
               <NotificationSettingsPanel settings={settings} setSettings={(updater) => setSettings((current) => ({ ...current, ...updater(current) }))} onSave={handleSave} isSaving={isSaving} />
             ) : activeTab === 'invoices' ? (
               <InvoiceDetailsPanel details={settings} setDetails={(updater) => setSettings((current) => ({ ...current, ...updater(current) }))} onSave={handleSave} isSaving={isSaving} />
+            ) : activeTab === 'reimbursements' ? (
+              <ReimbursementSettingsPanel methods={settings.reimbursementMethods} setMethods={(reimbursementMethods) => setSettings((current) => ({ ...current, reimbursementMethods }))} onSave={handleSave} isSaving={isSaving} />
             ) : activeTab === 'reports' ? (
               <ReportTemplateSettingsPanel />
             ) : (

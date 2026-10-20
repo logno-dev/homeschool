@@ -1,13 +1,15 @@
 import { randomUUID } from 'crypto'
 import { del, put } from '@vercel/blob'
-import { and, desc, eq, inArray, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { classTeachingRequests, familyClassCharges, guardians, schedules, sessions, teacherReimbursements } from '@/lib/schema'
-import { availableClassReimbursement } from '@/lib/reimbursement-balance'
+import { classTeachingRequests, guardians, schedules, sessions, teacherReimbursements } from '@/lib/schema'
+import { availableClassReimbursement, classReimbursementBalance } from '@/lib/reimbursement-balance'
 import { validateReimbursementReceipt } from '@/lib/reimbursement-receipt-files'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
 import { getConfiguredDateKey } from '@/lib/app-time'
+import { getGlobalSetting } from '@/lib/database'
+import { parseReimbursementMethods } from '@/lib/reimbursement-methods'
 
 async function getGuardian(userId: string) {
   return db.select({ id: guardians.id }).from(guardians).where(eq(guardians.id, userId)).limit(1).then((rows) => rows[0])
@@ -28,7 +30,6 @@ export async function GET() {
       sessionStartDate: sessions.startDate,
       dueDate: sessions.teacherReimbursementDueDate,
       feeAmount: classTeachingRequests.feeAmount,
-      collectedCents: sql<number>`coalesce((select sum(${familyClassCharges.amountCents} - ${familyClassCharges.refundedCents}) from ${familyClassCharges} where ${familyClassCharges.classTeachingRequestId} = ${classTeachingRequests.id} and ${familyClassCharges.billingTreatment} = 'included'), 0)`,
     }).from(classTeachingRequests)
       .innerJoin(sessions, eq(classTeachingRequests.sessionId, sessions.id))
       .innerJoin(schedules, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
@@ -40,9 +41,7 @@ export async function GET() {
 
     const withBalances = await Promise.all(classes.map(async (item) => ({
       ...item,
-      collectedAmount: item.collectedCents / 100,
-      availableAmount: await availableClassReimbursement(db, item.classTeachingRequestId),
-      collectedCents: undefined,
+      ...await classReimbursementBalance(db, item.classTeachingRequestId),
     })))
     const claims = await db.select({
       id: teacherReimbursements.id,
@@ -57,6 +56,9 @@ export async function GET() {
       notes: teacherReimbursements.notes,
       reviewNotes: teacherReimbursements.reviewNotes,
       receiptFilename: teacherReimbursements.receiptFilename,
+      paymentMethod: teacherReimbursements.paymentMethod,
+      paymentDetailsLabel: teacherReimbursements.paymentDetailsLabel,
+      paymentDetails: teacherReimbursements.paymentDetails,
       paidDate: teacherReimbursements.paidDate,
       createdAt: teacherReimbursements.createdAt,
     }).from(teacherReimbursements)
@@ -65,10 +67,12 @@ export async function GET() {
       .where(eq(teacherReimbursements.guardianId, guardian.id))
       .orderBy(desc(teacherReimbursements.createdAt))
     const today = await getConfiguredDateKey()
+    const methods = parseReimbursementMethods(await getGlobalSetting('teacher_reimbursement_methods'))
 
     return NextResponse.json({
       classes: withBalances,
       claims: claims.map((claim) => ({ ...claim, isLate: Boolean(claim.dueDate && claim.createdAt.slice(0, 10) > claim.dueDate) })),
+      methods,
       today,
     })
   } catch (error) {
@@ -89,9 +93,14 @@ export async function POST(request: Request) {
     const classTeachingRequestId = String(formData.get('classTeachingRequestId') || '')
     const notes = String(formData.get('notes') || '').trim()
     const amount = Number(formData.get('amount'))
+    const paymentMethod = String(formData.get('paymentMethod') || '')
+    const paymentDetails = String(formData.get('paymentDetails') || '').trim()
     const receipt = formData.get('receipt')
     if (!classTeachingRequestId || !Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001) return NextResponse.json({ error: 'Choose a class and enter a valid amount' }, { status: 400 })
     if (!(receipt instanceof File)) return NextResponse.json({ error: 'Upload a receipt image or PDF' }, { status: 400 })
+    const methods = parseReimbursementMethods(await getGlobalSetting('teacher_reimbursement_methods'))
+    const selectedMethod = methods.find((method) => method.id === paymentMethod)
+    if (!selectedMethod || !paymentDetails || paymentDetails.length > 500) return NextResponse.json({ error: 'Choose a reimbursement method and provide its requested payment information' }, { status: 400 })
 
     const [classRecord] = await db.select({ sessionId: classTeachingRequests.sessionId }).from(classTeachingRequests)
       .innerJoin(schedules, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
@@ -124,6 +133,9 @@ export async function POST(request: Request) {
         receiptFilename: receipt.name.slice(0, 255),
         receiptContentType: receipt.type,
         receiptSize: receipt.size,
+        paymentMethod: selectedMethod.label,
+        paymentDetailsLabel: selectedMethod.detailsLabel,
+        paymentDetails,
         submittedByTeacher: true,
       })
       return null

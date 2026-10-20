@@ -5,6 +5,7 @@ import { getGlobalSetting, getGradeIncrementSettings, incrementAllStudentGrades,
 import { DEFAULT_APP_TIMEZONE, isAppTimezone } from '@/lib/timezones'
 import { EMAIL_TYPES, type EmailType } from '@/lib/email-types'
 import { NOTIFICATION_TYPES, type NotificationType } from '@/lib/email-templates'
+import { isReimbursementMethods, normalizeReimbursementMethods, parseReimbursementMethods } from '@/lib/reimbursement-methods'
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
 
@@ -15,7 +16,7 @@ export async function GET() {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-  const [settings, registrationNotificationEmails, classRequestNotificationEmails, scholarshipRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, supervisionFormUrl, supervisionFormFilename, appTimezone, senderAliases, invoiceOrganizationName, invoiceOrganizationAddress, invoiceOrganizationCity, invoiceOrganizationState, invoiceOrganizationPostalCode, invoiceOrganizationPhone, invoiceOrganizationEmail, invoiceOrganizationWebsite, invoicePaymentInstructions, invoiceDonationStatement, ...senderSettings] = await Promise.all([
+  const [settings, registrationNotificationEmails, classRequestNotificationEmails, scholarshipRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, supervisionFormUrl, supervisionFormFilename, appTimezone, reimbursementMethodsSetting, senderAliases, invoiceOrganizationName, invoiceOrganizationAddress, invoiceOrganizationCity, invoiceOrganizationState, invoiceOrganizationPostalCode, invoiceOrganizationPhone, invoiceOrganizationEmail, invoiceOrganizationWebsite, invoicePaymentInstructions, invoiceDonationStatement, ...senderSettings] = await Promise.all([
       getGradeIncrementSettings(),
       getGlobalSetting('registration_notification_emails'),
       getGlobalSetting('class_request_notification_emails'),
@@ -26,6 +27,7 @@ export async function GET() {
       getGlobalSetting('supervision_form_url'),
       getGlobalSetting('supervision_form_filename'),
       getGlobalSetting('app_timezone'),
+      getGlobalSetting('teacher_reimbursement_methods'),
       getGlobalSetting('email_sender_aliases'),
       ...['invoiceOrganizationName', 'invoiceOrganizationAddress', 'invoiceOrganizationCity', 'invoiceOrganizationState', 'invoiceOrganizationPostalCode', 'invoiceOrganizationPhone', 'invoiceOrganizationEmail', 'invoiceOrganizationWebsite', 'invoicePaymentInstructions', 'invoiceDonationStatement'].map((key) => getGlobalSetting(key)),
        ...EMAIL_TYPES.flatMap((type) => [getGlobalSetting(`email_sender_${type}`), getGlobalSetting(`email_reply_to_${type}`), getGlobalSetting(`email_cc_${type}`), getGlobalSetting(`email_bcc_${type}`)])
@@ -42,6 +44,7 @@ export async function GET() {
       supervisionFormFilename: supervisionFormFilename || '',
       appTimezone: isAppTimezone(appTimezone) ? appTimezone : DEFAULT_APP_TIMEZONE,
        emailSenderAliases: (() => { try { return JSON.parse(senderAliases || '[]') } catch { return [] } })(),
+       reimbursementMethods: parseReimbursementMethods(reimbursementMethodsSetting),
        emailSenders: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 4] || ''])),
         emailReplyTos: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 4 + 1] || ''])),
         emailCcs: Object.fromEntries(EMAIL_TYPES.map((type, index) => [type, senderSettings[index * 4 + 2] || ''])),
@@ -64,7 +67,7 @@ export async function POST(request: Request) {
     }
 
      const body = await request.json()
-     const { gradeIncrementDate, registrationNotificationEmails, classRequestNotificationEmails, scholarshipRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone, emailSenderAliases, emailSenders, emailReplyTos, emailCcs, emailBccs, emailTemplates, emailSubjects, runIncrementNow } = body
+     const { gradeIncrementDate, registrationNotificationEmails, classRequestNotificationEmails, scholarshipRequestNotificationEmails, registrationOverrideNotificationEmails, handbookUrl, handbookVersion, appTimezone, reimbursementMethods, emailSenderAliases, emailSenders, emailReplyTos, emailCcs, emailBccs, emailTemplates, emailSubjects, runIncrementNow } = body
 
     if (runIncrementNow) {
       const result = await incrementAllStudentGrades()
@@ -95,6 +98,10 @@ export async function POST(request: Request) {
 
     if (appTimezone !== undefined && !isAppTimezone(appTimezone)) {
       return NextResponse.json({ error: 'appTimezone must be a supported timezone' }, { status: 400 })
+    }
+
+    if (reimbursementMethods !== undefined && !isReimbursementMethods(reimbursementMethods)) {
+      return NextResponse.json({ error: 'Configure at least one reimbursement method with a unique id, method name, and follow-up field label' }, { status: 400 })
     }
 
     if (emailSenderAliases !== undefined && (!Array.isArray(emailSenderAliases) || emailSenderAliases.some((alias) => typeof alias !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/i.test(alias)))) {
@@ -183,6 +190,7 @@ export async function POST(request: Request) {
       await setGradeIncrementDate(gradeIncrementDate || null)
     }
     if (appTimezone !== undefined) await setGlobalSetting('app_timezone', appTimezone)
+    if (reimbursementMethods !== undefined) await setGlobalSetting('teacher_reimbursement_methods', JSON.stringify(normalizeReimbursementMethods(reimbursementMethods)))
     if (emailSenderAliases !== undefined) await setGlobalSetting('email_sender_aliases', JSON.stringify(Array.from(new Set(emailSenderAliases))))
     if (emailSenders !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_sender_${type}`, emailSenders[type] || null)))
     if (emailReplyTos !== undefined) await Promise.all(EMAIL_TYPES.map((type) => setGlobalSetting(`email_reply_to_${type}`, emailReplyTos[type] || null)))

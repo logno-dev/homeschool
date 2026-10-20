@@ -152,6 +152,9 @@ interface TeacherReimbursement {
   paidDate?: string | null
   notes?: string | null
   receiptFilename?: string | null
+  paymentMethod?: string | null
+  paymentDetailsLabel?: string | null
+  paymentDetails?: string | null
   submittedByTeacher: boolean
   reviewNotes?: string | null
   reviewedAt?: string | null
@@ -176,6 +179,7 @@ interface FeeOverpayment {
   sessionName: string
   amount: number
 }
+interface ReimbursementMethod { id: string; label: string; detailsLabel: string }
 interface BillingDocument { id: string; filename: string; documentType: string; blobUrl: string; size: number; createdAt: string; userId: string; userName: string; familyName: string | null }
 
 interface ClassFeeSummary {
@@ -206,6 +210,7 @@ export default function PaymentsPage() {
   const [billingDocuments, setBillingDocuments] = useState<BillingDocument[]>([])
   const [classFeeSummaries, setClassFeeSummaries] = useState<ClassFeeSummary[]>([])
   const [reimbursements, setReimbursements] = useState<TeacherReimbursement[]>([])
+  const [reimbursementMethods, setReimbursementMethods] = useState<ReimbursementMethod[]>([])
   const [overpayments, setOverpayments] = useState<FeeOverpayment[]>([])
   const [updatingReimbursementId, setUpdatingReimbursementId] = useState<string | null>(null)
   const [editingReimbursement, setEditingReimbursement] = useState<{ id: string; amount: string } | null>(null)
@@ -239,7 +244,9 @@ export default function PaymentsPage() {
     classTeachingRequestId: '',
     guardianId: '',
     amount: '',
-    notes: ''
+    notes: '',
+    paymentMethod: '',
+    paymentDetails: ''
   })
 
   useEffect(() => {
@@ -317,6 +324,9 @@ export default function PaymentsPage() {
       }
       const data = await response.json()
       setReimbursements(data.reimbursements || [])
+      const methods = data.methods || []
+      setReimbursementMethods(methods)
+      setReimbursementForm((current) => ({ ...current, paymentMethod: methods.some((method: ReimbursementMethod) => method.id === current.paymentMethod) ? current.paymentMethod : methods[0]?.id || '' }))
     } catch (err) {
       console.error('Error fetching reimbursements:', err)
     }
@@ -446,14 +456,16 @@ export default function PaymentsPage() {
           classTeachingRequestId: reimbursementForm.classTeachingRequestId,
           guardianId: reimbursementForm.guardianId,
           amount: parseFloat(reimbursementForm.amount),
-          notes: reimbursementForm.notes
+          notes: reimbursementForm.notes,
+          paymentMethod: reimbursementForm.paymentMethod,
+          paymentDetails: reimbursementForm.paymentDetails
         })
       })
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.error || 'Failed to create reimbursement')
       }
-      setReimbursementForm({ sessionId: '', classTeachingRequestId: '', guardianId: '', amount: '', notes: '' })
+      setReimbursementForm((current) => ({ sessionId: '', classTeachingRequestId: '', guardianId: '', amount: '', notes: '', paymentMethod: current.paymentMethod, paymentDetails: '' }))
       await fetchReimbursements()
       await fetchClassFeeSummaries()
     } catch (err) {
@@ -629,6 +641,7 @@ export default function PaymentsPage() {
   const selectedClassFeeSummary = classFeeSummaries.find(
     item => item.classTeachingRequestId === reimbursementForm.classTeachingRequestId
   )
+  const selectedReimbursementMethod = reimbursementMethods.find((method) => method.id === reimbursementForm.paymentMethod)
 
   return (
     <AdminLayout userName={userName || 'Admin'} activeTab="payments">
@@ -1114,6 +1127,17 @@ export default function PaymentsPage() {
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reimbursement method *</label>
+                  <select required value={reimbursementForm.paymentMethod} onChange={(event) => setReimbursementForm((current) => ({ ...current, paymentMethod: event.target.value, paymentDetails: '' }))} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">Select a method</option>
+                    {reimbursementMethods.map((method) => <option key={method.id} value={method.id}>{method.label}</option>)}
+                  </select>
+                </div>
+                {selectedReimbursementMethod && <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">{selectedReimbursementMethod.detailsLabel} *</label>
+                  <input required type="text" maxLength={500} value={reimbursementForm.paymentDetails} onChange={(event) => setReimbursementForm((current) => ({ ...current, paymentDetails: event.target.value }))} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>}
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                   <input
                     type="text"
@@ -1181,7 +1205,7 @@ export default function PaymentsPage() {
                           </span>
                           {reimbursement.isLate && <div className="mt-1 text-xs font-medium text-amber-700">Submitted late</div>}
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs"><div>{reimbursement.notes || 'No purchase notes'}</div>{reimbursement.receiptFilename ? <a href={`/api/teacher-reimbursements/${reimbursement.id}/receipt`} target="_blank" rel="noreferrer" className="mt-1 inline-block font-medium text-blue-700 hover:underline">View receipt</a> : <span className="mt-1 block text-xs text-gray-400">Admin-created record; no receipt</span>}{reimbursement.reviewNotes && <div className="mt-2 text-xs"><strong>Review:</strong> {reimbursement.reviewNotes}</div>}{reimbursement.paidDate && <div className="mt-1 text-xs">Reimbursed {formatDate(reimbursement.paidDate)}</div>}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500 max-w-xs"><div>{reimbursement.notes || 'No purchase notes'}</div>{reimbursement.paymentMethod && <div className="mt-1 text-xs"><strong>{reimbursement.paymentMethod}</strong>{reimbursement.paymentDetails && <> · {reimbursement.paymentDetailsLabel || 'Payment information'}: {reimbursement.paymentDetails}</>}</div>}{reimbursement.receiptFilename ? <a href={`/api/teacher-reimbursements/${reimbursement.id}/receipt`} target="_blank" rel="noreferrer" className="mt-1 inline-block font-medium text-blue-700 hover:underline">View receipt</a> : <span className="mt-1 block text-xs text-gray-400">Admin-created record; no receipt</span>}{reimbursement.reviewNotes && <div className="mt-2 text-xs"><strong>Review:</strong> {reimbursement.reviewNotes}</div>}{reimbursement.paidDate && <div className="mt-1 text-xs">Reimbursed {formatDate(reimbursement.paidDate)}</div>}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-right">
                           {reimbursement.status === 'pending' && <div className="w-56 space-y-2"><textarea aria-label="Review notes" rows={2} value={reimbursementReviewNotes[reimbursement.id] ?? reimbursement.reviewNotes ?? ''} onChange={(event) => setReimbursementReviewNotes((current) => ({ ...current, [reimbursement.id]: event.target.value }))} placeholder="Optional review note" className="w-full rounded border border-gray-300 px-2 py-1 text-sm" /><div className="flex justify-end gap-2"><button type="button" onClick={() => updateReimbursementStatus(reimbursement, 'rejected')} disabled={updatingReimbursementId === reimbursement.id} className="rounded bg-red-50 px-3 py-1 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50">Reject</button><button type="button" onClick={() => updateReimbursementStatus(reimbursement, 'approved')} disabled={updatingReimbursementId === reimbursement.id} className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">Approve</button></div></div>}
                           {reimbursement.status === 'approved' && <button type="button" onClick={() => updateReimbursementStatus(reimbursement, 'paid')} disabled={updatingReimbursementId === reimbursement.id} className="rounded bg-green-600 px-3 py-1 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50">{updatingReimbursementId === reimbursement.id ? 'Updating...' : 'Mark Reimbursed'}</button>}

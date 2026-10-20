@@ -5,6 +5,8 @@ import { teacherReimbursements, classTeachingRequests, sessions, guardians } fro
 import { desc, eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { availableClassReimbursement } from '@/lib/reimbursement-balance'
+import { getGlobalSetting } from '@/lib/database'
+import { parseReimbursementMethods } from '@/lib/reimbursement-methods'
 
 export async function GET() {
   try {
@@ -29,6 +31,9 @@ export async function GET() {
         paidDate: teacherReimbursements.paidDate,
         notes: teacherReimbursements.notes,
         receiptFilename: teacherReimbursements.receiptFilename,
+        paymentMethod: teacherReimbursements.paymentMethod,
+        paymentDetailsLabel: teacherReimbursements.paymentDetailsLabel,
+        paymentDetails: teacherReimbursements.paymentDetails,
         submittedByTeacher: teacherReimbursements.submittedByTeacher,
         reviewNotes: teacherReimbursements.reviewNotes,
         reviewedAt: teacherReimbursements.reviewedAt,
@@ -41,7 +46,8 @@ export async function GET() {
       .leftJoin(guardians, eq(teacherReimbursements.guardianId, guardians.id))
       .orderBy(desc(teacherReimbursements.createdAt))
 
-    return NextResponse.json({ reimbursements: reimbursements.map((item) => ({ ...item, isLate: Boolean(item.dueDate && item.createdAt.slice(0, 10) > item.dueDate) })) })
+    const methods = parseReimbursementMethods(await getGlobalSetting('teacher_reimbursement_methods'))
+    return NextResponse.json({ methods, reimbursements: reimbursements.map((item) => ({ ...item, isLate: Boolean(item.dueDate && item.createdAt.slice(0, 10) > item.dueDate) })) })
   } catch (error) {
     console.error('Error fetching reimbursements:', error)
     return NextResponse.json({ error: 'Failed to fetch reimbursements' }, { status: 500 })
@@ -55,10 +61,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const { sessionId, classTeachingRequestId, guardianId, amount, notes } = await request.json()
+    const { sessionId, classTeachingRequestId, guardianId, amount, notes, paymentMethod, paymentDetails } = await request.json()
+    const methods = parseReimbursementMethods(await getGlobalSetting('teacher_reimbursement_methods'))
+    const selectedMethod = methods.find((method) => method.id === paymentMethod)
 
-    if (!sessionId || !classTeachingRequestId || !guardianId || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001) {
-      return NextResponse.json({ error: 'Session, class, teacher, and amount are required' }, { status: 400 })
+    if (!sessionId || !classTeachingRequestId || !guardianId || typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0 || Math.abs(amount * 100 - Math.round(amount * 100)) > 0.00001 || !selectedMethod || typeof paymentDetails !== 'string' || !paymentDetails.trim() || paymentDetails.trim().length > 500) {
+      return NextResponse.json({ error: 'Session, class, teacher, amount, reimbursement method, and payment information are required' }, { status: 400 })
     }
 
     const reimbursementId = randomUUID()
@@ -72,8 +80,11 @@ export async function POST(request: NextRequest) {
       classTeachingRequestId,
       guardianId,
       amount,
-      requestedAmount: amount,
-      notes: notes?.trim() || null
+       requestedAmount: amount,
+       notes: notes?.trim() || null,
+       paymentMethod: selectedMethod.label,
+       paymentDetailsLabel: selectedMethod.detailsLabel,
+       paymentDetails: paymentDetails.trim(),
       })
       return null
     })
