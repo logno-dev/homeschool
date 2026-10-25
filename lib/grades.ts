@@ -14,7 +14,7 @@ export const BUILT_IN_GRADE_RANGES = [
   { value: '6-8', label: '6-8' },
   { value: '9-12', label: '9-12' },
   { value: '6-12', label: '6-12' },
-  { value: 'All Ages', label: 'All Ages' }
+  { value: 'All Ages', label: 'Any Age (K-12)' }
 ] as const
 
 const GRADE_INDEX = new Map(GRADE_ORDER.map((grade, index) => [grade.toLowerCase(), index]))
@@ -102,8 +102,8 @@ export function getGradeRangeFromLabel(label: string | null | undefined) {
   }
 
   const normalized = label.trim().toLowerCase().replace(/\s*\([^)]*\)\s*$/, '')
-  if (normalized === 'all ages') {
-    return { from: -1, to: GRADE_ORDER.length - 1 }
+  if (normalized === 'all ages' || normalized === 'any age' || normalized === 'any ages') {
+    return { from: 0, to: GRADE_ORDER.length - 1 }
   }
 
   const parts = normalized.split('-').map((part) => part.trim())
@@ -135,8 +135,12 @@ export function isGradeWithinRange(
   }
 
   const fallback = getGradeRangeFromLabel(fallbackLabel || null)
-  const min = typeof rangeFrom === 'number' ? rangeFrom : fallback.from
-  const max = typeof rangeTo === 'number' ? rangeTo : fallback.to
+  const normalizedFallbackLabel = fallbackLabel?.trim().toLowerCase()
+  const isAnyAge = normalizedFallbackLabel === 'all ages' || normalizedFallbackLabel === 'any age' || normalizedFallbackLabel === 'any ages'
+  // Old records stored Preschool (-1) as the lower bound for this preset.
+  // Enforce the K-12 meaning even before their persisted bounds are migrated.
+  const min = isAnyAge ? fallback.from : typeof rangeFrom === 'number' ? rangeFrom : fallback.from
+  const max = isAnyAge ? fallback.to : typeof rangeTo === 'number' ? rangeTo : fallback.to
 
   if (min === null || max === null) {
     return true

@@ -53,8 +53,10 @@ export function rangesOverlap(
   slotLabel: string
 ) {
   const requestFallback = getGradeRangeFromLabel(label)
-  const requestFrom = from ?? requestFallback.from
-  const requestTo = to ?? requestFallback.to
+  const normalizedLabel = label.trim().toLowerCase()
+  const isAnyAge = normalizedLabel === 'all ages' || normalizedLabel === 'any age' || normalizedLabel === 'any ages'
+  const requestFrom = isAnyAge ? requestFallback.from : from ?? requestFallback.from
+  const requestTo = isAnyAge ? requestFallback.to : to ?? requestFallback.to
   const slot = getGradeRangeFromLabel(slotLabel)
   if (requestFrom === null || requestTo === null || slot.from === null || slot.to === null) return false
   return requestFrom <= slot.to && requestTo >= slot.from
