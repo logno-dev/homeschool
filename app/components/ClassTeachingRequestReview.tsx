@@ -3,15 +3,15 @@
 import { useState } from 'react'
 import type { ClassCategory, ClassTeachingRequest, Session } from '@/lib/schema'
 import { BUILT_IN_GRADE_RANGES } from '@/lib/grades'
-import { CLASS_PERIOD_PREFERENCES } from '@/lib/class-teaching'
+import { CLASS_PERIOD_PREFERENCES, MAX_CLASS_CAPACITY, MIN_CLASS_CAPACITY } from '@/lib/class-teaching'
 import SessionOptions from './SessionOptions'
 
-type ReviewRequest = ClassTeachingRequest & { session?: Session; categoryName?: string | null; teacherDisplayName?: string; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
-type AdminDisplayRequest = ClassTeachingRequest & { session: Session; categoryName?: string | null; teacherDisplayName?: string; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
+type ReviewRequest = ClassTeachingRequest & { session?: Session; categoryName?: string | null; teacherDisplayName?: string; teacherEmail?: string | null; teacherPhone?: string | null; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
+type AdminDisplayRequest = ClassTeachingRequest & { session: Session; categoryName?: string | null; teacherDisplayName?: string; teacherEmail?: string | null; teacherPhone?: string | null; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
 
 interface ClassTeachingRequestReviewProps {
   initialRequests: AdminDisplayRequest[]
-  teachers?: Array<{ id: string; familyId: string; firstName: string; lastName: string; email: string }>
+  teachers?: Array<{ id: string; familyId: string; firstName: string; lastName: string; email: string; phone?: string | null }>
   children?: Array<{ id: string; familyId: string; firstName: string; lastName: string; grade: string }>
   categories?: ClassCategory[]
 }
@@ -87,8 +87,12 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
       }
 
       const data = await response.json()
+      const updatedTeacher = teachers.find((teacher) => teacher.id === data.request.guardianId)
       const updatedDisplay = {
         ...data.request,
+        teacherDisplayName: data.request.teacherName || (updatedTeacher ? `${updatedTeacher.firstName} ${updatedTeacher.lastName}`.trim() : 'Unassigned'),
+        teacherEmail: updatedTeacher?.email || null,
+        teacherPhone: updatedTeacher?.phone || null,
         categoryName: categories.find((category) => category.id === data.request.categoryId)?.name || null,
         studentTeacherDisplayName: children.find((child) => child.id === data.request.studentTeacherChildId) ? `${children.find((child) => child.id === data.request.studentTeacherChildId)?.firstName} ${children.find((child) => child.id === data.request.studentTeacherChildId)?.lastName}` : null,
         studentCoTeacherDisplayName: children.find((child) => child.id === data.request.studentCoTeacherChildId) ? `${children.find((child) => child.id === data.request.studentCoTeacherChildId)?.firstName} ${children.find((child) => child.id === data.request.studentCoTeacherChildId)?.lastName}` : null
@@ -432,12 +436,13 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                       <input
                         type="number"
                         required
-                        min="1"
-                        max="100"
+                        min={MIN_CLASS_CAPACITY}
+                        max={MAX_CLASS_CAPACITY}
                         value={editFormData.maxStudents || ''}
                         onChange={(e) => setEditFormData({ ...editFormData, maxStudents: parseInt(e.target.value) })}
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       />
+                      <p className="mt-1 text-xs text-gray-500">Must accommodate at least {MIN_CLASS_CAPACITY} students.</p>
                     </div>
 
                     <div>
@@ -597,6 +602,14 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                 </div>
               ) : (
                 <div className="space-y-4 mb-6">
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                    <h4 className="font-medium text-blue-950">Requesting teacher contact</h4>
+                    <p className="mt-1 text-sm font-medium text-blue-900">{selectedRequest.teacherDisplayName || selectedRequest.teacherName || 'Unassigned'}</p>
+                    <div className="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                      <span><strong>Email:</strong> {selectedRequest.teacherEmail ? <a href={`mailto:${selectedRequest.teacherEmail}`} className="text-blue-700 underline hover:text-blue-900">{selectedRequest.teacherEmail}</a> : <span className="text-gray-500">Not available</span>}</span>
+                      <span><strong>Phone:</strong> {selectedRequest.teacherPhone ? <a href={`tel:${selectedRequest.teacherPhone.replace(/\D/g, '')}`} className="text-blue-700 underline hover:text-blue-900">{selectedRequest.teacherPhone}</a> : <span className="text-gray-500">Not available</span>}</span>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                     <div>
                       <span className="font-medium text-gray-700">Grade Range:</span>

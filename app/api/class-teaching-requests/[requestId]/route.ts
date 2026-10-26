@@ -5,7 +5,7 @@ import { getGradeRangeFromLabel } from '@/lib/grades'
 import { db } from '@/lib/db'
 import { children, classCategories } from '@/lib/schema'
 import { and, eq } from 'drizzle-orm'
-import { isClassPeriodPreference } from '@/lib/class-teaching'
+import { MAX_CLASS_CAPACITY, MAX_TEACHER_CLASS_FEE, MIN_CLASS_CAPACITY, isClassPeriodPreference } from '@/lib/class-teaching'
 
 export async function PATCH(
   request: Request,
@@ -72,6 +72,11 @@ export async function PATCH(
       )
     }
 
+    const parsedMaxStudents = Number(maxStudents)
+    if (!Number.isInteger(parsedMaxStudents) || parsedMaxStudents < MIN_CLASS_CAPACITY || parsedMaxStudents > MAX_CLASS_CAPACITY) {
+      return NextResponse.json({ error: `Maximum students must be between ${MIN_CLASS_CAPACITY} and ${MAX_CLASS_CAPACITY}` }, { status: 400 })
+    }
+
     const resolvedPeriod = preferredPeriod || 'any'
     if (!isClassPeriodPreference(resolvedPeriod)) {
       return NextResponse.json({ error: 'Choose a valid preferred hour' }, { status: 400 })
@@ -101,9 +106,10 @@ export async function PATCH(
       )
     }
 
-    if (requiresFee && (!feeAmount || feeAmount <= 0)) {
+    const parsedFeeAmount = Number(feeAmount)
+    if (requiresFee && (!Number.isFinite(parsedFeeAmount) || parsedFeeAmount <= 0 || parsedFeeAmount > MAX_TEACHER_CLASS_FEE)) {
       return NextResponse.json(
-        { error: 'Fee amount must be greater than 0 when fee is required' },
+        { error: `Class fees must be between $0.01 and $${MAX_TEACHER_CLASS_FEE}. Contact an admin if a higher fee is needed.` },
         { status: 400 }
       )
     }
@@ -120,13 +126,13 @@ export async function PATCH(
       gradeRange: gradeRange.trim(),
       gradeRangeFrom: resolvedFrom,
       gradeRangeTo: resolvedTo,
-      maxStudents: parseInt(maxStudents, 10),
+      maxStudents: parsedMaxStudents,
       helpersNeeded: finalHelpersNeeded,
       coTeacher: coTeacher?.trim() || null,
       studentTeacherChildId: studentTeacherChildId ? String(studentTeacherChildId) : null,
       classroomNeeds: classroomNeeds?.trim() || null,
        requiresFee: requiresFee || false,
-      feeAmount: requiresFee ? feeAmount : null,
+      feeAmount: requiresFee ? parsedFeeAmount : null,
       preferredPeriod: resolvedPeriod,
       schedulingRequirements: schedulingRequirements?.trim() || null,
       status: 'pending'

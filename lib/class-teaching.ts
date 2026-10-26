@@ -1,5 +1,9 @@
 import { getGradeRangeFromLabel } from './grades'
 
+export const MIN_CLASS_CAPACITY = 10
+export const MAX_CLASS_CAPACITY = 100
+export const MAX_TEACHER_CLASS_FEE = 12
+
 export const CLASS_TEACHING_ACCESS_MODES = ['closed', 'selected_groups', 'open'] as const
 export type ClassTeachingAccessMode = typeof CLASS_TEACHING_ACCESS_MODES[number]
 
@@ -39,6 +43,11 @@ export const CLASS_SLOT_GRADE_RANGES = [
 ] as const
 
 export const CLASS_SLOT_TARGET = 3
+export const NURSERY_CLASS_SLOT_TARGET = 1
+
+export function getClassSlotTarget(gradeRange: string) {
+  return gradeRange.trim().toLowerCase() === 'nursery' ? NURSERY_CLASS_SLOT_TARGET : CLASS_SLOT_TARGET
+}
 
 export type ClassPeriodPreference = typeof CLASS_PERIOD_PREFERENCES[number]['id']
 

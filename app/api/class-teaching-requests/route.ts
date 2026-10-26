@@ -15,7 +15,7 @@ import { getGradeRangeFromLabel } from '@/lib/grades'
 import { db } from '@/lib/db'
 import { children, classCategories, classTeachingRequests } from '@/lib/schema'
 import { and, asc, eq, ne } from 'drizzle-orm'
-import { CLASS_PERIODS, CLASS_SLOT_GRADE_RANGES, CLASS_SLOT_TARGET, isClassPeriodPreference, rangesOverlap } from '@/lib/class-teaching'
+import { CLASS_PERIODS, CLASS_SLOT_GRADE_RANGES, CLASS_SLOT_TARGET, MAX_CLASS_CAPACITY, MAX_TEACHER_CLASS_FEE, MIN_CLASS_CAPACITY, getClassSlotTarget, isClassPeriodPreference, rangesOverlap } from '@/lib/class-teaching'
 
 export async function GET(request: Request) {
   try {
@@ -72,7 +72,7 @@ export async function GET(request: Request) {
       categories,
       teachingSessions: openSessions,
       selectedSessionId: selectedSession?.id || null,
-      slotSummary: { periods: CLASS_PERIODS, gradeRanges: CLASS_SLOT_GRADE_RANGES, target: CLASS_SLOT_TARGET, slots, flexible }
+      slotSummary: { periods: CLASS_PERIODS, gradeRanges: CLASS_SLOT_GRADE_RANGES, target: CLASS_SLOT_TARGET, targets: Object.fromEntries(CLASS_SLOT_GRADE_RANGES.map((range) => [range.value, getClassSlotTarget(range.value)])), slots, flexible }
     })
   } catch (error) {
     console.error('Error fetching class teaching requests:', error)
@@ -175,9 +175,10 @@ export async function POST(request: Request) {
     }
 
     // Validate max students
-    if (maxStudents < 1 || maxStudents > 100) {
+    const parsedMaxStudents = Number(maxStudents)
+    if (!Number.isInteger(parsedMaxStudents) || parsedMaxStudents < MIN_CLASS_CAPACITY || parsedMaxStudents > MAX_CLASS_CAPACITY) {
       return NextResponse.json(
-        { error: 'Max students must be between 1 and 100' },
+        { error: `Maximum students must be between ${MIN_CLASS_CAPACITY} and ${MAX_CLASS_CAPACITY}` },
         { status: 400 }
       )
     }
@@ -192,9 +193,10 @@ export async function POST(request: Request) {
     }
 
     // Validate fee amount if fee is required
-    if (requiresFee && (!feeAmount || feeAmount <= 0)) {
+    const parsedFeeAmount = Number(feeAmount)
+    if (requiresFee && (!Number.isFinite(parsedFeeAmount) || parsedFeeAmount <= 0 || parsedFeeAmount > MAX_TEACHER_CLASS_FEE)) {
       return NextResponse.json(
-        { error: 'Fee amount must be greater than 0 when fee is required' },
+        { error: `Class fees must be between $0.01 and $${MAX_TEACHER_CLASS_FEE}. Contact an admin if a higher fee is needed.` },
         { status: 400 }
       )
     }
@@ -213,7 +215,7 @@ export async function POST(request: Request) {
       gradeRange: gradeRange.trim(),
       gradeRangeFrom: resolvedFrom,
       gradeRangeTo: resolvedTo,
-      maxStudents: parseInt(maxStudents),
+      maxStudents: parsedMaxStudents,
       helpersNeeded: finalHelpersNeeded,
       coTeacher: coTeacher?.trim() || null,
       studentTeacherChildId: studentTeacherChildId ? String(studentTeacherChildId) : null,
@@ -221,7 +223,7 @@ export async function POST(request: Request) {
        // Registration fee exemption is controlled by administrators only.
        registrationFeeExempt: false,
        requiresFee: requiresFee || false,
-      feeAmount: requiresFee ? feeAmount : null,
+      feeAmount: requiresFee ? parsedFeeAmount : null,
       preferredPeriod: resolvedPeriod,
       schedulingRequirements: schedulingRequirements?.trim() || null,
       status: 'pending',

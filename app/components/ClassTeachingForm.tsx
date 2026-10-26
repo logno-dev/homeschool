@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 import { BUILT_IN_GRADE_RANGES, CHILD_GRADE_OPTIONS, getGradeRangeFromLabel, getGradeIndex, getGradeLabel } from '@/lib/grades'
-import { CLASS_PERIOD_PREFERENCES } from '@/lib/class-teaching'
+import { CLASS_PERIOD_PREFERENCES, MAX_CLASS_CAPACITY, MAX_TEACHER_CLASS_FEE, MIN_CLASS_CAPACITY } from '@/lib/class-teaching'
 
 interface ClassTeachingFormProps {
   onSuccess: () => void
@@ -317,13 +317,14 @@ export default function ClassTeachingForm({
               <input
                 type="number"
                 required
-                min="1"
-                max="100"
+                min={MIN_CLASS_CAPACITY}
+                max={MAX_CLASS_CAPACITY}
                 value={formData.maxStudents}
                 onChange={(e) => setFormData({ ...formData, maxStudents: e.target.value })}
                 className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., 15"
               />
+              <p className="mt-2 text-sm text-gray-500">Classes are expected to accommodate at least {MIN_CLASS_CAPACITY} students. This does not require {MIN_CLASS_CAPACITY} students to enroll for the class to run.</p>
             </div>
 
             <div>
@@ -363,8 +364,9 @@ export default function ClassTeachingForm({
               <label className="block text-sm font-medium text-gray-700 mb-2">Supply Fee Amount *</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
-                <input type="number" min="0" step="0.01" required value={formData.feeAmount} onChange={(e) => setFormData({ ...formData, feeAmount: e.target.value })} className="w-full border border-gray-300 rounded-md pl-7 pr-3 py-2" placeholder="0.00" />
+                <input type="number" min="0.01" max={MAX_TEACHER_CLASS_FEE} step="0.01" required value={formData.feeAmount} onChange={(e) => setFormData({ ...formData, feeAmount: e.target.value })} className="w-full border border-gray-300 rounded-md pl-7 pr-3 py-2" placeholder="0.00" />
               </div>
+              <p className="mt-2 text-sm text-gray-500">Class fees are limited to ${MAX_TEACHER_CLASS_FEE}. Contact an admin if your class requires a higher fee.</p>
             </div>
           )}
         </div>

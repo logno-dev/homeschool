@@ -12,7 +12,7 @@ import { db } from '@/lib/db'
 import { children, classCategories, guardians } from '@/lib/schema'
 import { syncTeacherGroupMembership } from '@/lib/user-groups'
 import { and, eq } from 'drizzle-orm'
-import { isClassPeriodPreference } from '@/lib/class-teaching'
+import { MAX_CLASS_CAPACITY, MIN_CLASS_CAPACITY, isClassPeriodPreference } from '@/lib/class-teaching'
 
 export async function GET(
   request: Request,
@@ -108,7 +108,11 @@ export async function PATCH(
       if (editData.gradeRange !== undefined) updateData.gradeRange = editData.gradeRange.trim()
       if (editData.gradeRangeFrom !== undefined) updateData.gradeRangeFrom = editData.gradeRangeFrom
       if (editData.gradeRangeTo !== undefined) updateData.gradeRangeTo = editData.gradeRangeTo
-      if (editData.maxStudents !== undefined) updateData.maxStudents = parseInt(editData.maxStudents)
+      if (editData.maxStudents !== undefined) {
+        const maxStudents = Number(editData.maxStudents)
+        if (!Number.isInteger(maxStudents) || maxStudents < MIN_CLASS_CAPACITY || maxStudents > MAX_CLASS_CAPACITY) return NextResponse.json({ error: `Maximum students must be between ${MIN_CLASS_CAPACITY} and ${MAX_CLASS_CAPACITY}` }, { status: 400 })
+        updateData.maxStudents = maxStudents
+      }
       if (editData.helpersNeeded !== undefined) updateData.helpersNeeded = parseInt(editData.helpersNeeded)
       if (editData.coTeacherId !== undefined) {
         const coTeacherId = String(editData.coTeacherId || '')

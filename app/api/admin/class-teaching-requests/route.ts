@@ -7,7 +7,7 @@ import { and, asc, eq } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { getGradeRangeFromLabel } from '@/lib/grades'
 import { syncTeacherGroupMembership } from '@/lib/user-groups'
-import { isClassPeriodPreference } from '@/lib/class-teaching'
+import { MAX_CLASS_CAPACITY, MIN_CLASS_CAPACITY, isClassPeriodPreference } from '@/lib/class-teaching'
 
 export async function GET() {
   try {
@@ -17,16 +17,17 @@ export async function GET() {
     }
 
     const sessionsList = await db.select().from(sessions)
-    const teachers = await db.select({ id: guardians.id, familyId: guardians.familyId, firstName: guardians.firstName, lastName: guardians.lastName, email: guardians.email }).from(guardians)
+    const teachers = await db.select({ id: guardians.id, familyId: guardians.familyId, firstName: guardians.firstName, lastName: guardians.lastName, email: guardians.email, phone: guardians.phone }).from(guardians)
     const [requests, studentTeachers, categories] = await Promise.all([
       getClassTeachingRequestsWithSession(),
       db.select({ id: children.id, familyId: children.familyId, firstName: children.firstName, lastName: children.lastName, grade: children.grade }).from(children),
       db.select().from(classCategories).orderBy(asc(classCategories.orderIndex), asc(classCategories.name))
     ])
     const teacherNames = new Map(teachers.map((teacher) => [teacher.id, `${teacher.firstName} ${teacher.lastName}`.trim()]))
+    const teacherContacts = new Map(teachers.map((teacher) => [teacher.id, { email: teacher.email, phone: teacher.phone }]))
     const studentTeacherNames = new Map(studentTeachers.map((child) => [child.id, `${child.firstName} ${child.lastName}`.trim()]))
     const categoryNames = new Map(categories.map((category) => [category.id, category.name]))
-    return NextResponse.json({ requests: requests.map((request) => ({ ...request, categoryName: request.categoryId ? categoryNames.get(request.categoryId) || null : null, teacherDisplayName: request.teacherName || (request.guardianId ? teacherNames.get(request.guardianId) : null) || 'Unassigned', studentTeacherDisplayName: request.studentTeacherChildId ? studentTeacherNames.get(request.studentTeacherChildId) || null : null, studentCoTeacherDisplayName: request.studentCoTeacherChildId ? studentTeacherNames.get(request.studentCoTeacherChildId) || null : null })), sessions: sessionsList, teachers, children: studentTeachers, categories })
+    return NextResponse.json({ requests: requests.map((request) => ({ ...request, categoryName: request.categoryId ? categoryNames.get(request.categoryId) || null : null, teacherDisplayName: request.teacherName || (request.guardianId ? teacherNames.get(request.guardianId) : null) || 'Unassigned', teacherEmail: request.guardianId ? teacherContacts.get(request.guardianId)?.email || null : null, teacherPhone: request.guardianId ? teacherContacts.get(request.guardianId)?.phone || null : null, studentTeacherDisplayName: request.studentTeacherChildId ? studentTeacherNames.get(request.studentTeacherChildId) || null : null, studentCoTeacherDisplayName: request.studentCoTeacherChildId ? studentTeacherNames.get(request.studentCoTeacherChildId) || null : null })), sessions: sessionsList, teachers, children: studentTeachers, categories })
   } catch (error) {
     console.error('Error fetching class teaching requests:', error)
     return NextResponse.json(
@@ -52,6 +53,8 @@ export async function POST(request: Request) {
     const resolvedGradeRange = { from: Number.isFinite(parsedFrom) ? parsedFrom : parsedGradeRange.from, to: Number.isFinite(parsedTo) ? parsedTo : parsedGradeRange.to }
     if (resolvedGradeRange.from === null || resolvedGradeRange.to === null) return NextResponse.json({ error: 'Choose a supported grade range' }, { status: 400 })
     if (resolvedGradeRange.from > resolvedGradeRange.to) return NextResponse.json({ error: 'Grade range start must be before its end' }, { status: 400 })
+    const maxStudents = Number(body.maxStudents || 15)
+    if (!Number.isInteger(maxStudents) || maxStudents < MIN_CLASS_CAPACITY || maxStudents > MAX_CLASS_CAPACITY) return NextResponse.json({ error: `Maximum students must be between ${MIN_CLASS_CAPACITY} and ${MAX_CLASS_CAPACITY}` }, { status: 400 })
     const preferredPeriod = body.preferredPeriod || 'any'
     if (!isClassPeriodPreference(preferredPeriod)) return NextResponse.json({ error: 'Choose a valid preferred hour' }, { status: 400 })
     const [category] = body.categoryId ? await db.select({ id: classCategories.id }).from(classCategories).where(eq(classCategories.id, String(body.categoryId))).limit(1) : []
@@ -101,7 +104,7 @@ export async function POST(request: Request) {
       gradeRange,
       gradeRangeFrom: resolvedGradeRange.from,
       gradeRangeTo: resolvedGradeRange.to,
-      maxStudents: Math.max(1, Number(body.maxStudents || 15)),
+      maxStudents,
       helpersNeeded: Math.max(0, Number(body.helpersNeeded || 0)),
       coTeacher: selectedCoTeacher ? `${selectedCoTeacher.firstName} ${selectedCoTeacher.lastName}`.trim() : requestedCoTeacherName || null,
       coTeacherId: selectedCoTeacher?.id || null,

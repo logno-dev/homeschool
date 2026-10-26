@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import ClassTeachingForm from './ClassTeachingForm'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
-import { CLASS_PERIODS, CLASS_SLOT_GRADE_RANGES, CLASS_SLOT_TARGET } from '@/lib/class-teaching'
+import { CLASS_PERIODS, CLASS_SLOT_GRADE_RANGES, CLASS_SLOT_TARGET, getClassSlotTarget } from '@/lib/class-teaching'
 
 type DisplayRequest = ClassTeachingRequest & { session: Session; categoryName?: string | null; studentTeacherDisplayName?: string | null }
 type SlotRequest = { id: string; className: string; categoryName: string | null; gradeRange: string; status: string }
@@ -11,6 +11,7 @@ type SlotSummary = {
   periods: Array<{ id: string; label: string }>
   gradeRanges: Array<{ value: string; label: string }>
   target: number
+  targets: Record<string, number>
   slots: Record<string, Record<string, SlotRequest[]>>
   flexible: Record<string, SlotRequest[]>
 }
@@ -19,6 +20,7 @@ const EMPTY_SLOT_SUMMARY: SlotSummary = {
   periods: CLASS_PERIODS.map((period) => ({ ...period })),
   gradeRanges: CLASS_SLOT_GRADE_RANGES.map((range) => ({ ...range })),
   target: CLASS_SLOT_TARGET,
+  targets: Object.fromEntries(CLASS_SLOT_GRADE_RANGES.map((range) => [range.value, getClassSlotTarget(range.value)])),
   slots: Object.fromEntries(CLASS_PERIODS.map((period) => [period.id, Object.fromEntries(CLASS_SLOT_GRADE_RANGES.map((range) => [range.value, []]))])),
   flexible: Object.fromEntries(CLASS_SLOT_GRADE_RANGES.map((range) => [range.value, []]))
 }
@@ -169,7 +171,7 @@ export default function ClassTeachingRequests({ openOnly = false, onVisibilityCh
               {teachingSessions.length > 1 && <label className="text-sm font-medium text-slate-700">Session<select value={selectedSessionId} onChange={(event) => { setShowForm(false); setEditingRequest(null); setInitialSlot(null); fetchRequests(event.target.value) }} className="ml-2 rounded-md border border-slate-300 bg-white px-3 py-2 font-normal">{teachingSessions.map((session) => <option key={session.id} value={session.id}>{session.name}</option>)}</select></label>}
               {teachingSessions.length === 1 && <p className="text-sm font-medium text-slate-700">{teachingSessions[0].name}</p>}
             </div>
-            <p className="mt-1 text-sm text-slate-600">We aim for {slotSummary.target} classes in each grade range per hour. Counts include pending and approved proposals; you may still propose a class for a filled area.</p>
+            <p className="mt-1 text-sm text-slate-600">We aim for 1 Nursery class and {slotSummary.target} classes in every other grade range per hour. Counts include pending and approved proposals; you may still propose a class for a filled area.</p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-[760px] w-full text-sm">
@@ -180,7 +182,8 @@ export default function ClassTeachingRequests({ openOnly = false, onVisibilityCh
                     <th className="px-4 py-3 text-left font-medium text-slate-900">{range.label}</th>
                     {slotSummary.periods.map((period) => {
                       const slotRequests = slotSummary.slots[period.id]?.[range.value] || []
-                      return <td key={period.id} className="px-2 py-2 align-top"><button type="button" onClick={() => { setEditingRequest(null); setInitialSlot({ preferredPeriod: period.id, gradeRange: range.value }); setShowForm(true) }} className={`w-full rounded-lg border px-3 py-3 text-left transition hover:border-blue-400 hover:bg-blue-50 ${slotRequests.length < slotSummary.target ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><span className="block text-center text-lg font-semibold text-slate-900">{slotRequests.length} <span className="text-xs font-normal text-slate-600">of {slotSummary.target}</span></span>{slotRequests.length > 0 ? <span className="mt-2 block space-y-1 border-t border-slate-200 pt-2">{slotRequests.map((item) => <span key={item.id} className="block rounded bg-white/70 px-2 py-1.5"><span className="block font-medium text-slate-900">{item.className}</span><span className="block text-[11px] text-slate-600">{item.categoryName || item.gradeRange} | {item.status === 'approved' ? 'Approved' : 'In review'}</span></span>)}</span> : <span className="mt-2 block text-center text-xs text-slate-500">No proposals yet</span>}<span className="mt-2 block text-center text-xs font-medium text-blue-700">Propose here</span></button></td>
+                      const target = slotSummary.targets?.[range.value] ?? getClassSlotTarget(range.value)
+                      return <td key={period.id} className="px-2 py-2 align-top"><button type="button" onClick={() => { setEditingRequest(null); setInitialSlot({ preferredPeriod: period.id, gradeRange: range.value }); setShowForm(true) }} className={`w-full rounded-lg border px-3 py-3 text-left transition hover:border-blue-400 hover:bg-blue-50 ${slotRequests.length < target ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}><span className="block text-center text-lg font-semibold text-slate-900">{slotRequests.length} <span className="text-xs font-normal text-slate-600">of {target}</span></span>{slotRequests.length > 0 ? <span className="mt-2 block space-y-1 border-t border-slate-200 pt-2">{slotRequests.map((item) => <span key={item.id} className="block rounded bg-white/70 px-2 py-1.5"><span className="block font-medium text-slate-900">{item.className}</span><span className="block text-[11px] text-slate-600">{item.categoryName || item.gradeRange} | {item.status === 'approved' ? 'Approved' : 'In review'}</span></span>)}</span> : <span className="mt-2 block text-center text-xs text-slate-500">No proposals yet</span>}<span className="mt-2 block text-center text-xs font-medium text-blue-700">Propose here</span></button></td>
                     })}
                     <td className="px-2 py-2 align-top"><button type="button" onClick={() => { setEditingRequest(null); setInitialSlot({ preferredPeriod: 'any', gradeRange: range.value }); setShowForm(true) }} className="w-full rounded-lg border border-blue-100 px-3 py-3 text-left text-blue-700 hover:bg-blue-50"><span className="block text-center text-lg font-semibold">{(slotSummary.flexible[range.value] || []).length} <span className="text-xs font-normal">flexible</span></span>{(slotSummary.flexible[range.value] || []).length > 0 ? <span className="mt-2 block space-y-1 border-t border-blue-100 pt-2">{slotSummary.flexible[range.value].map((item) => <span key={item.id} className="block rounded bg-blue-50 px-2 py-1.5"><span className="block font-medium text-slate-900">{item.className}</span><span className="block text-[11px] text-slate-600">{item.categoryName || item.gradeRange} | {item.status === 'approved' ? 'Approved' : 'In review'}</span></span>)}</span> : <span className="mt-2 block text-center text-xs text-slate-500">No flexible proposals</span>}<span className="mt-2 block text-center text-xs font-medium">Propose here</span></button></td>
                   </tr>
