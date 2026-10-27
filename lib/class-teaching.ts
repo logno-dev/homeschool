@@ -43,10 +43,11 @@ export const CLASS_SLOT_GRADE_RANGES = [
 ] as const
 
 export const CLASS_SLOT_TARGET = 3
-export const NURSERY_CLASS_SLOT_TARGET = 1
+export const EARLY_CHILDHOOD_CLASS_SLOT_TARGET = 1
 
 export function getClassSlotTarget(gradeRange: string) {
-  return gradeRange.trim().toLowerCase() === 'nursery' ? NURSERY_CLASS_SLOT_TARGET : CLASS_SLOT_TARGET
+  const normalized = gradeRange.trim().toLowerCase()
+  return ['nursery', 'toddler', 'preschool'].includes(normalized) ? EARLY_CHILDHOOD_CLASS_SLOT_TARGET : CLASS_SLOT_TARGET
 }
 
 export type ClassPeriodPreference = typeof CLASS_PERIOD_PREFERENCES[number]['id']

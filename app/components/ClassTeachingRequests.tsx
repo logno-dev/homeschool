@@ -171,7 +171,7 @@ export default function ClassTeachingRequests({ openOnly = false, onVisibilityCh
               {teachingSessions.length > 1 && <label className="text-sm font-medium text-slate-700">Session<select value={selectedSessionId} onChange={(event) => { setShowForm(false); setEditingRequest(null); setInitialSlot(null); fetchRequests(event.target.value) }} className="ml-2 rounded-md border border-slate-300 bg-white px-3 py-2 font-normal">{teachingSessions.map((session) => <option key={session.id} value={session.id}>{session.name}</option>)}</select></label>}
               {teachingSessions.length === 1 && <p className="text-sm font-medium text-slate-700">{teachingSessions[0].name}</p>}
             </div>
-            <p className="mt-1 text-sm text-slate-600">We aim for 1 Nursery class and {slotSummary.target} classes in every other grade range per hour. Counts include pending and approved proposals; you may still propose a class for a filled area.</p>
+            <p className="mt-1 text-sm text-slate-600">We aim for 1 class in each early-childhood range (Nursery, Toddler, and Preschool) and {slotSummary.target} classes in every K-12 grade range per hour. Counts include pending and approved proposals; you may still propose a class for a filled area.</p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-[760px] w-full text-sm">
