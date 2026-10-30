@@ -36,7 +36,7 @@ export default function ClassTeachingRequests({ openOnly = false, onVisibilityCh
   const [showForm, setShowForm] = useState(false)
   const [editingRequest, setEditingRequest] = useState<DisplayRequest | null>(null)
   const [initialSlot, setInitialSlot] = useState<{ preferredPeriod: string; gradeRange: string } | null>(null)
-  const formRef = useRef<HTMLDivElement | null>(null)
+  const formDialogRef = useRef<HTMLDialogElement | null>(null)
   const [registrationStatus, setRegistrationStatus] = useState<{
     isOpen: boolean
     reason?: string
@@ -94,10 +94,14 @@ export default function ClassTeachingRequests({ openOnly = false, onVisibilityCh
   }
 
   useEffect(() => {
-    if ((showForm || editingRequest) && formRef.current) {
-      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
+    if ((showForm || editingRequest) && formDialogRef.current && !formDialogRef.current.open) formDialogRef.current.showModal()
   }, [showForm, editingRequest])
+
+  const closeRequestForm = () => {
+    setShowForm(false)
+    setEditingRequest(null)
+    setInitialSlot(null)
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -196,22 +200,23 @@ export default function ClassTeachingRequests({ openOnly = false, onVisibilityCh
       )}
 
       {(showForm || editingRequest) && (
-        <div ref={formRef}>
-          <ClassTeachingForm
-            key={editingRequest?.id || `${initialSlot?.preferredPeriod || 'blank'}-${initialSlot?.gradeRange || 'blank'}`}
-            onSuccess={handleFormSuccess}
-            onCancel={() => {
-              setShowForm(false)
-              setEditingRequest(null)
-              setInitialSlot(null)
-            }}
-            initialRequest={editingRequest || undefined}
-            session={teachingSessions.find((session) => session.id === selectedSessionId) || null}
-            categories={categories}
-            initialSlot={initialSlot}
-            mode={editingRequest ? 'edit' : 'create'}
-          />
-        </div>
+        <dialog ref={formDialogRef} aria-label={editingRequest ? 'Edit class teaching request' : 'Register to teach a class'} onClose={closeRequestForm} onClick={(event) => { if (event.target === event.currentTarget) event.currentTarget.close() }} className="m-auto max-h-[92vh] w-[min(64rem,calc(100%-2rem))] overflow-y-auto rounded-xl bg-white p-0 shadow-2xl backdrop:bg-slate-950/60">
+          <div className="sticky top-0 z-10 flex justify-end border-b border-slate-200 bg-white px-4 py-3">
+            <button type="button" onClick={() => formDialogRef.current?.close()} aria-label="Close class teaching form" className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900">Close</button>
+          </div>
+          <div className="p-4 sm:p-6">
+            <ClassTeachingForm
+              key={editingRequest?.id || `${initialSlot?.preferredPeriod || 'blank'}-${initialSlot?.gradeRange || 'blank'}`}
+              onSuccess={handleFormSuccess}
+              onCancel={() => formDialogRef.current?.close()}
+              initialRequest={editingRequest || undefined}
+              session={teachingSessions.find((session) => session.id === selectedSessionId) || null}
+              categories={categories}
+              initialSlot={initialSlot}
+              mode={editingRequest ? 'edit' : 'create'}
+            />
+          </div>
+        </dialog>
       )}
 
       {requests.length === 0 ? (
