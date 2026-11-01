@@ -629,8 +629,13 @@ async function getClassTeachingSessionAccess(session: Session, userId: string, u
 
   const now = new Date()
   const timezone = await getAppTimezone()
+  const classStart = parseAppDate(session.startDate, timezone)
   const sessionStart = parseAppDate(session.classTeachingRegistrationStartDate || session.createdAt, timezone)
   const sessionEnd = parseAppDate(session.classTeachingRegistrationEndDate || session.registrationStartDate, timezone, true)
+
+  if (now >= classStart) {
+    return { isOpen: false, session, reason: 'Class teaching requests are only available for upcoming sessions.' }
+  }
 
   if (now < sessionStart) {
     return { isOpen: false, session, reason: `Class teaching registration opens on ${sessionStart.toLocaleDateString()}` }

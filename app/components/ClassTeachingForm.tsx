@@ -8,6 +8,7 @@ import { CLASS_PERIOD_PREFERENCES, MAX_CLASS_CAPACITY, MAX_TEACHER_CLASS_FEE, MI
 interface ClassTeachingFormProps {
   onSuccess: () => void
   onCancel: () => void
+  onDirtyChange?: (isDirty: boolean) => void
   initialRequest?: ClassTeachingRequest & { session?: Session }
   session?: Session | null
   categories?: Array<{ id: string; name: string }>
@@ -21,6 +22,7 @@ type FamilyChild = { id: string; firstName: string; lastName: string; grade: str
 export default function ClassTeachingForm({
   onSuccess,
   onCancel,
+  onDirtyChange,
   initialRequest,
   session: selectedSession,
   categories = [],
@@ -192,7 +194,7 @@ export default function ClassTeachingForm({
           : 'Submit your class teaching request before regular registration opens. Administrators will review and approve classes before the registration window begins.'}
       </p>
       
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} onChange={() => onDirtyChange?.(true)} className="space-y-6">
         {/* Mobile-optimized form layout */}
         <div className="space-y-6 sm:space-y-0 sm:grid sm:grid-cols-1 md:grid-cols-2 sm:gap-6">
           <div className="space-y-6 sm:space-y-6">
