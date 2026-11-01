@@ -4,31 +4,12 @@ import { db } from '@/lib/db'
 import { calculateCurrentGrade } from '@/lib/grade-calculation'
 import { getAuthenticatedUser } from '@/lib/server-auth'
 import { authAccounts, children, families, guardians, users } from '@/lib/schema'
+import DirectoryList, { type DirectoryFamily } from './DirectoryList'
 
 export const metadata: Metadata = {
   title: 'Member Directory',
   description: 'A private directory of active DVCLC families and members.',
   robots: { index: false, follow: false },
-}
-
-type DirectoryAdult = {
-  id: string
-  firstName: string
-  lastName: string
-}
-
-type DirectoryChild = {
-  id: string
-  firstName: string
-  lastName: string
-  grade: string
-}
-
-type DirectoryFamily = {
-  id: string
-  name: string
-  adults: DirectoryAdult[]
-  children: DirectoryChild[]
 }
 
 const byName = (a: { firstName: string; lastName: string }, b: { firstName: string; lastName: string }) =>
@@ -119,49 +100,7 @@ export default async function DirectoryPage() {
             <p className="mt-2 text-sm text-slate-600">The directory will populate as active members are added.</p>
           </section>
         ) : (
-          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {directoryFamilies.map((family) => (
-              <article key={family.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-blue-100 bg-blue-50 px-5 py-4">
-                  <h2 className="text-lg font-bold text-blue-950">{family.name}</h2>
-                </div>
-                <div className="space-y-5 p-5">
-                  <section>
-                    <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Adults</h3>
-                    <ul className="mt-2 space-y-1.5 text-sm text-slate-900">
-                      {family.adults.map((adult) => <li key={adult.id}>{adult.firstName} {adult.lastName}</li>)}
-                    </ul>
-                  </section>
-                  {family.children.length > 0 && (
-                    <section>
-                      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">Children</h3>
-                      <ul className="mt-2 divide-y divide-slate-100">
-                        {family.children.map((child) => (
-                          <li key={child.id} className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
-                            <span className="text-sm text-slate-900">{child.firstName} {child.lastName}</span>
-                            <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">
-                              {child.grade === 'Grade not listed' ? child.grade : `Grade ${child.grade}`}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  )}
-                </div>
-              </article>
-            ))}
-
-            {unlinkedAdults.length > 0 && (
-              <article className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-200 bg-slate-100 px-5 py-4">
-                  <h2 className="text-lg font-bold text-slate-900">Community Members</h2>
-                </div>
-                <ul className="space-y-2 p-5 text-sm text-slate-900">
-                  {unlinkedAdults.map((adult) => <li key={adult.id}>{adult.firstName} {adult.lastName}</li>)}
-                </ul>
-              </article>
-            )}
-          </div>
+          <DirectoryList families={directoryFamilies} unlinkedAdults={unlinkedAdults} />
         )}
 
         <p className="mt-8 text-center text-xs text-slate-500">
