@@ -9,12 +9,15 @@ import IndividualEmailComposer from '@/app/admin/newsletters/IndividualEmailComp
 interface Group { id: string; name: string; slug: string; isSystem: boolean }
 interface UserDetails { id: string; email: string; firstName: string; lastName: string; role: string; status: string }
 interface UserDocument { id: string; filename: string; documentType: string; blobUrl: string; size: number; createdAt: string }
+interface FamilyGuardian { id: string; firstName: string; lastName: string; email: string; phone: string | null; role: string; isMainContact: boolean }
+interface FamilyChild { id: string; firstName: string; lastName: string; dateOfBirth: string; grade: string; gradeLevel: string | null; gradeYear: number | null; allergies: string | null; medicalNotes: string | null }
+interface FamilyDetails { id: string; name: string; address: string; phone: string; email: string; sharingCode: string; annualFeePaid: boolean; feePaymentDate: string | null; guardians: FamilyGuardian[]; children: FamilyChild[] }
 
 export default function AdminUserDetailsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const params = useParams<{ userId: string }>()
-  const [details, setDetails] = useState<{ user: UserDetails; groups: Group[]; memberships: string[]; documents: UserDocument[] } | null>(null)
+  const [details, setDetails] = useState<{ user: UserDetails; groups: Group[]; memberships: string[]; documents: UserDocument[]; family: FamilyDetails | null } | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [temporaryPassword, setTemporaryPassword] = useState('')
@@ -105,6 +108,11 @@ export default function AdminUserDetailsPage() {
 
   if (loading || !user || !details) return <div className="min-h-screen bg-gray-50" />
   const userName = [user.firstName, user.lastName].filter(Boolean).join(' ') || user.email
+  const formatDateOnly = (value: string | null) => {
+    if (!value) return 'Not provided'
+    const parsed = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value)
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleDateString()
+  }
 
   return (
     <AdminLayout userName={userName} activeTab="users">
@@ -115,6 +123,46 @@ export default function AdminUserDetailsPage() {
             <div><h1 className="text-2xl font-bold text-gray-900">{details.user.firstName} {details.user.lastName}</h1><p className="text-gray-600">{details.user.email}</p><p className="mt-1 text-sm text-gray-500">Account: {details.user.status === 'active' ? 'Active' : 'Inactive'}</p></div>
             <button onClick={emulate} disabled={busy || details.user.status !== 'active'} className="rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-50">Emulate User</button>
           </div>
+
+          <section className="mt-8 border-t pt-6">
+            <h2 className="text-lg font-semibold text-gray-900">Family Details</h2>
+            {details.family ? <div className="mt-4 space-y-5">
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div><h3 className="font-semibold text-blue-950">{details.family.name}</h3><p className="mt-1 text-sm text-blue-900">{details.family.address || 'No address provided'}</p></div>
+                  <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${details.family.annualFeePaid ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>{details.family.annualFeePaid ? 'Annual fee paid' : 'Annual fee not recorded'}</span>
+                </div>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                  <div><dt className="font-medium text-blue-950">Family email</dt><dd><a href={`mailto:${details.family.email}`} className="text-blue-700 hover:underline">{details.family.email}</a></dd></div>
+                  <div><dt className="font-medium text-blue-950">Family phone</dt><dd><a href={`tel:${details.family.phone.replace(/\D/g, '')}`} className="text-blue-700 hover:underline">{details.family.phone}</a></dd></div>
+                  <div><dt className="font-medium text-blue-950">Sharing code</dt><dd className="font-mono text-blue-900">{details.family.sharingCode}</dd></div>
+                  {details.family.feePaymentDate && <div><dt className="font-medium text-blue-950">Annual fee date</dt><dd className="text-blue-900">{formatDateOnly(details.family.feePaymentDate)}</dd></div>}
+                </dl>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Guardians ({details.family.guardians.length})</h3>
+                {details.family.guardians.length ? <div className="mt-2 grid gap-3 sm:grid-cols-2">{details.family.guardians.map((guardian) => <article key={guardian.id} className="rounded-lg border border-gray-200 p-4">
+                  <div className="flex items-start justify-between gap-3"><p className="font-medium text-gray-900">{guardian.firstName} {guardian.lastName}</p>{guardian.isMainContact && <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Main contact</span>}</div>
+                  <a href={`mailto:${guardian.email}`} className="mt-2 block text-sm text-blue-700 hover:underline">{guardian.email}</a>
+                  <p className="mt-1 text-sm text-gray-600">{guardian.phone ? <a href={`tel:${guardian.phone.replace(/\D/g, '')}`} className="text-blue-700 hover:underline">{guardian.phone}</a> : 'No phone provided'}</p>
+                </article>)}</div> : <p className="mt-2 text-sm text-gray-500">No guardians are linked to this family.</p>}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Children ({details.family.children.length})</h3>
+                {details.family.children.length ? <div className="mt-2 grid gap-4 sm:grid-cols-2">{details.family.children.map((child) => <article key={child.id} className="rounded-lg border border-gray-200 bg-white p-4">
+                  <h4 className="font-semibold text-gray-900">{child.firstName} {child.lastName}</h4>
+                  <dl className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between gap-4"><dt className="font-medium text-gray-600">Grade</dt><dd className="text-gray-900">{child.grade || child.gradeLevel || 'Not provided'}</dd></div>
+                    <div className="flex justify-between gap-4"><dt className="font-medium text-gray-600">Date of birth</dt><dd className="text-gray-900">{formatDateOnly(child.dateOfBirth)}</dd></div>
+                  </dl>
+                  <div className={`mt-4 rounded-md p-3 text-sm ${child.allergies?.trim() ? 'bg-red-50 text-red-900' : 'bg-gray-50 text-gray-600'}`}><span className="font-semibold">Allergies / allergens:</span> {child.allergies?.trim() || 'None reported'}</div>
+                  <div className="mt-2 rounded-md bg-gray-50 p-3 text-sm text-gray-700"><span className="font-semibold">Medical notes:</span> {child.medicalNotes?.trim() || 'None reported'}</div>
+                </article>)}</div> : <p className="mt-2 text-sm text-gray-500">No children are linked to this family.</p>}
+              </div>
+            </div> : <p className="mt-3 rounded-md bg-gray-50 p-4 text-sm text-gray-500">This user is not linked to a family.</p>}
+          </section>
 
           <section className="mt-8 border-t pt-6">
             <h2 className="text-lg font-semibold text-gray-900">Account Management</h2>

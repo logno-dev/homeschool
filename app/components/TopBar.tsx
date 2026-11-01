@@ -98,6 +98,7 @@ export default function TopBar() {
     { label: 'Schedule', href: '/schedule' },
     { label: 'Class Hubs', href: '/class-hubs' },
     { label: 'Payments', href: '/family/payments' },
+    { label: 'Directory', href: '/directory' },
     { label: 'Resources', href: '/resources' }
   ]
 

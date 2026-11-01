@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { db } from '@/lib/db'
-import { authAccounts, authSessions, userGroupMemberships, userGroups, users, userDocuments } from '@/lib/schema'
+import { authAccounts, authSessions, children, families, guardians, userGroupMemberships, userGroups, users, userDocuments } from '@/lib/schema'
 import { createSessionForUser } from '@/lib/auth-server'
 
 export async function GET(
@@ -17,6 +17,13 @@ export async function GET(
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
     const [account] = await db.select().from(authAccounts).where(eq(authAccounts.userId, membershipId)).limit(1)
+    const [guardian] = await db.select({ familyId: guardians.familyId }).from(guardians).where(eq(guardians.id, membershipId)).limit(1)
+    const familyId = guardian?.familyId || user.familyId || null
+    const [family, familyGuardians, familyChildren] = familyId ? await Promise.all([
+      db.select().from(families).where(eq(families.id, familyId)).limit(1).then((rows) => rows[0] || null),
+      db.select({ id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName, email: guardians.email, phone: guardians.phone, role: guardians.role, isMainContact: guardians.isMainContact }).from(guardians).where(eq(guardians.familyId, familyId)),
+      db.select({ id: children.id, firstName: children.firstName, lastName: children.lastName, dateOfBirth: children.dateOfBirth, grade: children.grade, gradeLevel: children.gradeLevel, gradeYear: children.gradeYear, allergies: children.allergies, medicalNotes: children.medicalNotes }).from(children).where(eq(children.familyId, familyId))
+    ]) : [null, [], []]
     const memberships = await db
       .select({ group: userGroups })
       .from(userGroupMemberships)
@@ -35,6 +42,18 @@ export async function GET(
       groups,
       memberships: memberships.map(({ group }) => group.id)
       , documents
+      , family: family ? {
+        id: family.id,
+        name: family.name,
+        address: family.address,
+        phone: family.phone,
+        email: family.email,
+        sharingCode: family.sharingCode,
+        annualFeePaid: family.annualFeePaid,
+        feePaymentDate: family.feePaymentDate,
+        guardians: familyGuardians.sort((a, b) => Number(b.isMainContact) - Number(a.isMainContact) || a.lastName.localeCompare(b.lastName)),
+        children: familyChildren.sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName))
+      } : null
     })
   } catch (error) {
     console.error('Error loading user details:', error)
