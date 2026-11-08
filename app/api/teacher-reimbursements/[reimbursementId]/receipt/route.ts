@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { teacherReimbursements } from '@/lib/schema'
 import { getAuthenticatedAdmin, getAuthenticatedUserSession } from '@/lib/server-auth'
+import { getPrivateBlobToken } from '@/lib/private-blob'
 
 export async function GET(_request: Request, { params }: { params: Promise<{ reimbursementId: string }> }) {
   const auth = await getAuthenticatedUserSession()
@@ -20,7 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ rei
     const admin = await getAuthenticatedAdmin('payments')
     if ('error' in admin) return NextResponse.json({ error: 'You do not have access to this receipt' }, { status: 403 })
   }
-  const blob = await get(claim.pathname, { access: 'private' })
+  const blob = await get(claim.pathname, { access: 'private', token: getPrivateBlobToken() })
   if (!blob || blob.statusCode === 304 || !blob.stream) return NextResponse.json({ error: 'Receipt not found' }, { status: 404 })
   const safeFilename = claim.filename.replace(/["\r\n]/g, '_')
   return new Response(blob.stream, { headers: { 'Content-Type': claim.contentType, 'Content-Disposition': `inline; filename="${safeFilename}"`, 'Cache-Control': 'private, no-store' } })

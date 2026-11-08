@@ -7,6 +7,7 @@ import { classHubAttachments, classHubPosts } from '@/lib/schema'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
 import { getClassHubAccess } from '@/lib/class-hub-access'
 import { validateClassHubFile } from '@/lib/class-hub-files'
+import { getPrivateBlobToken } from '@/lib/private-blob'
 
 export async function POST(request: Request, { params }: { params: Promise<{ scheduleId: string }> }) {
   const auth = await getAuthenticatedUserSession()
@@ -26,12 +27,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ sch
   let extension: string
   try { extension = validateClassHubFile(file, bytes) } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid file' }, { status: 400 }) }
   const id = randomUUID()
-  const blob = await put(`class-hub/${scheduleId}/${postId}/${id}.${extension}`, Buffer.from(bytes), { access: 'private', contentType: file.type, addRandomSuffix: false })
+  const token = getPrivateBlobToken()
+  const blob = await put(`class-hub/${scheduleId}/${postId}/${id}.${extension}`, Buffer.from(bytes), { access: 'private', contentType: file.type, addRandomSuffix: false, token })
   try {
     const [attachment] = await db.insert(classHubAttachments).values({ id, postId, uploadedBy: auth.session.user.id, filename: file.name.slice(0, 255), pathname: blob.pathname, contentType: file.type, size: file.size }).returning()
     return NextResponse.json({ attachment: { ...attachment, pathname: undefined } }, { status: 201 })
   } catch (error) {
-    await del(blob.pathname).catch(() => undefined)
+    await del(blob.pathname, { token }).catch(() => undefined)
     throw error
   }
 }

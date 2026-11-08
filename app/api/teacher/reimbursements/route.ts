@@ -10,6 +10,7 @@ import { getAuthenticatedUserSession } from '@/lib/server-auth'
 import { getConfiguredDateKey } from '@/lib/app-time'
 import { getGlobalSetting } from '@/lib/database'
 import { parseReimbursementMethods } from '@/lib/reimbursement-methods'
+import { getPrivateBlobToken } from '@/lib/private-blob'
 
 async function getGuardian(userId: string) {
   return db.select({ id: guardians.id }).from(guardians).where(eq(guardians.id, userId)).limit(1).then((rows) => rows[0])
@@ -83,6 +84,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   let pathname: string | null = null
+  let token: string | null = null
   try {
     const auth = await getAuthenticatedUserSession()
     if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -116,7 +118,8 @@ export async function POST(request: Request) {
     let extension: string
     try { extension = validateReimbursementReceipt(receipt, bytes) } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid receipt' }, { status: 400 }) }
     const id = randomUUID()
-    const blob = await put(`teacher-reimbursements/${classRecord.sessionId}/${classTeachingRequestId}/${id}.${extension}`, Buffer.from(bytes), { access: 'private', contentType: receipt.type, addRandomSuffix: false })
+    token = getPrivateBlobToken()
+    const blob = await put(`teacher-reimbursements/${classRecord.sessionId}/${classTeachingRequestId}/${id}.${extension}`, Buffer.from(bytes), { access: 'private', contentType: receipt.type, addRandomSuffix: false, token })
     pathname = blob.pathname
 
     const failure = await db.transaction(async (tx) => {
@@ -141,12 +144,12 @@ export async function POST(request: Request) {
       return null
     })
     if (failure) {
-      await del(blob.pathname).catch(() => undefined)
+      await del(blob.pathname, { token }).catch(() => undefined)
       return NextResponse.json({ error: failure }, { status: 409 })
     }
     return NextResponse.json({ success: true, id }, { status: 201 })
   } catch (error) {
-    if (pathname) await del(pathname).catch(() => undefined)
+    if (pathname && token) await del(pathname, { token }).catch(() => undefined)
     console.error('Error submitting teacher reimbursement claim:', error)
     return NextResponse.json({ error: 'Failed to submit reimbursement claim' }, { status: 500 })
   }
