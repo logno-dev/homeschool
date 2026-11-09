@@ -337,6 +337,7 @@ export const volunteerJobs = sqliteTable('volunteer_jobs', {
   allowedGroupIds: text('allowed_group_ids').notNull().default('[]'), // Empty list = unrestricted; any matching personal group grants access
   quantityAvailable: integer('quantity_available').notNull().default(1), // Number of positions available
   jobType: text('job_type').notNull().default('non_period'), // 'period_based' or 'non_period'
+  isLastResort: integer('is_last_resort', { mode: 'boolean' }).notNull().default(false), // Opens per period only after regular hour-based jobs are full
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true), // Whether this job is currently available
   createdBy: text('created_by').notNull().references(() => guardians.id, { onDelete: 'cascade' }),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),

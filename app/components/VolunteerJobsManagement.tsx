@@ -11,6 +11,7 @@ interface VolunteerJob {
   allowedGroupIds: string[]
   quantityAvailable: number
   jobType: 'period_based' | 'non_period'
+  isLastResort: boolean
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -35,7 +36,8 @@ export function VolunteerJobsManagement() {
     description: '',
     allowedGroupIds: [] as string[],
     quantityAvailable: 1,
-    jobType: 'non_period' as 'period_based' | 'non_period'
+    jobType: 'non_period' as 'period_based' | 'non_period',
+    isLastResort: false,
   })
 
   useEffect(() => {
@@ -77,7 +79,8 @@ export function VolunteerJobsManagement() {
       description: '',
       allowedGroupIds: [],
       quantityAvailable: 1,
-      jobType: 'non_period'
+      jobType: 'non_period',
+      isLastResort: false,
     })
     setShowAddForm(false)
     setEditingJob(null)
@@ -143,7 +146,8 @@ export function VolunteerJobsManagement() {
       description: job.description,
       allowedGroupIds: job.allowedGroupIds || [],
       quantityAvailable: job.quantityAvailable,
-      jobType: job.jobType
+      jobType: job.jobType,
+      isLastResort: job.isLastResort,
     })
     setEditingJob(job)
     setRestrictToGroups(Boolean(job.allowedGroupIds?.length))
@@ -252,7 +256,10 @@ export function VolunteerJobsManagement() {
               <select
                 id="jobType"
                 value={formData.jobType}
-                onChange={(e) => setFormData({ ...formData, jobType: e.target.value as 'period_based' | 'non_period' })}
+                onChange={(e) => {
+                  const jobType = e.target.value as 'period_based' | 'non_period'
+                  setFormData({ ...formData, jobType, isLastResort: jobType === 'period_based' ? formData.isLastResort : false })
+                }}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               >
@@ -265,6 +272,14 @@ export function VolunteerJobsManagement() {
                     <strong>General:</strong> Job does not relate to specific class hours.
               </p>
             </div>
+
+            {formData.jobType === 'period_based' && <label className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <input type="checkbox" checked={formData.isLastResort} onChange={(event) => setFormData({ ...formData, isLastResort: event.target.checked })} className="mt-1" />
+              <span>
+                <span className="block text-sm font-semibold text-gray-900">Last resort job</span>
+                <span className="block text-sm text-gray-600">For each hour, this job remains locked until every position in the other hour-based jobs is filled.</span>
+              </span>
+            </label>}
 
             <fieldset className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
               <legend className="px-1 text-sm font-semibold text-gray-900">Who can sign up?</legend>
@@ -330,6 +345,7 @@ export function VolunteerJobsManagement() {
                           <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
                             Hour-Based
                           </span>
+                          {job.isLastResort && <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800">Last resort</span>}
                         </div>
                         <p className="text-gray-600 mt-2 whitespace-pre-wrap">{job.description}</p>
                         <p className="mt-2 text-sm font-medium text-blue-700">Access: {job.allowedGroupIds?.length ? job.allowedGroupIds.map(id => groups.find(group => group.id === id)?.name || 'Unavailable group').join(', ') : 'Everyone'}</p>

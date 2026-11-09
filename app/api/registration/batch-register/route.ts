@@ -24,7 +24,7 @@ import { publishRegistrationUpdate } from '@/lib/registration-events'
 import { getRegistrationAccess } from '@/lib/user-groups'
 import { getGlobalSetting } from '@/lib/database'
 import { sendRegistrationOverrideNotificationEmail, sendRegistrationConfirmationEmail } from '@/lib/email'
-import { canSignUpForVolunteerJob, getVisibleVolunteerJobs } from '@/lib/volunteer-job-access'
+import { canSignUpForVolunteerJob, getVisibleVolunteerJobs, isLastResortVolunteerJobOpen } from '@/lib/volunteer-job-access'
 import { getNextWaitlistRank } from '@/lib/waitlist'
 
 interface PendingRegistration {
@@ -69,7 +69,7 @@ interface EmergencyContact {
 }
 
 interface ConflictDetails {
-  type: 'class_full' | 'volunteer_full' | 'child_conflict' | 'guardian_conflict' | 'grade_range'
+  type: 'class_full' | 'volunteer_full' | 'volunteer_unavailable' | 'child_conflict' | 'guardian_conflict' | 'grade_range'
   scheduleId?: string
   volunteerJobId?: string
   period: string
@@ -343,6 +343,15 @@ async function validateRegistration(
     }
 
     if (assignment.volunteerJobId && assignment.volunteerType === 'volunteer_job') {
+      if (!await isLastResortVolunteerJobOpen(assignment.volunteerJobId, sessionId, normalizedPeriod, db, excludeFamilyId)) {
+        conflicts.push({
+          type: 'volunteer_unavailable',
+          volunteerJobId: assignment.volunteerJobId,
+          period: normalizedPeriod,
+          jobTitle: assignment.jobTitle,
+          message: `"${assignment.jobTitle || 'Last resort volunteer job'}" opens after all other volunteer jobs for this hour are filled`,
+        })
+      }
       const sessionJob = await db
         .select({ quantityAvailable: sessionVolunteerJobs.quantityAvailable })
         .from(sessionVolunteerJobs)
@@ -700,6 +709,7 @@ export async function POST(request: Request) {
               assignment.scheduleId ? eq(volunteerAssignments.scheduleId, assignment.scheduleId) : eq(volunteerAssignments.volunteerJobId, assignment.volunteerJobId!),
               eq(volunteerAssignments.status, 'hold')
             )).limit(1)
+            if (assignment.volunteerType === 'volunteer_job' && !existingHold && !await isLastResortVolunteerJobOpen(assignment.volunteerJobId!, sessionId, normalizePeriod(assignment.period), tx, familyId)) throw new Error('A last resort job is no longer open because another volunteer job has availability.')
             if (existingHold) {
               await tx.update(volunteerAssignments).set({
                 status: 'pending',
@@ -1041,6 +1051,12 @@ export async function POST(request: Request) {
             )
           ))
 
+        const hasOwnVolunteerJobHold = assignment.volunteerType === 'volunteer_job' && existingAssignment.some(existing => (
+          existing.status === 'hold' &&
+          existing.familyId === familyId &&
+          existing.volunteerJobId === assignment.volunteerJobId
+        ))
+
         if (existingAssignment.length > 0) {
           const existing = existingAssignment[0]
           const matchesAssignment = existing.scheduleId
@@ -1059,6 +1075,7 @@ export async function POST(request: Request) {
         }
 
         if (assignment.volunteerType === 'volunteer_job' && !await canSignUpForVolunteerJob(assignment.volunteerJobId!, sessionId, session.user.id, assignment.guardianId, tx)) throw new Error('A volunteer job is no longer available for this user and guardian.')
+        if (assignment.volunteerType === 'volunteer_job' && !hasOwnVolunteerJobHold && !await isLastResortVolunteerJobOpen(assignment.volunteerJobId!, sessionId, normalizedPeriod, tx, familyId)) throw new Error('A last resort job is no longer open because another volunteer job has availability.')
 
         // Handle class-based volunteer assignments (teacher, helper, co_teacher)
         if (assignment.scheduleId && assignment.volunteerType !== 'volunteer_job') {

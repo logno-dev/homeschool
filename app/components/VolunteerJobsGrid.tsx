@@ -12,6 +12,8 @@ interface VolunteerJob {
   description: string
   quantityAvailable: number
   jobType: string
+  isLastResort: boolean
+  lastResortOpenPeriods?: Record<string, boolean>
   isActive: boolean
   eligibleGuardianIds?: string[]
 }
@@ -134,7 +136,7 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                 {volunteerJobs.map((job) => (
                   <tr key={job.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">{job.title}</div>
+                      <div className="flex items-center gap-2"><span className="text-sm font-medium text-gray-900">{job.title}</span>{job.isLastResort && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Last resort</span>}</div>
                       <div className="text-sm text-gray-500">{job.description}</div>
                       <div className="text-xs text-gray-400 mt-1">
                         {job.quantityAvailable} position{job.quantityAvailable === 1 ? '' : 's'} per period
@@ -146,14 +148,17 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                       const assignmentKey = `${job.sessionVolunteerJobId}:${period.id}`
                       const reservedCount = jobAssignmentCounts[assignmentKey] || 0
                       const availableSpots = job.quantityAvailable - reservedCount
+                      const isLocked = job.isLastResort && !job.lastResortOpenPeriods?.[period.id]
 
                       return (
                         <td key={period.id} className="px-6 py-4 whitespace-nowrap">
                           <div
-                            onClick={() => !isAssigned && availableSpots > 0 && handleJobClick(job, period.id)}
+                            onClick={() => !isAssigned && !isLocked && availableSpots > 0 && handleJobClick(job, period.id)}
                             className={`rounded-md p-3 transition-colors border ${
                               isAssigned
                                 ? 'bg-green-50 border-green-200'
+                                : isLocked
+                                  ? 'bg-amber-50 border-amber-200 text-amber-700'
                                 : availableSpots > 0
                                   ? 'bg-blue-50 border-blue-200 hover:bg-blue-100 cursor-pointer'
                                   : 'bg-gray-100 border-gray-200 text-gray-400'
@@ -165,6 +170,11 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                                   {currentAssignment.guardianName}
                                 </div>
                                 <div className="text-xs text-green-600">Assigned</div>
+                              </div>
+                            ) : isLocked ? (
+                              <div className="text-center">
+                                <div className="text-sm font-medium text-amber-800">Locked</div>
+                                <div className="text-xs text-amber-700">Opens when other jobs fill</div>
                               </div>
                             ) : availableSpots > 0 ? (
                               <div className="text-center">
@@ -200,7 +210,7 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
           {volunteerJobs.map((job) => (
             <div key={job.id} className="bg-white rounded-lg shadow border overflow-hidden">
               <div className="bg-gray-50 px-4 py-3 border-b">
-                <h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>
+                <div className="flex items-center gap-2"><h3 className="text-lg font-semibold text-gray-900">{job.title}</h3>{job.isLastResort && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">Last resort</span>}</div>
                 <p className="text-sm text-gray-600 mt-1">{job.description}</p>
                 <p className="text-xs text-gray-500 mt-2">
                   {job.quantityAvailable} position{job.quantityAvailable === 1 ? '' : 's'} per period
@@ -214,6 +224,7 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                   const assignmentKey = `${job.sessionVolunteerJobId}:${period.id}`
                   const reservedCount = jobAssignmentCounts[assignmentKey] || 0
                   const availableSpots = job.quantityAvailable - reservedCount
+                  const isLocked = job.isLastResort && !job.lastResortOpenPeriods?.[period.id]
                   
                   return (
                     <div key={period.id} className="border rounded-lg overflow-hidden">
@@ -222,10 +233,12 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                       </div>
                       <div className="p-3">
                         <div
-                          onClick={() => !isAssigned && availableSpots > 0 && handleJobClick(job, period.id)}
+                          onClick={() => !isAssigned && !isLocked && availableSpots > 0 && handleJobClick(job, period.id)}
                           className={`rounded-md p-4 transition-colors border-2 ${
                             isAssigned
                               ? 'bg-green-50 border-green-200'
+                              : isLocked
+                                ? 'bg-amber-50 border-amber-200 text-amber-700'
                               : availableSpots > 0
                                 ? 'bg-blue-50 border-blue-200 active:bg-blue-100 cursor-pointer touch-manipulation'
                                 : 'bg-gray-100 border-gray-200 text-gray-400'
@@ -237,6 +250,11 @@ export default function VolunteerJobsGrid({ volunteerJobs, guardians, schedules 
                                 {currentAssignment.guardianName}
                               </div>
                               <div className="text-sm text-green-600">✓ Assigned</div>
+                            </div>
+                          ) : isLocked ? (
+                            <div className="text-center">
+                              <div className="text-base font-medium text-amber-800 mb-1">Locked</div>
+                              <div className="text-sm text-amber-700">Opens when all other jobs for this hour are filled</div>
                             </div>
                           ) : availableSpots > 0 ? (
                             <div className="text-center">

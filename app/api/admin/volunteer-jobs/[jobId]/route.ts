@@ -16,7 +16,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     const { jobId } = await params
     const body = await request.json()
-    const { title, description, quantityAvailable, jobType, allowedGroupIds } = body
+    const { title, description, quantityAvailable, jobType, allowedGroupIds, isLastResort } = body
 
     if (!title || !description || quantityAvailable === undefined) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -24,6 +24,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (jobType && !['period_based', 'non_period'].includes(jobType)) {
       return NextResponse.json({ error: 'Invalid job type' }, { status: 400 })
+    }
+    if (isLastResort === true && jobType !== 'period_based') {
+      return NextResponse.json({ error: 'Only hour-based jobs can be marked as last resort' }, { status: 400 })
     }
 
     if (quantityAvailable < 1) {
@@ -34,6 +37,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       title,
       description,
       quantityAvailable,
+      isLastResort: isLastResort === true,
       updatedAt: new Date().toISOString(),
     }
 

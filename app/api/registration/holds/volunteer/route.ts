@@ -6,7 +6,7 @@ import { getAuthenticatedUser } from '@/lib/server-auth'
 import { getGuardianById } from '@/lib/database'
 import { volunteerAssignments, schedules, classTeachingRequests, sessionVolunteerJobs, guardians } from '@/lib/schema'
 import { publishRegistrationUpdate } from '@/lib/registration-events'
-import { canSignUpForVolunteerJob } from '@/lib/volunteer-job-access'
+import { canSignUpForVolunteerJob, isLastResortVolunteerJobOpen } from '@/lib/volunteer-job-access'
 
 const HOLD_DURATION_MS = 24 * 60 * 60 * 1000
 
@@ -91,6 +91,10 @@ export async function POST(request: Request) {
         holdId: existingHold[0].id,
         holdExpiresAt: existingHold[0].holdExpiresAt
       })
+    }
+
+    if (volunteerType === 'volunteer_job' && !await isLastResortVolunteerJobOpen(volunteerJobId, sessionId, normalizedPeriod)) {
+      return NextResponse.json({ error: 'This last resort job opens after all other volunteer jobs for this hour are filled.' }, { status: 409 })
     }
 
     const existingAssignment = await db

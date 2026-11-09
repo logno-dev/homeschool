@@ -1,7 +1,7 @@
 import 'server-only'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, gt, inArray, ne, or } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { volunteerJobs, sessionVolunteerJobs, userGroupMemberships, userGroups, guardians } from '@/lib/schema'
+import { volunteerAssignments, volunteerJobs, sessionVolunteerJobs, userGroupMemberships, userGroups, guardians } from '@/lib/schema'
 import { volunteerJobAllowsGroups } from './volunteer-job-groups'
 
 type JobAccessDatabase = Pick<typeof db, 'select'>
@@ -40,6 +40,61 @@ export async function canSignUpForVolunteerJob(jobId: string, sessionId: string,
   if (!job) return false
   const groups = await personalGroups([viewerUserId, guardianId], connection)
   return volunteerJobAllowsGroups(job.allowedGroupIds, groups.get(viewerUserId) || new Set()) && volunteerJobAllowsGroups(job.allowedGroupIds, groups.get(guardianId) || new Set())
+}
+
+function periodAliases(period: string) {
+  switch (period) {
+    case '1':
+    case 'first': return ['1', 'first']
+    case '2':
+    case 'second': return ['2', 'second']
+    case '3':
+    case 'third': return ['3', 'third']
+    default: return [period]
+  }
+}
+
+export async function isLastResortVolunteerJobOpen(jobId: string, sessionId: string, period: string, connection: JobAccessDatabase = db, excludeFamilyId?: string) {
+  const [target] = await connection.select({ isLastResort: volunteerJobs.isLastResort })
+    .from(volunteerJobs)
+    .innerJoin(sessionVolunteerJobs, eq(sessionVolunteerJobs.volunteerJobId, volunteerJobs.id))
+    .where(and(eq(volunteerJobs.id, jobId), eq(sessionVolunteerJobs.sessionId, sessionId)))
+    .limit(1)
+  if (!target?.isLastResort) return true
+
+  const regularJobs = await connection.select({
+    id: volunteerJobs.id,
+    quantityAvailable: sessionVolunteerJobs.quantityAvailable,
+  }).from(sessionVolunteerJobs)
+    .innerJoin(volunteerJobs, eq(sessionVolunteerJobs.volunteerJobId, volunteerJobs.id))
+    .where(and(
+      eq(sessionVolunteerJobs.sessionId, sessionId),
+      eq(sessionVolunteerJobs.isActive, true),
+      eq(volunteerJobs.isActive, true),
+      eq(volunteerJobs.isLastResort, false),
+      inArray(sessionVolunteerJobs.jobType, ['period_based', 'period'])
+    ))
+
+  if (!regularJobs.length) return true
+  const now = new Date().toISOString()
+  const assignments = await connection.select({ volunteerJobId: volunteerAssignments.volunteerJobId })
+    .from(volunteerAssignments)
+    .where(and(
+      eq(volunteerAssignments.sessionId, sessionId),
+      inArray(volunteerAssignments.volunteerJobId, regularJobs.map(job => job.id)),
+      inArray(volunteerAssignments.period, periodAliases(period)),
+      excludeFamilyId ? ne(volunteerAssignments.familyId, excludeFamilyId) : undefined,
+      or(
+        inArray(volunteerAssignments.status, ['assigned', 'pending']),
+        and(eq(volunteerAssignments.status, 'hold'), gt(volunteerAssignments.holdExpiresAt, now))
+      )
+    ))
+
+  const counts = new Map<string, number>()
+  for (const assignment of assignments) {
+    if (assignment.volunteerJobId) counts.set(assignment.volunteerJobId, (counts.get(assignment.volunteerJobId) || 0) + 1)
+  }
+  return regularJobs.every(job => (counts.get(job.id) || 0) >= job.quantityAvailable)
 }
 
 export async function validateVolunteerJobGroups(value: unknown): Promise<string[]> {

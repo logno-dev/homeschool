@@ -110,6 +110,7 @@ export async function getRegistrationSchedules(sessionId: string, viewerUserId?:
         quantityAvailable: sessionVolunteerJobs.quantityAvailable,
         jobType: sessionVolunteerJobs.jobType,
         fallbackJobType: volunteerJobs.jobType,
+        isLastResort: volunteerJobs.isLastResort,
         isActive: sessionVolunteerJobs.isActive
       })
       .from(sessionVolunteerJobs)
@@ -137,6 +138,7 @@ export async function getRegistrationSchedules(sessionId: string, viewerUserId?:
     quantityAvailable: number
     jobType: string | null
     fallbackJobType: string | null
+    isLastResort: boolean
     isActive: boolean
   }>
 
@@ -275,7 +277,7 @@ export async function getRegistrationSchedules(sessionId: string, viewerUserId?:
     }
   }
 
-  const allSessionJobs = [...periodBasedJobs, ...nonPeriodJobs] as Array<{
+  const allSessionJobs = sessionJobs as Array<{
     id: string
     sessionVolunteerJobId: string
   }>
@@ -302,9 +304,15 @@ export async function getRegistrationSchedules(sessionId: string, viewerUserId?:
     return acc
   }, {} as Record<string, number>)
 
+  const regularPeriodJobs = sessionJobs.filter(job => normalizeJobType(job.jobType || job.fallbackJobType) === 'period_based' && !job.isLastResort)
+  const lastResortOpenPeriods = Object.fromEntries(['first', 'second', 'third'].map(period => [
+    period,
+    regularPeriodJobs.every(job => (volunteerJobAssignmentCounts[`${job.sessionVolunteerJobId}:${period}`] || 0) >= job.quantityAvailable),
+  ]))
+
   return {
     schedules: enhancedSchedules,
-    volunteerJobs: periodBasedJobs,
+    volunteerJobs: periodBasedJobs.map(job => ({ ...job, lastResortOpenPeriods: job.isLastResort ? lastResortOpenPeriods : undefined })),
     nonPeriodVolunteerJobs: nonPeriodJobs,
     volunteerJobAssignmentCounts
   }

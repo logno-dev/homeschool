@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
       allowedGroupIds: volunteerJobs.allowedGroupIds,
       quantityAvailable: volunteerJobs.quantityAvailable,
       jobType: volunteerJobs.jobType,
+      isLastResort: volunteerJobs.isLastResort,
       isActive: volunteerJobs.isActive,
       createdBy: volunteerJobs.createdBy,
       createdAt: volunteerJobs.createdAt,
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { title, description, quantityAvailable, jobType, allowedGroupIds } = body
+    const { title, description, quantityAvailable, jobType, allowedGroupIds, isLastResort } = body
     let groupIds: string[]
     try { groupIds = await validateVolunteerJobGroups(allowedGroupIds) } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : 'Invalid user groups' }, { status: 400 })
@@ -70,6 +71,9 @@ export async function POST(request: NextRequest) {
 
     if (jobType && !['period_based', 'non_period'].includes(jobType)) {
       return NextResponse.json({ error: 'Invalid job type' }, { status: 400 })
+    }
+    if (isLastResort === true && jobType !== 'period_based') {
+      return NextResponse.json({ error: 'Only hour-based jobs can be marked as last resort' }, { status: 400 })
     }
 
     if (quantityAvailable < 1) {
@@ -86,6 +90,7 @@ export async function POST(request: NextRequest) {
       allowedGroupIds: JSON.stringify(groupIds),
       quantityAvailable,
       jobType: jobType || 'non_period',
+      isLastResort: isLastResort === true,
       createdBy: guardian[0].id,
     }).returning()
 
