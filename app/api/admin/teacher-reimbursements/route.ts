@@ -30,6 +30,7 @@ export async function GET() {
         status: teacherReimbursements.status,
         paidDate: teacherReimbursements.paidDate,
         notes: teacherReimbursements.notes,
+        receiptPathname: teacherReimbursements.receiptPathname,
         receiptFilename: teacherReimbursements.receiptFilename,
         paymentMethod: teacherReimbursements.paymentMethod,
         paymentDetailsLabel: teacherReimbursements.paymentDetailsLabel,
@@ -47,7 +48,14 @@ export async function GET() {
       .orderBy(desc(teacherReimbursements.createdAt))
 
     const methods = parseReimbursementMethods(await getGlobalSetting('teacher_reimbursement_methods'))
-    return NextResponse.json({ methods, reimbursements: reimbursements.map((item) => ({ ...item, isLate: Boolean(item.dueDate && item.createdAt.slice(0, 10) > item.dueDate) })) })
+    return NextResponse.json({
+      methods,
+      reimbursements: reimbursements.map(({ receiptPathname, ...item }) => ({
+        ...item,
+        hasReceipt: Boolean(receiptPathname),
+        isLate: Boolean(item.dueDate && item.createdAt.slice(0, 10) > item.dueDate),
+      })),
+    })
   } catch (error) {
     console.error('Error fetching reimbursements:', error)
     return NextResponse.json({ error: 'Failed to fetch reimbursements' }, { status: 500 })
