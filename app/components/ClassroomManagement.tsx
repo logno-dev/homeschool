@@ -32,12 +32,12 @@ export default function ClassroomManagement({ initialClassrooms }: ClassroomMana
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    syncActiveSessions: true
+    syncExistingSessions: true
   })
   const { showError, showSuccess } = useToast()
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', syncActiveSessions: true })
+    setFormData({ name: '', description: '', syncExistingSessions: true })
     setEditingClassroom(null)
     setShowForm(false)
   }
@@ -51,7 +51,7 @@ export default function ClassroomManagement({ initialClassrooms }: ClassroomMana
     setFormData({
       name: classroom.name,
       description: classroom.description || '',
-      syncActiveSessions: true
+      syncExistingSessions: true
     })
     setEditingClassroom(classroom)
     setShowForm(true)
@@ -80,8 +80,8 @@ export default function ClassroomManagement({ initialClassrooms }: ClassroomMana
       )
       showSuccess(
         editingClassroom ? 'Classroom updated' : 'Classroom created',
-        editingClassroom && formData.syncActiveSessions
-          ? 'The active session schedule now uses the updated classroom details.'
+        formData.syncExistingSessions
+          ? 'The classroom was safely synchronized to all existing sessions without changing class assignments.'
           : undefined
       )
       resetForm()
@@ -166,7 +166,7 @@ export default function ClassroomManagement({ initialClassrooms }: ClassroomMana
           <p className="text-sm font-semibold uppercase tracking-wider text-blue-600">Schedule setup</p>
           <h1 className="mt-1 text-3xl font-bold tracking-tight text-gray-950">Classrooms</h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
-            Set the rooms and display order used when building schedules. Changes can safely sync to active sessions without altering class assignments.
+            Set the rooms and display order used when building schedules. Changes can safely sync to existing sessions without altering class assignments.
           </p>
         </div>
         <button
@@ -339,22 +339,20 @@ export default function ClassroomManagement({ initialClassrooms }: ClassroomMana
             />
           </div>
 
-          {editingClassroom && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4">
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-blue-200 bg-blue-50/60 p-4">
               <input
                 type="checkbox"
-                checked={formData.syncActiveSessions}
-                onChange={(event) => setFormData({ ...formData, syncActiveSessions: event.target.checked })}
+                checked={formData.syncExistingSessions}
+                onChange={(event) => setFormData({ ...formData, syncExistingSessions: event.target.checked })}
                 className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <span>
-                <span className="block text-sm font-semibold text-gray-900">Update active session schedules</span>
+                <span className="block text-sm font-semibold text-gray-900">Update existing sessions</span>
                 <span className="mt-0.5 block text-sm leading-5 text-gray-600">
-                  Updates this room's name and description in active sessions only. Class assignments and historical sessions stay unchanged.
+                  {editingClassroom ? "Updates this room's name and description in every created session." : 'Adds this room to every created session.'} Existing class assignments are preserved.
                 </span>
               </span>
             </label>
-          )}
 
           <div className="flex justify-end gap-3 border-t border-gray-100 pt-5">
             <button

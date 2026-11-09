@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { name, description } = body
+    const { name, description, syncExistingSessions } = body
 
     // Validate required fields
     if (!name || !name.trim()) {
@@ -45,8 +45,9 @@ export async function POST(request: Request) {
       description: description?.trim() || null
     }
 
-    const createdClassroom = await createClassroom(newClassroom)
-    return NextResponse.json({ classroom: createdClassroom }, { status: 201 })
+    const shouldSync = syncExistingSessions !== false
+    const createdClassroom = await createClassroom(newClassroom, shouldSync)
+    return NextResponse.json({ classroom: createdClassroom, existingSessionsSynced: shouldSync }, { status: 201 })
   } catch (error) {
     console.error('Error creating classroom:', error)
     return NextResponse.json(

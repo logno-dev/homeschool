@@ -855,7 +855,7 @@ export async function deleteClassTeachingRequest(id: string): Promise<boolean> {
 }
 
 // Classroom management functions
-export async function createClassroom(classroomData: Omit<NewClassroom, 'id' | 'createdAt' | 'updatedAt'>): Promise<Classroom> {
+export async function createClassroom(classroomData: Omit<NewClassroom, 'id' | 'createdAt' | 'updatedAt'>, syncExistingSessions = true): Promise<Classroom> {
   const orderRow = await db
     .select({ maxOrder: sql<number>`max(${classrooms.orderIndex})` })
     .from(classrooms)
@@ -872,14 +872,14 @@ export async function createClassroom(classroomData: Omit<NewClassroom, 'id' | '
   const result = await db.insert(classrooms).values(newClassroom).returning()
   const created = result[0]
 
-  const activeSessions = await db
+  const existingSessions = syncExistingSessions ? await db
     .select({ id: sessions.id })
     .from(sessions)
-    .where(eq(sessions.isActive, true))
+    : []
 
-  if (activeSessions.length > 0) {
+  if (existingSessions.length > 0) {
     const now = new Date().toISOString()
-    await db.insert(sessionClassrooms).values(activeSessions.map((session) => ({
+    await db.insert(sessionClassrooms).values(existingSessions.map((session) => ({
       id: `${session.id}_${created.id}`,
       sessionId: session.id,
       classroomId: created.id,
@@ -888,7 +888,7 @@ export async function createClassroom(classroomData: Omit<NewClassroom, 'id' | '
       orderIndex: created.orderIndex,
       createdAt: now,
       updatedAt: now
-    })))
+    }))).onConflictDoNothing()
   }
 
   return created
@@ -925,20 +925,20 @@ export async function createSessionClassrooms(sessionId: string): Promise<Sessio
     updatedAt: now
   }))
 
-  const result = await db.insert(sessionClassrooms).values(rows).returning()
+  const result = await db.insert(sessionClassrooms).values(rows).onConflictDoNothing().returning()
   return result
 }
 
 export async function ensureSessionClassrooms(sessionId: string): Promise<void> {
   const existing = await db
-    .select({ id: sessionClassrooms.id })
+    .select({ classroomId: sessionClassrooms.classroomId })
     .from(sessionClassrooms)
     .where(eq(sessionClassrooms.sessionId, sessionId))
-    .limit(1)
-
-  if (existing.length > 0) return
-
-  await createSessionClassrooms(sessionId)
+  const existingIds = new Set(existing.map(room => room.classroomId))
+  const missing = (await db.select().from(classrooms)).filter(room => !existingIds.has(room.id))
+  if (!missing.length) return
+  const now = new Date().toISOString()
+  await db.insert(sessionClassrooms).values(missing.map(room => ({ id: `${sessionId}_${room.id}`, sessionId, classroomId: room.id, name: room.name, description: room.description, orderIndex: room.orderIndex, createdAt: now, updatedAt: now }))).onConflictDoNothing()
 }
 
 export async function createSessionVolunteerJobs(sessionId: string): Promise<void> {
@@ -1006,7 +1006,7 @@ export async function getClassroomById(id: string): Promise<Classroom | null> {
 export async function updateClassroom(
   id: string,
   updates: Partial<Omit<Classroom, 'id' | 'createdAt'>>,
-  syncActiveSessions = false
+  syncExistingSessions = false
 ): Promise<Classroom | null> {
   const updateData = {
     ...updates,
@@ -1020,14 +1020,19 @@ export async function updateClassroom(
       .returning()
 
     const updatedClassroom = result[0]
-    if (!updatedClassroom || !syncActiveSessions) return updatedClassroom || null
+    if (!updatedClassroom || !syncExistingSessions) return updatedClassroom || null
 
-    const activeSessions = await tx
+    const existingSessions = await tx
       .select({ id: sessions.id })
       .from(sessions)
-      .where(eq(sessions.isActive, true))
 
-    if (activeSessions.length > 0) {
+    if (existingSessions.length > 0) {
+      const existingCopies = await tx.select({ sessionId: sessionClassrooms.sessionId }).from(sessionClassrooms).where(eq(sessionClassrooms.classroomId, id))
+      const copiedSessionIds = new Set(existingCopies.map(copy => copy.sessionId))
+      const missingSessions = existingSessions.filter(session => !copiedSessionIds.has(session.id))
+      if (missingSessions.length) {
+        await tx.insert(sessionClassrooms).values(missingSessions.map(session => ({ id: `${session.id}_${updatedClassroom.id}`, sessionId: session.id, classroomId: updatedClassroom.id, name: updatedClassroom.name, description: updatedClassroom.description, orderIndex: updatedClassroom.orderIndex, createdAt: updateData.updatedAt, updatedAt: updateData.updatedAt }))).onConflictDoNothing()
+      }
       const sessionUpdates: Partial<Pick<SessionClassroom, 'name' | 'description' | 'updatedAt'>> = {
         updatedAt: updateData.updatedAt
       }
@@ -1037,10 +1042,7 @@ export async function updateClassroom(
       await tx
         .update(sessionClassrooms)
         .set(sessionUpdates)
-        .where(and(
-          eq(sessionClassrooms.classroomId, id),
-          inArray(sessionClassrooms.sessionId, activeSessions.map((session) => session.id))
-        ))
+        .where(eq(sessionClassrooms.classroomId, id))
     }
 
     return updatedClassroom

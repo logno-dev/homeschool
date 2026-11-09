@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { and, eq, inArray } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { classrooms, sessionClassrooms, sessions } from '@/lib/schema'
+import { classrooms, sessionClassrooms } from '@/lib/schema'
 import { getAuthenticatedAdmin } from '@/lib/server-auth'
 
 export async function POST(request: Request) {
@@ -30,22 +30,13 @@ export async function POST(request: Request) {
       }
     })
 
-    const activeSessions = await db
-      .select({ id: sessions.id })
-      .from(sessions)
-      .where(eq(sessions.isActive, true))
-
-    if (activeSessions.length > 0 && updates.length > 0) {
-      const activeSessionIds = activeSessions.map((session) => session.id)
+    if (updates.length > 0) {
       await db.transaction(async (tx) => {
         for (const update of updates) {
           await tx
             .update(sessionClassrooms)
             .set({ orderIndex: update.orderIndex, updatedAt: new Date().toISOString() })
-            .where(and(
-              eq(sessionClassrooms.classroomId, update.id),
-              inArray(sessionClassrooms.sessionId, activeSessionIds)
-            ))
+            .where(eq(sessionClassrooms.classroomId, update.id))
         }
       })
     }

@@ -43,7 +43,7 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { name, description, syncActiveSessions } = body
+    const { name, description, syncExistingSessions, syncActiveSessions } = body
 
     // Validate required fields
     if (name !== undefined && (!name || !name.trim())) {
@@ -58,7 +58,8 @@ export async function PATCH(
     if (description !== undefined) updateData.description = description?.trim() || null
 
     const { classroomId } = await params
-    const updatedClassroom = await updateClassroom(classroomId, updateData, syncActiveSessions === true)
+    const shouldSync = syncExistingSessions === true || syncActiveSessions === true
+    const updatedClassroom = await updateClassroom(classroomId, updateData, shouldSync)
 
     if (!updatedClassroom) {
       return NextResponse.json(
@@ -69,7 +70,7 @@ export async function PATCH(
 
     return NextResponse.json({
       classroom: updatedClassroom,
-      activeSessionsSynced: syncActiveSessions === true
+      existingSessionsSynced: shouldSync
     })
   } catch (error) {
     console.error('Error updating classroom:', error)
