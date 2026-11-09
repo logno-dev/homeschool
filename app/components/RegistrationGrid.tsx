@@ -646,7 +646,7 @@ export default function RegistrationGrid({
                 <div>
                   <p><strong>Teacher:</strong> {selectedClass.teacher.firstName} {selectedClass.teacher.lastName}</p>
                   {selectedClass.classTeachingRequest.coTeacher && (
-                    <p><strong>{selectedClass.classTeachingRequest.studentCoTeacherChildId ? 'Student co-teacher' : 'Co-teacher'}:</strong> {selectedClass.classTeachingRequest.coTeacher}</p>
+                    <p><strong>Co-teachers:</strong> {selectedClass.classTeachingRequest.coTeacher}</p>
                   )}
                   <p><strong>Grade Range:</strong> {selectedClass.classTeachingRequest.gradeRange}</p>
                   <p><strong>Room:</strong> {selectedClass.classroom.name}</p>

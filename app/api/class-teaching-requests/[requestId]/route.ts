@@ -5,7 +5,8 @@ import { getGradeRangeFromLabel } from '@/lib/grades'
 import { db } from '@/lib/db'
 import { children, classCategories } from '@/lib/schema'
 import { and, eq } from 'drizzle-orm'
-import { MAX_CLASS_CAPACITY, MAX_TEACHER_CLASS_FEE, MIN_CLASS_CAPACITY, isClassPeriodPreference } from '@/lib/class-teaching'
+import { MAX_CLASS_CAPACITY, MAX_TEACHER_CLASS_FEE, MIN_CLASS_CAPACITY, MIN_CLASS_HELPERS, isClassPeriodPreference } from '@/lib/class-teaching'
+import { getClassTeachingAssignmentMaps, replaceClassTeachingAssignments } from '@/lib/class-teaching-assignments'
 
 export async function PATCH(
   request: Request,
@@ -98,10 +99,10 @@ export async function PATCH(
       )
     }
 
-    const finalHelpersNeeded = helpersNeeded || (coTeacher?.trim() ? 0 : 1)
-    if (finalHelpersNeeded < 0 || finalHelpersNeeded > 10) {
+    const finalHelpersNeeded = Number(helpersNeeded)
+    if (!Number.isInteger(finalHelpersNeeded) || finalHelpersNeeded < MIN_CLASS_HELPERS || finalHelpersNeeded > 10) {
       return NextResponse.json(
-        { error: 'Helpers needed must be between 0 and 10' },
+        { error: `Helpers needed must be between ${MIN_CLASS_HELPERS} and 10` },
         { status: 400 }
       )
     }
@@ -137,6 +138,8 @@ export async function PATCH(
       schedulingRequirements: schedulingRequirements?.trim() || null,
       status: 'pending'
     })
+    const assignments = await getClassTeachingAssignmentMaps([requestId])
+    await replaceClassTeachingAssignments(requestId, (assignments.coTeachers.get(requestId) || []).map(item => item.id), studentTeacherChildId ? [String(studentTeacherChildId)] : [])
 
     return NextResponse.json({ request: updatedRequest })
   } catch (error) {

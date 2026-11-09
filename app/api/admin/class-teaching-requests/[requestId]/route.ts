@@ -11,8 +11,11 @@ import { getGradeRangeFromLabel } from '@/lib/grades'
 import { db } from '@/lib/db'
 import { children, classCategories, guardians } from '@/lib/schema'
 import { syncTeacherGroupMembership } from '@/lib/user-groups'
-import { and, eq } from 'drizzle-orm'
-import { MAX_CLASS_CAPACITY, MIN_CLASS_CAPACITY, isClassPeriodPreference } from '@/lib/class-teaching'
+import { and, eq, inArray } from 'drizzle-orm'
+import { MAX_CLASS_CAPACITY, MIN_CLASS_CAPACITY, MIN_CLASS_HELPERS, isClassPeriodPreference } from '@/lib/class-teaching'
+import { getClassTeachingAssignmentMaps, replaceClassTeachingAssignments } from '@/lib/class-teaching-assignments'
+
+const stringIds = (value: unknown): string[] => Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === 'string' && Boolean(id)))] : []
 
 export async function GET(
   request: Request,
@@ -96,6 +99,29 @@ export async function PATCH(
       // Handle editing the request fields
       const updateData: any = {}
       const currentRequest = await getClassTeachingRequestById(requestId)
+      let coTeacherIds: string[] | undefined
+      let studentTeacherChildIds: string[] | undefined
+      let previousCoTeacherIds: string[] = []
+      let selectedCoTeachers: Array<{ id: string; firstName: string; lastName: string; email: string }> = []
+      if (Array.isArray(editData.coTeacherIds)) {
+        const nextCoTeacherIds = stringIds(editData.coTeacherIds)
+        coTeacherIds = nextCoTeacherIds
+        const primaryTeacherId = String(editData.teacherId || currentRequest?.guardianId || '')
+        if (primaryTeacherId && nextCoTeacherIds.includes(primaryTeacherId)) return NextResponse.json({ error: 'The primary teacher cannot also be a co-teacher' }, { status: 400 })
+        selectedCoTeachers = nextCoTeacherIds.length ? await db.select({ id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName, email: guardians.email }).from(guardians).where(inArray(guardians.id, nextCoTeacherIds)) : []
+        if (selectedCoTeachers.length !== nextCoTeacherIds.length) return NextResponse.json({ error: 'One or more co-teachers were not found' }, { status: 404 })
+        const first = nextCoTeacherIds.length ? selectedCoTeachers.find(item => item.id === nextCoTeacherIds[0]) : undefined
+        updateData.coTeacherId = nextCoTeacherIds[0] || null
+        updateData.coTeacher = first ? `${first.firstName} ${first.lastName}`.trim() : null
+      }
+      if (Array.isArray(editData.studentTeacherChildIds)) {
+        const nextStudentTeacherChildIds = stringIds(editData.studentTeacherChildIds)
+        studentTeacherChildIds = nextStudentTeacherChildIds
+        const selected = nextStudentTeacherChildIds.length ? await db.select({ id: children.id }).from(children).where(inArray(children.id, nextStudentTeacherChildIds)) : []
+        if (selected.length !== nextStudentTeacherChildIds.length) return NextResponse.json({ error: 'One or more student teachers were not found' }, { status: 404 })
+        updateData.studentTeacherChildId = nextStudentTeacherChildIds[0] || null
+        updateData.studentCoTeacherChildId = nextStudentTeacherChildIds[1] || null
+      }
       
       if (editData.className !== undefined) updateData.className = editData.className.trim()
       if (editData.categoryId !== undefined) {
@@ -113,8 +139,12 @@ export async function PATCH(
         if (!Number.isInteger(maxStudents) || maxStudents < MIN_CLASS_CAPACITY || maxStudents > MAX_CLASS_CAPACITY) return NextResponse.json({ error: `Maximum students must be between ${MIN_CLASS_CAPACITY} and ${MAX_CLASS_CAPACITY}` }, { status: 400 })
         updateData.maxStudents = maxStudents
       }
-      if (editData.helpersNeeded !== undefined) updateData.helpersNeeded = parseInt(editData.helpersNeeded)
-      if (editData.coTeacherId !== undefined) {
+      if (editData.helpersNeeded !== undefined) {
+        const helpersNeeded = Number(editData.helpersNeeded)
+        if (!Number.isInteger(helpersNeeded) || helpersNeeded < MIN_CLASS_HELPERS || helpersNeeded > 10) return NextResponse.json({ error: `Helpers needed must be between ${MIN_CLASS_HELPERS} and 10` }, { status: 400 })
+        updateData.helpersNeeded = helpersNeeded
+      }
+      if (coTeacherIds === undefined && editData.coTeacherId !== undefined) {
         const coTeacherId = String(editData.coTeacherId || '')
         if (coTeacherId) {
           const [coTeacher] = await db.select({ id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName }).from(guardians).where(eq(guardians.id, coTeacherId)).limit(1)
@@ -124,7 +154,7 @@ export async function PATCH(
         updateData.coTeacherId = coTeacherId || null
         if (!coTeacherId) updateData.coTeacher = editData.coTeacher?.trim() || null
         if (coTeacherId !== currentRequest?.coTeacherId && editData.studentCoTeacherChildId === undefined) updateData.studentCoTeacherChildId = null
-      } else if (editData.coTeacher !== undefined) {
+      } else if (coTeacherIds === undefined && editData.coTeacher !== undefined) {
         updateData.coTeacher = editData.coTeacher?.trim() || null
       }
       if (editData.classroomNeeds !== undefined) updateData.classroomNeeds = editData.classroomNeeds?.trim() || null
@@ -152,7 +182,7 @@ export async function PATCH(
           updateData.studentTeacherChildId = null
         }
       }
-      if (editData.studentTeacherChildId !== undefined) {
+      if (studentTeacherChildIds === undefined && editData.studentTeacherChildId !== undefined) {
         const studentTeacherChildId = String(editData.studentTeacherChildId || '')
         const targetGuardianId = updateData.guardianId !== undefined ? updateData.guardianId : currentRequest?.guardianId
         if (studentTeacherChildId && !targetGuardianId) return NextResponse.json({ error: 'Select an assigned parent teacher before choosing a student teacher' }, { status: 400 })
@@ -165,7 +195,7 @@ export async function PATCH(
         }
         updateData.studentTeacherChildId = studentTeacherChildId || null
       }
-      if (editData.studentCoTeacherChildId !== undefined) {
+      if (studentTeacherChildIds === undefined && editData.studentCoTeacherChildId !== undefined) {
         const studentCoTeacherChildId = String(editData.studentCoTeacherChildId || '')
         const targetCoTeacherId = updateData.coTeacherId !== undefined ? updateData.coTeacherId : currentRequest?.coTeacherId
         if (studentCoTeacherChildId && !targetCoTeacherId) return NextResponse.json({ error: 'Select the student co-teacher parent first' }, { status: 400 })
@@ -204,10 +234,17 @@ export async function PATCH(
       const previousRequest = currentRequest
       updatedRequest = await updateClassTeachingRequest(requestId, updateData)
       if (updatedRequest) {
+        if (coTeacherIds !== undefined || studentTeacherChildIds !== undefined) {
+          const currentAssignments = await getClassTeachingAssignmentMaps([requestId])
+          previousCoTeacherIds = (currentAssignments.coTeachers.get(requestId) || []).map(item => item.id)
+          await replaceClassTeachingAssignments(requestId, coTeacherIds ?? (currentAssignments.coTeachers.get(requestId) || []).map(item => item.id), studentTeacherChildIds ?? (currentAssignments.studentTeachers.get(requestId) || []).map(item => item.id))
+        }
         if (updatedRequest.guardianId) await syncTeacherGroupMembership(updatedRequest.guardianId)
         if (previousRequest?.guardianId && previousRequest.guardianId !== updatedRequest.guardianId) await syncTeacherGroupMembership(previousRequest.guardianId)
         if (updatedRequest.coTeacherId) await syncTeacherGroupMembership(updatedRequest.coTeacherId)
         if (previousRequest?.coTeacherId && previousRequest.coTeacherId !== updatedRequest.coTeacherId) await syncTeacherGroupMembership(previousRequest.coTeacherId)
+        await Promise.all((coTeacherIds || []).map(syncTeacherGroupMembership))
+        await Promise.all(previousCoTeacherIds.filter(id => !(coTeacherIds || []).includes(id)).map(syncTeacherGroupMembership))
       }
     }
 
@@ -218,7 +255,9 @@ export async function PATCH(
       )
     }
 
-    return NextResponse.json({ request: updatedRequest })
+    const assignments = await getClassTeachingAssignmentMaps([updatedRequest.id])
+    await Promise.all((assignments.coTeachers.get(updatedRequest.id) || []).map(item => syncTeacherGroupMembership(item.id)))
+    return NextResponse.json({ request: { ...updatedRequest, coTeachers: assignments.coTeachers.get(updatedRequest.id) || [], studentTeachers: assignments.studentTeachers.get(updatedRequest.id) || [], coTeacherIds: (assignments.coTeachers.get(updatedRequest.id) || []).map(item => item.id), studentTeacherChildIds: (assignments.studentTeachers.get(updatedRequest.id) || []).map(item => item.id) } })
   } catch (error) {
     console.error('Error updating class teaching request:', error)
     return NextResponse.json(

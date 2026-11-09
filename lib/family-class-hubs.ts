@@ -3,7 +3,7 @@ import 'server-only'
 import { and, eq, inArray, or } from 'drizzle-orm'
 import { db } from './db'
 import { getConfiguredDateKey } from './app-time'
-import { children, classRegistrations, classTeachingRequests, guardians, schedules, sessionClassrooms, sessions, users } from './schema'
+import { children, classRegistrations, classStudentTeachers, classTeachingRequests, guardians, schedules, sessionClassrooms, sessions, users } from './schema'
 
 export interface FamilyClassHubSummary {
   scheduleId: string
@@ -47,11 +47,12 @@ export async function getFamilyClassHubs(userId: string) {
       .leftJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
       .innerJoin(children, eq(classRegistrations.childId, children.id))
       .where(and(eq(classRegistrations.familyId, familyId), inArray(classRegistrations.status, ['registered', 'pending']), eq(schedules.status, 'published'))),
-    db.select(classFields).from(schedules)
-      .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
+    db.select(classFields).from(classStudentTeachers)
+      .innerJoin(children, eq(classStudentTeachers.childId, children.id))
+      .innerJoin(classTeachingRequests, eq(classStudentTeachers.classTeachingRequestId, classTeachingRequests.id))
+      .innerJoin(schedules, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
       .innerJoin(sessions, eq(schedules.sessionId, sessions.id))
       .leftJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
-      .innerJoin(children, or(eq(classTeachingRequests.studentTeacherChildId, children.id), eq(classTeachingRequests.studentCoTeacherChildId, children.id)))
       .where(and(eq(children.familyId, familyId), eq(schedules.status, 'published')))
   ])
 

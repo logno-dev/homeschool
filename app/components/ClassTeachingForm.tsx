@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { ClassTeachingRequest, Session } from '@/lib/schema'
 import { BUILT_IN_GRADE_RANGES, CHILD_GRADE_OPTIONS, getGradeRangeFromLabel, getGradeIndex, getGradeLabel } from '@/lib/grades'
-import { CLASS_PERIOD_PREFERENCES, MAX_CLASS_CAPACITY, MAX_TEACHER_CLASS_FEE, MIN_CLASS_CAPACITY } from '@/lib/class-teaching'
+import { CLASS_PERIOD_PREFERENCES, MAX_CLASS_CAPACITY, MAX_TEACHER_CLASS_FEE, MIN_CLASS_CAPACITY, MIN_CLASS_HELPERS } from '@/lib/class-teaching'
 
 interface ClassTeachingFormProps {
   onSuccess: () => void
@@ -40,7 +40,7 @@ export default function ClassTeachingForm({
     gradeRangeFrom: '',
     gradeRangeTo: '',
     maxStudents: '15',
-    helpersNeeded: '2',
+    helpersNeeded: String(MIN_CLASS_HELPERS),
     coTeacher: '',
     studentTeacherChildId: '',
     classroomNeeds: '',
@@ -71,7 +71,7 @@ export default function ClassTeachingForm({
         gradeRangeFrom: isCustomRange ? fromLabel : '',
         gradeRangeTo: isCustomRange ? toLabel : '',
         maxStudents: String(initialRequest.maxStudents ?? 15),
-        helpersNeeded: String(initialRequest.helpersNeeded ?? 1),
+        helpersNeeded: String(initialRequest.helpersNeeded ?? MIN_CLASS_HELPERS),
         coTeacher: initialRequest.coTeacher || '',
         studentTeacherChildId: initialRequest.studentTeacherChildId || '',
         classroomNeeds: initialRequest.classroomNeeds || '',
@@ -336,16 +336,14 @@ export default function ClassTeachingForm({
               <input
                 type="number"
                 required
-                min="0"
+                min={MIN_CLASS_HELPERS}
                 max="10"
                 value={formData.helpersNeeded}
                 onChange={(e) => setFormData({ ...formData, helpersNeeded: e.target.value })}
                 className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               <p className="mt-2 text-sm text-gray-500">
-                {formData.coTeacher.trim() 
-                  ? "Number of parent helpers needed (0 if co-teacher is sufficient)" 
-                  : "Minimum 1 helper required if no co-teacher"}
+                Every class requires at least {MIN_CLASS_HELPERS} parent helpers, including classes with a co-teacher.
               </p>
             </div>
           </div>
@@ -394,15 +392,7 @@ export default function ClassTeachingForm({
           <input
             type="text"
             value={formData.coTeacher}
-            onChange={(e) => {
-              const newCoTeacher = e.target.value
-              setFormData({ 
-                ...formData, 
-                coTeacher: newCoTeacher,
-                // Auto-adjust helpers needed based on co-teacher presence
-                helpersNeeded: newCoTeacher.trim() ? '0' : '1'
-              })
-            }}
+              onChange={(e) => setFormData({ ...formData, coTeacher: e.target.value })}
             className="w-full border border-gray-300 rounded-md px-4 py-3 text-base sm:text-sm sm:px-3 sm:py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             placeholder="Name of co-teacher if applicable"
           />

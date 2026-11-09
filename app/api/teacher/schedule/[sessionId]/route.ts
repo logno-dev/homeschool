@@ -5,6 +5,7 @@ import { children, classRegistrations, classTeachingRequests, guardians, schedul
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
 import { getGuardianById } from '@/lib/database'
 import { getAppTimezone, parseAppDate } from '@/lib/app-time'
+import { getClassTeachingAssignmentMaps } from '@/lib/class-teaching-assignments'
 
 export async function GET(_request: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const auth = await getAuthenticatedUserSession()
@@ -16,6 +17,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
   const reviewSchedule = await db
     .select({
       scheduleId: schedules.id,
+      classTeachingRequestId: classTeachingRequests.id,
       period: schedules.period,
       className: classTeachingRequests.className,
       gradeRange: classTeachingRequests.gradeRange,
@@ -40,10 +42,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
       inArray(schedules.status, ['submitted', 'published'])
     ))
 
-  const teachingClasses = reviewSchedule.filter((entry) => entry.guardianId === guardian.id || entry.coTeacherId === guardian.id)
+  const teachingAssignments = await getClassTeachingAssignmentMaps(reviewSchedule.map(entry => entry.classTeachingRequestId))
+  const teachingClasses = reviewSchedule.filter((entry) => entry.guardianId === guardian.id || entry.coTeacherId === guardian.id || (teachingAssignments.coTeachers.get(entry.classTeachingRequestId) || []).some(teacher => teacher.id === guardian.id))
   if (!teachingClasses.length) return NextResponse.json({ classes: [], reviewSchedule: [], classrooms: [], registrationStarted: false })
   const scheduleIds = teachingClasses.map((entry) => entry.scheduleId)
-  const studentTeacherIds = reviewSchedule.flatMap((entry) => [entry.studentTeacherChildId, entry.studentCoTeacherChildId]).filter((id): id is string => Boolean(id))
+  const studentTeacherIds = [...new Set(reviewSchedule.flatMap(entry => (teachingAssignments.studentTeachers.get(entry.classTeachingRequestId) || []).map(child => child.id)))]
   const [registeredStudents, studentTeachers, classHelpers, sessionRows, registrationWindows] = await Promise.all([
     db
       .select({ scheduleId: classRegistrations.scheduleId, status: classRegistrations.status, waitlistRank: classRegistrations.waitlistRank, registeredAt: classRegistrations.registeredAt, registrationId: classRegistrations.id, id: children.id, familyId: children.familyId, firstName: children.firstName, lastName: children.lastName, grade: children.grade, allergies: children.allergies })
@@ -88,30 +91,28 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
     registrationStarted,
     classrooms,
     reviewSchedule: reviewSchedule.map((entry) => {
-      const studentTeacher = entry.studentTeacherChildId ? studentTeacherById.get(entry.studentTeacherChildId) : undefined
-      const studentCoTeacher = entry.studentCoTeacherChildId ? studentTeacherById.get(entry.studentCoTeacherChildId) : undefined
+      const assignedStudents = (teachingAssignments.studentTeachers.get(entry.classTeachingRequestId) || []).map(child => studentTeacherById.get(child.id)).filter((child): child is NonNullable<typeof child> => Boolean(child))
       return {
         id: entry.scheduleId,
         classroomId: entry.classroomId,
         period: entry.period,
         className: entry.className,
         gradeRange: entry.gradeRange,
-        teacherName: studentTeacher
-          ? `${studentTeacher.firstName} ${studentTeacher.lastName}`
+        teacherName: assignedStudents[0]
+          ? `${assignedStudents[0].firstName} ${assignedStudents[0].lastName}`
           : entry.teacherName || [entry.guardianFirstName, entry.guardianLastName].filter(Boolean).join(' ') || 'Teacher',
-        coTeacherName: studentCoTeacher ? `${studentCoTeacher.firstName} ${studentCoTeacher.lastName}` : entry.coTeacherName,
-        isStudentCoTeacher: Boolean(studentCoTeacher)
+        coTeacherName: [...(teachingAssignments.coTeachers.get(entry.classTeachingRequestId) || []).map(teacher => `${teacher.firstName} ${teacher.lastName}`), ...assignedStudents.slice(1).map(student => `${student.firstName} ${student.lastName}`)].join(', ') || entry.coTeacherName,
+        isStudentCoTeacher: assignedStudents.length > 1
       }
     }),
     classes: teachingClasses.map((entry) => {
       const classStudents = registeredStudents.filter((student) => student.scheduleId === entry.scheduleId)
       const roster = classStudents.filter((student) => student.status === 'registered').map(({ scheduleId: _scheduleId, status: _status, familyId, waitlistRank: _waitlistRank, registeredAt: _registeredAt, registrationId: _registrationId, ...student }) => ({ ...student, parentEmails: parentEmailsByFamily.get(familyId) || [], role: 'student' }))
       const waitlist = classStudents.filter((student) => student.status === 'waitlisted').sort((a, b) => (a.waitlistRank ?? Number.MAX_SAFE_INTEGER) - (b.waitlistRank ?? Number.MAX_SAFE_INTEGER) || a.registeredAt.localeCompare(b.registeredAt) || a.registrationId.localeCompare(b.registrationId)).map(({ scheduleId: _scheduleId, status: _status, familyId, allergies: _allergies, waitlistRank: _waitlistRank, registeredAt: _registeredAt, registrationId: _registrationId, ...student }, index) => ({ ...student, waitlistPosition: index + 1, parentEmails: parentEmailsByFamily.get(familyId) || [] }))
-      const studentTeacher = entry.studentTeacherChildId ? studentTeacherById.get(entry.studentTeacherChildId) : undefined
-      const studentCoTeacher = entry.studentCoTeacherChildId ? studentTeacherById.get(entry.studentCoTeacherChildId) : undefined
-      const withParentEmails = (student: NonNullable<typeof studentTeacher>, role: 'student_teacher' | 'student_co_teacher') => {
+      const assignedStudents = (teachingAssignments.studentTeachers.get(entry.classTeachingRequestId) || []).map(child => studentTeacherById.get(child.id)).filter((child): child is NonNullable<typeof child> => Boolean(child))
+      const withParentEmails = (student: typeof assignedStudents[number]) => {
         const { familyId, ...studentData } = student
-        return { ...studentData, parentEmails: parentEmailsByFamily.get(familyId) || [], role }
+        return { ...studentData, parentEmails: parentEmailsByFamily.get(familyId) || [], role: 'student_teacher' as const }
       }
       return {
         scheduleId: entry.scheduleId,
@@ -119,9 +120,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ ses
         classroomName: entry.classroomName,
         period: entry.period,
         roster: [
-          ...(studentTeacher ? [withParentEmails(studentTeacher, 'student_teacher')] : []),
-          ...(studentCoTeacher ? [withParentEmails(studentCoTeacher, 'student_co_teacher')] : []),
-          ...roster.filter((student) => student.id !== studentTeacher?.id && student.id !== studentCoTeacher?.id)
+          ...assignedStudents.map(withParentEmails),
+          ...roster.filter((student) => !assignedStudents.some(teacher => teacher.id === student.id))
         ],
         waitlist,
         helpers: classHelpers

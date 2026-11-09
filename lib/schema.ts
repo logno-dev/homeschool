@@ -235,7 +235,7 @@ export const classTeachingRequests = sqliteTable('class_teaching_requests', {
   gradeRangeFrom: integer('grade_range_from'),
   gradeRangeTo: integer('grade_range_to'),
   maxStudents: integer('max_students').notNull().default(20), // Maximum number of students allowed
-  helpersNeeded: integer('helpers_needed').notNull().default(1), // Number of parent helpers needed (min 1 if no co-teacher)
+  helpersNeeded: integer('helpers_needed').notNull().default(3), // Number of parent helpers needed
   coTeacher: text('co_teacher'), // Optional co-teacher name
   coTeacherId: text('co_teacher_id').references(() => guardians.id, { onDelete: 'set null' }),
   studentTeacherChildId: text('student_teacher_child_id').references(() => children.id, { onDelete: 'set null' }),
@@ -253,6 +253,26 @@ export const classTeachingRequests = sqliteTable('class_teaching_requests', {
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 })
+
+export const classCoTeachers = sqliteTable('class_co_teachers', {
+  id: text('id').primaryKey(),
+  classTeachingRequestId: text('class_teaching_request_id').notNull().references(() => classTeachingRequests.id, { onDelete: 'cascade' }),
+  guardianId: text('guardian_id').notNull().references(() => guardians.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  classGuardianUnique: uniqueIndex('class_co_teachers_class_guardian_idx').on(table.classTeachingRequestId, table.guardianId),
+  guardianIdx: index('class_co_teachers_guardian_idx').on(table.guardianId),
+}))
+
+export const classStudentTeachers = sqliteTable('class_student_teachers', {
+  id: text('id').primaryKey(),
+  classTeachingRequestId: text('class_teaching_request_id').notNull().references(() => classTeachingRequests.id, { onDelete: 'cascade' }),
+  childId: text('child_id').notNull().references(() => children.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  classChildUnique: uniqueIndex('class_student_teachers_class_child_idx').on(table.classTeachingRequestId, table.childId),
+  childIdx: index('class_student_teachers_child_idx').on(table.childId),
+}))
 
 // Schedule comments table (for teacher feedback on submitted schedules)
 export const scheduleComments = sqliteTable('schedule_comments', {

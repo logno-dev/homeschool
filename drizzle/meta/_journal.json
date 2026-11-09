@@ -288,6 +288,20 @@
       "when": 1794182400000,
       "tag": "0068_volunteer_job_last_resort",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794182400001,
+      "tag": "0069_minimum_class_helpers",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794182400002,
+      "tag": "0070_multiple_class_teachers",
+      "breakpoints": true
     }
   ]
 }

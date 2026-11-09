@@ -2,6 +2,7 @@ import { getGradeRangeFromLabel } from './grades'
 
 export const MIN_CLASS_CAPACITY = 10
 export const MAX_CLASS_CAPACITY = 100
+export const MIN_CLASS_HELPERS = 3
 export const MAX_TEACHER_CLASS_FEE = 12
 
 export const CLASS_TEACHING_ACCESS_MODES = ['closed', 'selected_groups', 'open'] as const

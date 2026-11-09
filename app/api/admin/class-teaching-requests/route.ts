@@ -3,11 +3,14 @@ import { getAuthenticatedAdmin } from '@/lib/server-auth'
 import { getClassTeachingRequestsWithSession } from '@/lib/database'
 import { db } from '@/lib/db'
 import { children, classCategories, classTeachingRequests, guardians, sessions } from '@/lib/schema'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { getGradeRangeFromLabel } from '@/lib/grades'
 import { syncTeacherGroupMembership } from '@/lib/user-groups'
-import { MAX_CLASS_CAPACITY, MIN_CLASS_CAPACITY, isClassPeriodPreference } from '@/lib/class-teaching'
+import { MAX_CLASS_CAPACITY, MIN_CLASS_CAPACITY, MIN_CLASS_HELPERS, isClassPeriodPreference } from '@/lib/class-teaching'
+import { getClassTeachingAssignmentMaps, replaceClassTeachingAssignments } from '@/lib/class-teaching-assignments'
+
+const stringIds = (value: unknown): string[] => Array.isArray(value) ? [...new Set(value.filter((id): id is string => typeof id === 'string' && Boolean(id)))] : []
 
 export async function GET() {
   try {
@@ -27,7 +30,8 @@ export async function GET() {
     const teacherContacts = new Map(teachers.map((teacher) => [teacher.id, { email: teacher.email, phone: teacher.phone }]))
     const studentTeacherNames = new Map(studentTeachers.map((child) => [child.id, `${child.firstName} ${child.lastName}`.trim()]))
     const categoryNames = new Map(categories.map((category) => [category.id, category.name]))
-    return NextResponse.json({ requests: requests.map((request) => ({ ...request, categoryName: request.categoryId ? categoryNames.get(request.categoryId) || null : null, teacherDisplayName: request.teacherName || (request.guardianId ? teacherNames.get(request.guardianId) : null) || 'Unassigned', teacherEmail: request.guardianId ? teacherContacts.get(request.guardianId)?.email || null : null, teacherPhone: request.guardianId ? teacherContacts.get(request.guardianId)?.phone || null : null, studentTeacherDisplayName: request.studentTeacherChildId ? studentTeacherNames.get(request.studentTeacherChildId) || null : null, studentCoTeacherDisplayName: request.studentCoTeacherChildId ? studentTeacherNames.get(request.studentCoTeacherChildId) || null : null })), sessions: sessionsList, teachers, children: studentTeachers, categories })
+    const assignments = await getClassTeachingAssignmentMaps(requests.map(request => request.id))
+    return NextResponse.json({ requests: requests.map((request) => ({ ...request, coTeachers: assignments.coTeachers.get(request.id) || [], studentTeachers: assignments.studentTeachers.get(request.id) || [], coTeacherIds: (assignments.coTeachers.get(request.id) || []).map(item => item.id), studentTeacherChildIds: (assignments.studentTeachers.get(request.id) || []).map(item => item.id), categoryName: request.categoryId ? categoryNames.get(request.categoryId) || null : null, teacherDisplayName: request.teacherName || (request.guardianId ? teacherNames.get(request.guardianId) : null) || 'Unassigned', teacherEmail: request.guardianId ? teacherContacts.get(request.guardianId)?.email || null : null, teacherPhone: request.guardianId ? teacherContacts.get(request.guardianId)?.phone || null : null, studentTeacherDisplayName: request.studentTeacherChildId ? studentTeacherNames.get(request.studentTeacherChildId) || null : null, studentCoTeacherDisplayName: request.studentCoTeacherChildId ? studentTeacherNames.get(request.studentCoTeacherChildId) || null : null })), sessions: sessionsList, teachers, children: studentTeachers, categories })
   } catch (error) {
     console.error('Error fetching class teaching requests:', error)
     return NextResponse.json(
@@ -55,6 +59,8 @@ export async function POST(request: Request) {
     if (resolvedGradeRange.from > resolvedGradeRange.to) return NextResponse.json({ error: 'Grade range start must be before its end' }, { status: 400 })
     const maxStudents = Number(body.maxStudents || 15)
     if (!Number.isInteger(maxStudents) || maxStudents < MIN_CLASS_CAPACITY || maxStudents > MAX_CLASS_CAPACITY) return NextResponse.json({ error: `Maximum students must be between ${MIN_CLASS_CAPACITY} and ${MAX_CLASS_CAPACITY}` }, { status: 400 })
+    const helpersNeeded = Number(body.helpersNeeded)
+    if (!Number.isInteger(helpersNeeded) || helpersNeeded < MIN_CLASS_HELPERS || helpersNeeded > 10) return NextResponse.json({ error: `Helpers needed must be between ${MIN_CLASS_HELPERS} and 10` }, { status: 400 })
     const preferredPeriod = body.preferredPeriod || 'any'
     if (!isClassPeriodPreference(preferredPeriod)) return NextResponse.json({ error: 'Choose a valid preferred hour' }, { status: 400 })
     const [category] = body.categoryId ? await db.select({ id: classCategories.id }).from(classCategories).where(eq(classCategories.id, String(body.categoryId))).limit(1) : []
@@ -73,24 +79,15 @@ export async function POST(request: Request) {
       : []
     if (requestedTeacherId && !selectedTeacher) return NextResponse.json({ error: 'Teacher not found' }, { status: 404 })
     const guardianId = selectedTeacher?.id || null
-    const [selectedCoTeacher] = requestedCoTeacherId
-      ? await db.select({ id: guardians.id, familyId: guardians.familyId, firstName: guardians.firstName, lastName: guardians.lastName }).from(guardians).where(eq(guardians.id, requestedCoTeacherId)).limit(1)
-      : []
-    if (requestedCoTeacherId && !selectedCoTeacher) return NextResponse.json({ error: 'Co-teacher not found' }, { status: 404 })
-    if (selectedTeacher?.id && selectedCoTeacher?.id === selectedTeacher.id) return NextResponse.json({ error: 'A teacher cannot also be the co-teacher' }, { status: 400 })
-    const studentTeacherChildId = String(body.studentTeacherChildId || '')
-    const [studentTeacher] = studentTeacherChildId && selectedTeacher
-      ? await db.select({ id: children.id }).from(children).where(and(eq(children.id, studentTeacherChildId), eq(children.familyId, selectedTeacher.familyId))).limit(1)
-      : []
-    if (studentTeacherChildId && !selectedTeacher) return NextResponse.json({ error: 'Select an assigned parent teacher before choosing a student teacher' }, { status: 400 })
-    if (studentTeacherChildId && !studentTeacher) return NextResponse.json({ error: "Student teacher must belong to the selected teacher's family" }, { status: 400 })
-    const studentCoTeacherChildId = String(body.studentCoTeacherChildId || '')
-    const [studentCoTeacher] = studentCoTeacherChildId && selectedCoTeacher
-      ? await db.select({ id: children.id }).from(children).where(and(eq(children.id, studentCoTeacherChildId), eq(children.familyId, selectedCoTeacher.familyId))).limit(1)
-      : []
-    if (studentCoTeacherChildId && !selectedCoTeacher) return NextResponse.json({ error: 'Select the student co-teacher parent first' }, { status: 400 })
-    if (studentCoTeacherChildId && !studentCoTeacher) return NextResponse.json({ error: "Student co-teacher must belong to the selected co-teacher parent's family" }, { status: 400 })
-    if (studentTeacher?.id && studentTeacher.id === studentCoTeacher?.id) return NextResponse.json({ error: 'The same child cannot be both student teacher and student co-teacher' }, { status: 400 })
+    const coTeacherIds = stringIds(Array.isArray(body.coTeacherIds) ? body.coTeacherIds : requestedCoTeacherId ? [requestedCoTeacherId] : [])
+    if (guardianId && coTeacherIds.includes(guardianId)) return NextResponse.json({ error: 'The primary teacher cannot also be a co-teacher' }, { status: 400 })
+    const selectedCoTeachers = coTeacherIds.length ? await db.select({ id: guardians.id, firstName: guardians.firstName, lastName: guardians.lastName }).from(guardians).where(inArray(guardians.id, coTeacherIds)) : []
+    if (selectedCoTeachers.length !== coTeacherIds.length) return NextResponse.json({ error: 'One or more co-teachers were not found' }, { status: 404 })
+    const legacyStudentIds = [body.studentTeacherChildId, body.studentCoTeacherChildId].filter((id): id is string => typeof id === 'string' && Boolean(id))
+    const studentTeacherChildIds = stringIds(Array.isArray(body.studentTeacherChildIds) ? body.studentTeacherChildIds : legacyStudentIds)
+    const selectedStudentTeachers = studentTeacherChildIds.length ? await db.select({ id: children.id, familyId: children.familyId, firstName: children.firstName, lastName: children.lastName, grade: children.grade }).from(children).where(inArray(children.id, studentTeacherChildIds)) : []
+    if (selectedStudentTeachers.length !== studentTeacherChildIds.length) return NextResponse.json({ error: 'One or more student teachers were not found' }, { status: 404 })
+    const firstCoTeacher = coTeacherIds.length ? selectedCoTeachers.find(item => item.id === coTeacherIds[0]) : undefined
 
     const now = new Date().toISOString()
     const [created] = await db.insert(classTeachingRequests).values({
@@ -105,11 +102,11 @@ export async function POST(request: Request) {
       gradeRangeFrom: resolvedGradeRange.from,
       gradeRangeTo: resolvedGradeRange.to,
       maxStudents,
-      helpersNeeded: Math.max(0, Number(body.helpersNeeded || 0)),
-      coTeacher: selectedCoTeacher ? `${selectedCoTeacher.firstName} ${selectedCoTeacher.lastName}`.trim() : requestedCoTeacherName || null,
-      coTeacherId: selectedCoTeacher?.id || null,
-      studentTeacherChildId: studentTeacher?.id || null,
-      studentCoTeacherChildId: studentCoTeacher?.id || null,
+      helpersNeeded,
+      coTeacher: firstCoTeacher ? `${firstCoTeacher.firstName} ${firstCoTeacher.lastName}`.trim() : requestedCoTeacherName || null,
+      coTeacherId: coTeacherIds[0] || null,
+      studentTeacherChildId: studentTeacherChildIds[0] || null,
+      studentCoTeacherChildId: studentTeacherChildIds[1] || null,
       classroomNeeds: String(body.classroomNeeds || '').trim() || null,
       registrationFeeExempt: Boolean(body.registrationFeeExempt),
       requiresFee: Boolean(body.requiresFee),
@@ -123,9 +120,10 @@ export async function POST(request: Request) {
       createdAt: now,
       updatedAt: now
     }).returning()
+    await replaceClassTeachingAssignments(created.id, coTeacherIds, studentTeacherChildIds)
     if (guardianId) await syncTeacherGroupMembership(guardianId)
-    if (selectedCoTeacher?.id) await syncTeacherGroupMembership(selectedCoTeacher.id)
-    return NextResponse.json({ request: created }, { status: 201 })
+    await Promise.all(coTeacherIds.map(syncTeacherGroupMembership))
+    return NextResponse.json({ request: { ...created, coTeacherIds, studentTeacherChildIds, coTeachers: selectedCoTeachers, studentTeachers: selectedStudentTeachers } }, { status: 201 })
   } catch (error) {
     console.error('Error creating admin class:', error)
     return NextResponse.json({ error: 'Failed to create class' }, { status: 500 })

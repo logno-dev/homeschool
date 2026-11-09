@@ -1,6 +1,6 @@
 import { eq, and, or, desc, asc, isNull, isNotNull, inArray, sql } from 'drizzle-orm'
 import { db, client, hasDatabaseConnection } from './db'
-import { families, guardians, children, feePayments, users, sessions, classrooms, sessionClassrooms, schedules, scheduleDrafts, scheduleDraftEntries, classTeachingRequests, scheduleComments, globalSettings, volunteerJobs, sessionVolunteerJobs, faqs } from './schema'
+import { families, guardians, children, feePayments, users, sessions, classrooms, sessionClassrooms, schedules, scheduleDrafts, scheduleDraftEntries, classCoTeachers, classTeachingRequests, scheduleComments, globalSettings, volunteerJobs, sessionVolunteerJobs, faqs } from './schema'
 import type { Family, Guardian, Child, FeePayment, User, Session, Classroom, SessionClassroom, Schedule, ScheduleDraft, ScheduleDraftEntry, ClassTeachingRequest, ScheduleComment, NewFamily, NewGuardian, NewChild, NewFeePayment, NewUser, NewSession, NewClassroom, NewSessionClassroom, NewSchedule, NewScheduleDraft, NewScheduleDraftEntry, NewClassTeachingRequest, NewScheduleComment, NewSessionVolunteerJob } from './schema'
 import { incrementGradeValue } from './grades'
 import { ensureFamilyGroupMembership, getRegistrationAccess, getUserGroups } from './user-groups'
@@ -579,13 +579,13 @@ export async function hasFamilyTeachingAssignments(guardianId: string): Promise<
       return false
     }
 
+    const familyGuardianIds = (await db.select({ id: guardians.id }).from(guardians).where(eq(guardians.familyId, guardian[0].familyId))).map(item => item.id)
     // Check if any guardian in the family has approved teaching assignments for this session
     const teachingAssignments = await db.select({ id: classTeachingRequests.id })
       .from(classTeachingRequests)
-      .innerJoin(guardians, or(eq(classTeachingRequests.guardianId, guardians.id), eq(classTeachingRequests.coTeacherId, guardians.id)))
       .where(
         and(
-          eq(guardians.familyId, guardian[0].familyId),
+          or(inArray(classTeachingRequests.guardianId, familyGuardianIds), inArray(classTeachingRequests.coTeacherId, familyGuardianIds), inArray(classTeachingRequests.id, db.select({ id: classCoTeachers.classTeachingRequestId }).from(classCoTeachers).where(inArray(classCoTeachers.guardianId, familyGuardianIds)))),
           eq(classTeachingRequests.sessionId, activeSession.id),
           eq(classTeachingRequests.status, 'approved')
         )
@@ -745,7 +745,7 @@ export async function getClassTeachingRequestsBySession(sessionId: string): Prom
 }
 
 export async function getClassTeachingRequestsByGuardian(guardianId: string): Promise<ClassTeachingRequest[]> {
-  return await db.select().from(classTeachingRequests).where(or(eq(classTeachingRequests.guardianId, guardianId), eq(classTeachingRequests.coTeacherId, guardianId)))
+  return await db.select().from(classTeachingRequests).where(or(eq(classTeachingRequests.guardianId, guardianId), eq(classTeachingRequests.coTeacherId, guardianId), inArray(classTeachingRequests.id, db.select({ id: classCoTeachers.classTeachingRequestId }).from(classCoTeachers).where(eq(classCoTeachers.guardianId, guardianId)))))
 }
 
 export async function getClassTeachingRequestsByGuardianWithSession(guardianId: string): Promise<(ClassTeachingRequest & { session: Session })[]> {
@@ -795,7 +795,7 @@ export async function getClassTeachingRequestsByGuardianWithSession(guardianId: 
     })
     .from(classTeachingRequests)
     .leftJoin(sessions, eq(classTeachingRequests.sessionId, sessions.id))
-    .where(or(eq(classTeachingRequests.guardianId, guardianId), eq(classTeachingRequests.coTeacherId, guardianId)))
+    .where(or(eq(classTeachingRequests.guardianId, guardianId), eq(classTeachingRequests.coTeacherId, guardianId), inArray(classTeachingRequests.id, db.select({ id: classCoTeachers.classTeachingRequestId }).from(classCoTeachers).where(eq(classCoTeachers.guardianId, guardianId)))))
   
   return result as (ClassTeachingRequest & { session: Session })[]
 }

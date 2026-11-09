@@ -3,7 +3,7 @@ import { del, put } from '@vercel/blob'
 import { and, desc, eq, inArray, or } from 'drizzle-orm'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { classTeachingRequests, guardians, schedules, sessions, teacherReimbursements } from '@/lib/schema'
+import { classCoTeachers, classTeachingRequests, guardians, schedules, sessions, teacherReimbursements } from '@/lib/schema'
 import { availableClassReimbursement, classReimbursementBalance } from '@/lib/reimbursement-balance'
 import { validateReimbursementReceipt } from '@/lib/reimbursement-receipt-files'
 import { getAuthenticatedUserSession } from '@/lib/server-auth'
@@ -37,7 +37,7 @@ export async function GET() {
       .where(and(
         eq(classTeachingRequests.requiresFee, true),
         eq(schedules.status, 'published'),
-        or(eq(classTeachingRequests.guardianId, guardian.id), eq(classTeachingRequests.coTeacherId, guardian.id))
+        or(eq(classTeachingRequests.guardianId, guardian.id), eq(classTeachingRequests.coTeacherId, guardian.id), inArray(classTeachingRequests.id, db.select({ id: classCoTeachers.classTeachingRequestId }).from(classCoTeachers).where(eq(classCoTeachers.guardianId, guardian.id))))
       )).orderBy(desc(sessions.startDate), classTeachingRequests.className)
 
     const withBalances = await Promise.all(classes.map(async (item) => ({
@@ -110,7 +110,7 @@ export async function POST(request: Request) {
         eq(classTeachingRequests.id, classTeachingRequestId),
         eq(classTeachingRequests.requiresFee, true),
         eq(schedules.status, 'published'),
-        or(eq(classTeachingRequests.guardianId, guardian.id), eq(classTeachingRequests.coTeacherId, guardian.id))
+        or(eq(classTeachingRequests.guardianId, guardian.id), eq(classTeachingRequests.coTeacherId, guardian.id), inArray(classTeachingRequests.id, db.select({ id: classCoTeachers.classTeachingRequestId }).from(classCoTeachers).where(eq(classCoTeachers.guardianId, guardian.id))))
       )).limit(1)
     if (!classRecord) return NextResponse.json({ error: 'This class is not eligible for a reimbursement claim' }, { status: 403 })
 

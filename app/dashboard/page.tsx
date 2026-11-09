@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { getActiveSession } from '@/lib/database'
 import { getRegistrationStatus } from '@/lib/registration-status'
 import { db } from '@/lib/db'
-import { classTeachingRequests, schedules } from '@/lib/schema'
+import { classCoTeachers, classTeachingRequests, schedules } from '@/lib/schema'
 import { and, eq, inArray, or } from 'drizzle-orm'
 import { getFamilyClassHubs } from '@/lib/family-class-hubs'
 
@@ -31,7 +31,7 @@ export default async function Dashboard() {
           .where(and(
             eq(schedules.sessionId, activeSession.id),
             inArray(schedules.status, ['submitted', 'published']),
-            or(eq(classTeachingRequests.guardianId, session.user.id), eq(classTeachingRequests.coTeacherId, session.user.id))
+            or(eq(classTeachingRequests.guardianId, session.user.id), eq(classTeachingRequests.coTeacherId, session.user.id), inArray(classTeachingRequests.id, db.select({ id: classCoTeachers.classTeachingRequestId }).from(classCoTeachers).where(eq(classCoTeachers.guardianId, session.user.id))))
           ))
           .limit(1)
       ])

@@ -3,11 +3,12 @@
 import { useState } from 'react'
 import type { ClassCategory, ClassTeachingRequest, Session } from '@/lib/schema'
 import { BUILT_IN_GRADE_RANGES } from '@/lib/grades'
-import { CLASS_PERIOD_PREFERENCES, MAX_CLASS_CAPACITY, MIN_CLASS_CAPACITY } from '@/lib/class-teaching'
+import { CLASS_PERIOD_PREFERENCES, MAX_CLASS_CAPACITY, MIN_CLASS_CAPACITY, MIN_CLASS_HELPERS } from '@/lib/class-teaching'
 import SessionOptions from './SessionOptions'
 
-type ReviewRequest = ClassTeachingRequest & { session?: Session; categoryName?: string | null; teacherDisplayName?: string; teacherEmail?: string | null; teacherPhone?: string | null; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
-type AdminDisplayRequest = ClassTeachingRequest & { session: Session; categoryName?: string | null; teacherDisplayName?: string; teacherEmail?: string | null; teacherPhone?: string | null; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
+type AssignmentFields = { coTeacherIds?: string[]; studentTeacherChildIds?: string[]; coTeachers?: Array<{ id: string; firstName: string; lastName: string; email: string }>; studentTeachers?: Array<{ id: string; firstName: string; lastName: string; grade: string }> }
+type ReviewRequest = ClassTeachingRequest & AssignmentFields & { session?: Session; categoryName?: string | null; teacherDisplayName?: string; teacherEmail?: string | null; teacherPhone?: string | null; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
+type AdminDisplayRequest = ClassTeachingRequest & AssignmentFields & { session: Session; categoryName?: string | null; teacherDisplayName?: string; teacherEmail?: string | null; teacherPhone?: string | null; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
 
 interface ClassTeachingRequestReviewProps {
   initialRequests: AdminDisplayRequest[]
@@ -21,9 +22,11 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
   const [isLoading, setIsLoading] = useState(false)
   const [selectedRequest, setSelectedRequest] = useState<ReviewRequest | null>(null)
   const [isEditMode, setIsEditMode] = useState(false)
-  const [editFormData, setEditFormData] = useState<Partial<ClassTeachingRequest>>({})
+  const [editFormData, setEditFormData] = useState<Partial<ClassTeachingRequest> & AssignmentFields>({})
   const [editTeacherId, setEditTeacherId] = useState('')
   const [editTeacherName, setEditTeacherName] = useState('')
+  const [editCoTeacherToAdd, setEditCoTeacherToAdd] = useState('')
+  const [editStudentTeacherToAdd, setEditStudentTeacherToAdd] = useState('')
   const [reviewNotes, setReviewNotes] = useState('')
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'changes_requested'>('pending')
   const [sessionFilter, setSessionFilter] = useState<string>('all')
@@ -154,11 +157,6 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
   }
 
   const counts = getStatusCounts()
-  const selectedEditTeacher = teachers.find((teacher) => teacher.id === editTeacherId)
-  const availableStudentTeachers = selectedEditTeacher ? children.filter((child) => child.familyId === selectedEditTeacher.familyId) : []
-  const selectedEditCoTeacher = teachers.find((teacher) => teacher.id === editFormData.coTeacherId)
-  const availableStudentCoTeachers = selectedEditCoTeacher ? children.filter((child) => child.familyId === selectedEditCoTeacher.familyId) : []
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -233,10 +231,8 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                                 gradeRange: request.gradeRange,
                                 maxStudents: request.maxStudents,
                                  helpersNeeded: request.helpersNeeded,
-                                 coTeacherId: request.coTeacherId || '',
-                                   coTeacher: request.coTeacher,
-                                   studentTeacherChildId: request.studentTeacherChildId,
-                                   studentCoTeacherChildId: request.studentCoTeacherChildId,
+                                  coTeacherIds: request.coTeacherIds || (request.coTeacherId ? [request.coTeacherId] : []),
+                                  studentTeacherChildIds: request.studentTeacherChildIds || [request.studentTeacherChildId, request.studentCoTeacherChildId].filter((id): id is string => Boolean(id)),
                                  classroomNeeds: request.classroomNeeds,
                                  registrationFeeExempt: request.registrationFeeExempt,
                                  requiresFee: request.requiresFee,
@@ -343,10 +339,8 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                         gradeRange: selectedRequest.gradeRange,
                         maxStudents: selectedRequest.maxStudents,
                         helpersNeeded: selectedRequest.helpersNeeded,
-                        coTeacher: selectedRequest.coTeacher,
-                        coTeacherId: selectedRequest.coTeacherId,
-                        studentTeacherChildId: selectedRequest.studentTeacherChildId,
-                        studentCoTeacherChildId: selectedRequest.studentCoTeacherChildId,
+                        coTeacherIds: selectedRequest.coTeacherIds || (selectedRequest.coTeacherId ? [selectedRequest.coTeacherId] : []),
+                        studentTeacherChildIds: selectedRequest.studentTeacherChildIds || [selectedRequest.studentTeacherChildId, selectedRequest.studentCoTeacherChildId].filter((id): id is string => Boolean(id)),
                         classroomNeeds: selectedRequest.classroomNeeds,
                         requiresFee: selectedRequest.requiresFee,
                         feeAmount: selectedRequest.feeAmount,
@@ -452,19 +446,20 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                       <input
                         type="number"
                         required
-                        min="0"
+                        min={MIN_CLASS_HELPERS}
                         max="10"
                         value={editFormData.helpersNeeded || ''}
                         onChange={(e) => setEditFormData({ ...editFormData, helpersNeeded: parseInt(e.target.value) })}
                         className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                       />
+                      <p className="mt-1 text-xs text-gray-500">At least {MIN_CLASS_HELPERS} helpers are required.</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Assigned Teacher</label>
-                      <select value={editTeacherId} onChange={(event) => { setEditTeacherId(event.target.value); setEditFormData({ ...editFormData, studentTeacherChildId: null }); if (event.target.value) setEditTeacherName('') }} className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white">
+                      <select value={editTeacherId} onChange={(event) => { setEditTeacherId(event.target.value); setEditFormData({ ...editFormData, coTeacherIds: (editFormData.coTeacherIds || []).filter(id => id !== event.target.value) }); if (event.target.value) setEditTeacherName('') }} className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white">
                         <option value="">Use placeholder instead</option>
                         {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}
                       </select>
@@ -473,15 +468,6 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                       <label className="block text-sm font-medium text-gray-700 mb-2">Teacher Placeholder</label>
                       <input value={editTeacherName} disabled={Boolean(editTeacherId)} onChange={(event) => setEditTeacherName(event.target.value)} placeholder="e.g. Staff Instructor" className="w-full border border-gray-300 rounded-md px-3 py-2 disabled:bg-gray-100" />
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Student Teacher (Optional)</label>
-                    <select value={editFormData.studentTeacherChildId || ''} disabled={!selectedEditTeacher} onChange={(event) => setEditFormData({ ...editFormData, studentTeacherChildId: event.target.value || null })} className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white disabled:bg-gray-100">
-                      <option value="">No student teacher</option>
-                      {availableStudentTeachers.map((child) => <option key={child.id} value={child.id}>{child.firstName} {child.lastName} (Grade {child.grade})</option>)}
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">Only children in the selected teacher's family are available.</p>
                   </div>
 
                   <div>
@@ -497,37 +483,9 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Co-Teacher (Optional)
-                    </label>
-                    <input
-                      type="text"
-                       value={editFormData.coTeacher || ''}
-                       disabled={Boolean(editFormData.coTeacherId)}
-                       onChange={(e) => setEditFormData({ ...editFormData, coTeacher: e.target.value })}
-                       className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                     />
-                     <select
-                       value={editFormData.coTeacherId || ''}
-                       onChange={(e) => {
-                         const teacher = teachers.find((option) => option.id === e.target.value)
-                          setEditFormData({ ...editFormData, coTeacherId: e.target.value, coTeacher: teacher ? `${teacher.firstName} ${teacher.lastName}` : '', studentCoTeacherChildId: null })
-                       }}
-                       className="mt-2 w-full border border-gray-300 rounded-md px-3 py-2"
-                     >
-                       <option value="">Write in above</option>
-                       {teachers.filter((teacher) => teacher.id !== editTeacherId).map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}
-                     </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Student Co-Teacher (Optional)</label>
-                    <select value={editFormData.studentCoTeacherChildId || ''} disabled={!selectedEditCoTeacher} onChange={(event) => setEditFormData({ ...editFormData, studentCoTeacherChildId: event.target.value || null })} className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white disabled:bg-gray-100">
-                      <option value="">No student co-teacher</option>
-                      {availableStudentCoTeachers.map((child) => <option key={child.id} value={child.id}>{child.firstName} {child.lastName} (Grade {child.grade})</option>)}
-                    </select>
-                    <p className="mt-1 text-xs text-gray-500">Select the co-teacher parent first, then choose a child from that family.</p>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div><label className="block text-sm font-medium text-gray-700 mb-2">Co-Teachers</label><div className="flex gap-2"><select value={editCoTeacherToAdd} onChange={event => setEditCoTeacherToAdd(event.target.value)} className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2"><option value="">Select co-teacher...</option>{teachers.filter(teacher => teacher.id !== editTeacherId && !(editFormData.coTeacherIds || []).includes(teacher.id)).map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}</select><button type="button" disabled={!editCoTeacherToAdd} onClick={() => { setEditFormData({ ...editFormData, coTeacherIds: [...(editFormData.coTeacherIds || []), editCoTeacherToAdd] }); setEditCoTeacherToAdd('') }} className="rounded bg-blue-600 px-3 text-white disabled:opacity-50">Add</button></div><ul className="mt-2 space-y-1">{(editFormData.coTeacherIds || []).map(id => { const teacher = teachers.find(item => item.id === id); return <li key={id} className="flex justify-between rounded border px-3 py-2 text-sm"><span>{teacher ? `${teacher.firstName} ${teacher.lastName}` : id}</span><button type="button" onClick={() => setEditFormData({ ...editFormData, coTeacherIds: (editFormData.coTeacherIds || []).filter(value => value !== id) })} className="text-red-600">Remove</button></li> })}</ul></div>
+                    <div><label className="block text-sm font-medium text-gray-700 mb-2">Student Teachers</label><div className="flex gap-2"><select value={editStudentTeacherToAdd} onChange={event => setEditStudentTeacherToAdd(event.target.value)} className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2"><option value="">Select student...</option>{children.filter(child => !(editFormData.studentTeacherChildIds || []).includes(child.id)).map(child => <option key={child.id} value={child.id}>{child.firstName} {child.lastName} (Grade {child.grade})</option>)}</select><button type="button" disabled={!editStudentTeacherToAdd} onClick={() => { setEditFormData({ ...editFormData, studentTeacherChildIds: [...(editFormData.studentTeacherChildIds || []), editStudentTeacherToAdd] }); setEditStudentTeacherToAdd('') }} className="rounded bg-blue-600 px-3 text-white disabled:opacity-50">Add</button></div><ul className="mt-2 space-y-1">{(editFormData.studentTeacherChildIds || []).map(id => { const child = children.find(item => item.id === id); return <li key={id} className="flex justify-between rounded border px-3 py-2 text-sm"><span>{child ? `${child.firstName} ${child.lastName}` : id}</span><button type="button" onClick={() => setEditFormData({ ...editFormData, studentTeacherChildIds: (editFormData.studentTeacherChildIds || []).filter(value => value !== id) })} className="text-red-600">Remove</button></li> })}</ul><p className="mt-1 text-xs text-gray-500">Any student may be assigned by an administrator.</p></div>
                   </div>
 
                   <div>
@@ -623,14 +581,13 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                       <span className="font-medium text-gray-700">Helpers Needed:</span>
                       <p className="text-gray-600">{selectedRequest.helpersNeeded}</p>
                     </div>
-                    {selectedRequest.coTeacher && (
+                    {((selectedRequest.coTeachers?.length || 0) > 0 || selectedRequest.coTeacher) && (
                       <div>
-                        <span className="font-medium text-gray-700">Co-Teacher:</span>
-                        <p className="text-gray-600">{selectedRequest.coTeacher}</p>
+                        <span className="font-medium text-gray-700">Co-Teachers:</span>
+                        <p className="text-gray-600">{selectedRequest.coTeachers?.length ? selectedRequest.coTeachers.map(item => `${item.firstName} ${item.lastName}`).join(', ') : selectedRequest.coTeacher}</p>
                       </div>
                     )}
-                    {selectedRequest.studentTeacherDisplayName && <div><span className="font-medium text-gray-700">Student Teacher:</span><p className="text-gray-600">{selectedRequest.studentTeacherDisplayName}</p></div>}
-                    {selectedRequest.studentCoTeacherDisplayName && <div><span className="font-medium text-gray-700">Student Co-Teacher:</span><p className="text-gray-600">{selectedRequest.studentCoTeacherDisplayName}</p></div>}
+                    {(selectedRequest.studentTeachers?.length || selectedRequest.studentTeacherDisplayName) && <div><span className="font-medium text-gray-700">Student Teachers:</span><p className="text-gray-600">{selectedRequest.studentTeachers?.length ? selectedRequest.studentTeachers.map(item => `${item.firstName} ${item.lastName}`).join(', ') : [selectedRequest.studentTeacherDisplayName, selectedRequest.studentCoTeacherDisplayName].filter(Boolean).join(', ')}</p></div>}
                   </div>
                   
                   <div>

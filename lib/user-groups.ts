@@ -2,7 +2,7 @@ import 'server-only'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
-import { classTeachingRequests, guardians, users, sessions, sessionRegistrationWindows, userGroupMemberships, userGroups } from '@/lib/schema'
+import { classCoTeachers, classTeachingRequests, guardians, users, sessions, sessionRegistrationWindows, userGroupMemberships, userGroups } from '@/lib/schema'
 import { getAppTimezone, parseAppDate } from '@/lib/app-time'
 import { ADMIN_MODULES, type AdminModule } from '@/lib/admin-access'
 
@@ -75,7 +75,7 @@ export async function syncTeacherGroupMembership(userId: string) {
   const [approvedRequest] = await db
     .select({ id: classTeachingRequests.id })
     .from(classTeachingRequests)
-    .where(and(or(and(eq(classTeachingRequests.guardianId, userId), isNull(classTeachingRequests.teacherName)), eq(classTeachingRequests.coTeacherId, userId)), eq(classTeachingRequests.status, 'approved')))
+    .where(and(or(and(eq(classTeachingRequests.guardianId, userId), isNull(classTeachingRequests.teacherName)), eq(classTeachingRequests.coTeacherId, userId), inArray(classTeachingRequests.id, db.select({ id: classCoTeachers.classTeachingRequestId }).from(classCoTeachers).where(eq(classCoTeachers.guardianId, userId)))), eq(classTeachingRequests.status, 'approved')))
     .limit(1)
 
   if (approvedRequest) {

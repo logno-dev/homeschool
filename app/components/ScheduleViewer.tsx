@@ -180,7 +180,7 @@ export default function ScheduleViewer({
                         </div>
                         <div className="text-xs text-slate-500 text-right">
                           <div>Teacher: {entry.teacher.firstName} {entry.teacher.lastName}</div>
-                           {entry.classTeachingRequest.coTeacher && <div>{entry.classTeachingRequest.studentCoTeacherChildId ? 'Student co-teacher' : 'Co-teacher'}: {entry.classTeachingRequest.coTeacher}</div>}
+                           {entry.classTeachingRequest.coTeacher && <div>Co-teachers: {entry.classTeachingRequest.coTeacher}</div>}
                           <div>Helpers: {helperNames(entry) || 'None assigned'}</div>
                           <div className="mt-1">Grade {entry.classTeachingRequest.gradeRange}</div>
                         </div>
@@ -256,7 +256,7 @@ export default function ScheduleViewer({
             <div>
               <p className="text-sm text-slate-500">{selectedGridEntry.classroom.name} • {PERIODS.find((period) => period.id === selectedGridEntry.schedule.period)?.name}</p>
               <p className="mt-1 text-sm text-slate-700"><strong>Teacher:</strong> {`${selectedGridEntry.teacher.firstName} ${selectedGridEntry.teacher.lastName}`.trim()}</p>
-                {selectedGridEntry.classTeachingRequest.coTeacher && <p className="mt-1 text-sm text-slate-700"><strong>{selectedGridEntry.classTeachingRequest.studentCoTeacherChildId ? 'Student co-teacher' : 'Co-teacher'}:</strong> {selectedGridEntry.classTeachingRequest.coTeacher}</p>}
+                {selectedGridEntry.classTeachingRequest.coTeacher && <p className="mt-1 text-sm text-slate-700"><strong>Co-teachers:</strong> {selectedGridEntry.classTeachingRequest.coTeacher}</p>}
                <p className="mt-1 text-sm text-slate-700"><strong>Helpers:</strong> {helperNames(selectedGridEntry) || 'None assigned'}</p>
                <p className="mt-1 text-sm text-slate-700"><strong>Grade range:</strong> {selectedGridEntry.classTeachingRequest.gradeRange}</p>
             </div>

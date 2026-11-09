@@ -12,7 +12,7 @@ import type { ClassCategory, ClassTeachingRequest, Session } from '@/lib/schema'
 export default function AdminClassRequestsPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
-  const [classRequests, setClassRequests] = useState<(ClassTeachingRequest & { session: Session; categoryName?: string | null; teacherDisplayName?: string; teacherEmail?: string | null; teacherPhone?: string | null })[]>([])
+  const [classRequests, setClassRequests] = useState<(ClassTeachingRequest & { session: Session; categoryName?: string | null; teacherDisplayName?: string; teacherEmail?: string | null; teacherPhone?: string | null; coTeacherIds?: string[]; studentTeacherChildIds?: string[] })[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [sessions, setSessions] = useState<Session[]>([])
   const [teachers, setTeachers] = useState<Array<{ id: string; familyId: string; firstName: string; lastName: string; email: string; phone: string | null }>>([])

@@ -1,18 +1,19 @@
 import 'server-only'
-import { and, eq, or } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { db } from '@/lib/db'
-import { classTeachingRequests, schedules } from '@/lib/schema'
+import { classStudentTeachers, classTeachingRequests, schedules } from '@/lib/schema'
 
 export async function getStudentTeacherAssignment(sessionId: string, childId: string, period: string) {
   const [assignment] = await db
     .select({ scheduleId: schedules.id, className: classTeachingRequests.className })
-    .from(schedules)
-    .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
+    .from(classStudentTeachers)
+    .innerJoin(classTeachingRequests, eq(classStudentTeachers.classTeachingRequestId, classTeachingRequests.id))
+    .innerJoin(schedules, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
     .where(and(
       eq(schedules.sessionId, sessionId),
       eq(schedules.status, 'published'),
       eq(schedules.period, period),
-      or(eq(classTeachingRequests.studentTeacherChildId, childId), eq(classTeachingRequests.studentCoTeacherChildId, childId))
+      eq(classStudentTeachers.childId, childId)
     ))
     .limit(1)
   return assignment || null

@@ -9,7 +9,8 @@ import {
   sessionClassrooms,
   volunteerJobs,
   familySessionFees,
-  children
+  children,
+  classStudentTeachers
 } from '@/lib/schema'
 import { and, eq, inArray, or, gt } from 'drizzle-orm'
 import { getGuardianById, getGuardiansByFamily } from '@/lib/database'
@@ -35,7 +36,7 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
   const familyId = guardian.familyId
   const now = new Date().toISOString()
 
-  const [familyGuardians, registrationStatus, allClassRegs, studentTeacherRows, studentCoTeacherRows, allVolunteerRegs, feeRecords] = await Promise.all([
+  const [familyGuardians, registrationStatus, allClassRegs, studentTeacherRows, allVolunteerRegs, feeRecords] = await Promise.all([
     getGuardiansByFamily(familyId),
     db
       .select()
@@ -65,17 +66,11 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
       )),
     db
       .select({ schedule: schedules, classTeachingRequest: classTeachingRequests, classroom: sessionClassrooms, child: children })
-      .from(schedules)
-      .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
+      .from(classStudentTeachers)
+      .innerJoin(classTeachingRequests, eq(classStudentTeachers.classTeachingRequestId, classTeachingRequests.id))
+      .innerJoin(schedules, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
       .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
-      .innerJoin(children, eq(classTeachingRequests.studentTeacherChildId, children.id))
-      .where(and(eq(schedules.sessionId, sessionId), eq(schedules.status, 'published'), eq(children.familyId, familyId))),
-    db
-      .select({ schedule: schedules, classTeachingRequest: classTeachingRequests, classroom: sessionClassrooms, child: children })
-      .from(schedules)
-      .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-      .innerJoin(sessionClassrooms, eq(schedules.sessionClassroomId, sessionClassrooms.id))
-      .innerJoin(children, eq(classTeachingRequests.studentCoTeacherChildId, children.id))
+      .innerJoin(children, eq(classStudentTeachers.childId, children.id))
       .where(and(eq(schedules.sessionId, sessionId), eq(schedules.status, 'published'), eq(children.familyId, familyId))),
     db
       .select({
@@ -103,7 +98,7 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
   const studentTeacherRegs = studentTeacherRows.filter((record) => !existingClassKeys.has(`${record.schedule.id}:${record.child.id}`)).map((record) => ({
     ...record,
     registration: {
-      id: `student-teacher:${record.schedule.id}`,
+      id: `student-teacher:${record.schedule.id}:${record.child.id}`,
       sessionId,
       scheduleId: record.schedule.id,
       childId: record.child.id,
@@ -119,26 +114,7 @@ export async function getRegistrationStatus(sessionId: string, userId: string) {
       updatedAt: record.schedule.updatedAt
     }
   }))
-  const studentCoTeacherRegs = studentCoTeacherRows.filter((record) => !existingClassKeys.has(`${record.schedule.id}:${record.child.id}`)).map((record) => ({
-    ...record,
-    registration: {
-      id: `student-co-teacher:${record.schedule.id}`,
-      sessionId,
-      scheduleId: record.schedule.id,
-      childId: record.child.id,
-      familyId,
-      registeredBy: record.classTeachingRequest.coTeacherId || userId,
-      emergencyContact: null,
-      emergencyPhone: null,
-      status: 'registered',
-      role: 'student_co_teacher' as const,
-      holdExpiresAt: null,
-      registeredAt: record.schedule.createdAt,
-      createdAt: record.schedule.createdAt,
-      updatedAt: record.schedule.updatedAt
-    }
-  }))
-  const visibleClassRegs = [...classRegs, ...studentTeacherRegs, ...studentCoTeacherRegs]
+  const visibleClassRegs = [...classRegs, ...studentTeacherRegs]
   const volunteerRegs = allVolunteerRegs.filter(record => record.assignment.status !== 'hold')
   const visibleJobs = allVolunteerRegs.some(record => record.assignment.volunteerJobId)
     ? await getVisibleVolunteerJobs(userId, familyGuardians.map(guardian => guardian.id)) : new Map<string, string[]>()

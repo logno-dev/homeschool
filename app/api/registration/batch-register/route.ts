@@ -12,7 +12,9 @@ import {
   familyRegistrationStatus,
   sessions,
   sessionVolunteerJobs,
-  familySessionFees
+  familySessionFees,
+  classCoTeachers,
+  classStudentTeachers
 } from '@/lib/schema'
 import { eq, and, inArray, or, gt, not, isNotNull } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
@@ -413,15 +415,16 @@ async function validateRegistration(
       .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
       .where(and(
         eq(schedules.sessionId, sessionId),
-        or(inArray(classTeachingRequests.guardianId, familyGuardianIdsForValidation), inArray(classTeachingRequests.coTeacherId, familyGuardianIdsForValidation))
+        or(inArray(classTeachingRequests.guardianId, familyGuardianIdsForValidation), inArray(classTeachingRequests.coTeacherId, familyGuardianIdsForValidation), inArray(classTeachingRequests.id, db.select({ id: classCoTeachers.classTeachingRequestId }).from(classCoTeachers).where(inArray(classCoTeachers.guardianId, familyGuardianIdsForValidation))))
       ))
   }
 
   const studentTeacherPeriods = await db
     .select({ period: schedules.period })
-    .from(schedules)
-    .innerJoin(classTeachingRequests, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
-    .innerJoin(children, or(eq(classTeachingRequests.studentTeacherChildId, children.id), eq(classTeachingRequests.studentCoTeacherChildId, children.id)))
+    .from(classStudentTeachers)
+    .innerJoin(children, eq(classStudentTeachers.childId, children.id))
+    .innerJoin(classTeachingRequests, eq(classStudentTeachers.classTeachingRequestId, classTeachingRequests.id))
+    .innerJoin(schedules, eq(schedules.classTeachingRequestId, classTeachingRequests.id))
     .where(and(eq(schedules.sessionId, sessionId), eq(schedules.status, 'published'), eq(children.familyId, familyId)))
 
   // Calculate volunteer requirements

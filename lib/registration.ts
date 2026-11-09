@@ -74,7 +74,7 @@ function buildTeachingAssignments(schedules: any[], guardians: any[]): TeachingA
   const guardianIds = new Set(guardians.map((guardian) => guardian.id))
 
   return schedules.flatMap((schedule) => {
-    const assignedGuardianIds = [schedule.teacher?.id, schedule.classTeachingRequest.coTeacherId]
+    const assignedGuardianIds = [schedule.teacher?.id, ...(schedule.classTeachingRequest.coTeacherIds || [schedule.classTeachingRequest.coTeacherId])]
       .filter((id): id is string => Boolean(id) && guardianIds.has(id))
     return Array.from(new Set(assignedGuardianIds)).map((guardianId) => ({
       guardianId,

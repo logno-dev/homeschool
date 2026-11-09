@@ -15,7 +15,8 @@ import { getGradeRangeFromLabel } from '@/lib/grades'
 import { db } from '@/lib/db'
 import { children, classCategories, classTeachingRequests } from '@/lib/schema'
 import { and, asc, eq, ne } from 'drizzle-orm'
-import { CLASS_PERIODS, CLASS_SLOT_GRADE_RANGES, CLASS_SLOT_TARGET, MAX_CLASS_CAPACITY, MAX_TEACHER_CLASS_FEE, MIN_CLASS_CAPACITY, getClassSlotTarget, isClassPeriodPreference, rangesOverlap } from '@/lib/class-teaching'
+import { CLASS_PERIODS, CLASS_SLOT_GRADE_RANGES, CLASS_SLOT_TARGET, MAX_CLASS_CAPACITY, MAX_TEACHER_CLASS_FEE, MIN_CLASS_CAPACITY, MIN_CLASS_HELPERS, getClassSlotTarget, isClassPeriodPreference, rangesOverlap } from '@/lib/class-teaching'
+import { replaceClassTeachingAssignments } from '@/lib/class-teaching-assignments'
 
 export async function GET(request: Request) {
   try {
@@ -183,11 +184,10 @@ export async function POST(request: Request) {
       )
     }
 
-    // Validate helpers needed - minimum 1 if no co-teacher
-    const finalHelpersNeeded = helpersNeeded || (coTeacher?.trim() ? 0 : 1)
-    if (finalHelpersNeeded < 0 || finalHelpersNeeded > 10) {
+    const finalHelpersNeeded = Number(helpersNeeded)
+    if (!Number.isInteger(finalHelpersNeeded) || finalHelpersNeeded < MIN_CLASS_HELPERS || finalHelpersNeeded > 10) {
       return NextResponse.json(
-        { error: 'Helpers needed must be between 0 and 10' },
+        { error: `Helpers needed must be between ${MIN_CLASS_HELPERS} and 10` },
         { status: 400 }
       )
     }
@@ -233,6 +233,7 @@ export async function POST(request: Request) {
     }
 
     const createdRequest = await createClassTeachingRequest(newRequest)
+    await replaceClassTeachingAssignments(createdRequest.id, [], studentTeacherChildId ? [String(studentTeacherChildId)] : [])
 
     const notificationRecipients = (await getGlobalSetting('class_request_notification_emails'))
       ?.split(',')
