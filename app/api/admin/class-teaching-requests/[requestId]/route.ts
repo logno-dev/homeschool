@@ -58,15 +58,6 @@ export async function PATCH(
     }
     const { session } = auth
 
-    // Get reviewer guardian record
-    const reviewer = await getGuardianById(session.user.id)
-    if (!reviewer) {
-      return NextResponse.json(
-        { error: 'Reviewer record not found' },
-        { status: 404 }
-      )
-    }
-
     const body = await request.json()
     const { action, reviewNotes, ...editData } = body
 
@@ -79,6 +70,14 @@ export async function PATCH(
       if (!['approve', 'reject', 'request_changes'].includes(action)) {
         return NextResponse.json(
           { error: 'Valid action (approve, reject, or request_changes) is required' },
+          { status: 400 }
+        )
+      }
+
+      const reviewer = await getGuardianById(session.user.id)
+      if (!reviewer) {
+        return NextResponse.json(
+          { error: 'A guardian profile is required to review class requests' },
           { status: 400 }
         )
       }

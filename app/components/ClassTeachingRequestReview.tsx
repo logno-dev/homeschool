@@ -5,6 +5,7 @@ import type { ClassCategory, ClassTeachingRequest, Session } from '@/lib/schema'
 import { BUILT_IN_GRADE_RANGES } from '@/lib/grades'
 import { CLASS_PERIOD_PREFERENCES, MAX_CLASS_CAPACITY, MIN_CLASS_CAPACITY, MIN_CLASS_HELPERS } from '@/lib/class-teaching'
 import SessionOptions from './SessionOptions'
+import SearchSelect from './SearchSelect'
 
 type AssignmentFields = { coTeacherIds?: string[]; studentTeacherChildIds?: string[]; coTeachers?: Array<{ id: string; firstName: string; lastName: string; email: string }>; studentTeachers?: Array<{ id: string; firstName: string; lastName: string; grade: string }> }
 type ReviewRequest = ClassTeachingRequest & AssignmentFields & { session?: Session; categoryName?: string | null; teacherDisplayName?: string; teacherEmail?: string | null; teacherPhone?: string | null; studentTeacherDisplayName?: string | null; studentCoTeacherDisplayName?: string | null }
@@ -56,17 +57,14 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
         }),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to update request')
-      }
-
-      const data = await response.json()
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(data?.error || 'Failed to update request')
        setRequests(requests.map(r => r.id === requestId ? { ...r, ...data.request, session: r.session } : r))
       setSelectedRequest(null)
       setReviewNotes('')
     } catch (error) {
       console.error('Error updating request:', error)
-      alert('Failed to update request')
+      alert(error instanceof Error ? error.message : 'Failed to update request')
     } finally {
       setIsLoading(false)
     }
@@ -85,11 +83,8 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
         body: JSON.stringify({ ...editFormData, teacherId: editTeacherId, teacherName: editTeacherName }),
       })
 
-      if (!response.ok) {
-        throw new Error('Failed to update request')
-      }
-
-      const data = await response.json()
+      const data = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(data?.error || 'Failed to update request')
       const updatedTeacher = teachers.find((teacher) => teacher.id === data.request.guardianId)
       const updatedDisplay = {
         ...data.request,
@@ -105,7 +100,7 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
       setIsEditMode(false)
     } catch (error) {
       console.error('Error updating request:', error)
-      alert('Failed to update request')
+      alert(error instanceof Error ? error.message : 'Failed to update request')
     } finally {
       setIsLoading(false)
     }
@@ -484,8 +479,8 @@ export default function ClassTeachingRequestReview({ initialRequests, teachers =
                   </div>
 
                   <div className="grid gap-6 md:grid-cols-2">
-                    <div><label className="block text-sm font-medium text-gray-700 mb-2">Co-Teachers</label><div className="flex gap-2"><select value={editCoTeacherToAdd} onChange={event => setEditCoTeacherToAdd(event.target.value)} className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2"><option value="">Select co-teacher...</option>{teachers.filter(teacher => teacher.id !== editTeacherId && !(editFormData.coTeacherIds || []).includes(teacher.id)).map(teacher => <option key={teacher.id} value={teacher.id}>{teacher.firstName} {teacher.lastName} ({teacher.email})</option>)}</select><button type="button" disabled={!editCoTeacherToAdd} onClick={() => { setEditFormData({ ...editFormData, coTeacherIds: [...(editFormData.coTeacherIds || []), editCoTeacherToAdd] }); setEditCoTeacherToAdd('') }} className="rounded bg-blue-600 px-3 text-white disabled:opacity-50">Add</button></div><ul className="mt-2 space-y-1">{(editFormData.coTeacherIds || []).map(id => { const teacher = teachers.find(item => item.id === id); return <li key={id} className="flex justify-between rounded border px-3 py-2 text-sm"><span>{teacher ? `${teacher.firstName} ${teacher.lastName}` : id}</span><button type="button" onClick={() => setEditFormData({ ...editFormData, coTeacherIds: (editFormData.coTeacherIds || []).filter(value => value !== id) })} className="text-red-600">Remove</button></li> })}</ul></div>
-                    <div><label className="block text-sm font-medium text-gray-700 mb-2">Student Teachers</label><div className="flex gap-2"><select value={editStudentTeacherToAdd} onChange={event => setEditStudentTeacherToAdd(event.target.value)} className="min-w-0 flex-1 rounded-md border border-gray-300 px-3 py-2"><option value="">Select student...</option>{children.filter(child => !(editFormData.studentTeacherChildIds || []).includes(child.id)).map(child => <option key={child.id} value={child.id}>{child.firstName} {child.lastName} (Grade {child.grade})</option>)}</select><button type="button" disabled={!editStudentTeacherToAdd} onClick={() => { setEditFormData({ ...editFormData, studentTeacherChildIds: [...(editFormData.studentTeacherChildIds || []), editStudentTeacherToAdd] }); setEditStudentTeacherToAdd('') }} className="rounded bg-blue-600 px-3 text-white disabled:opacity-50">Add</button></div><ul className="mt-2 space-y-1">{(editFormData.studentTeacherChildIds || []).map(id => { const child = children.find(item => item.id === id); return <li key={id} className="flex justify-between rounded border px-3 py-2 text-sm"><span>{child ? `${child.firstName} ${child.lastName}` : id}</span><button type="button" onClick={() => setEditFormData({ ...editFormData, studentTeacherChildIds: (editFormData.studentTeacherChildIds || []).filter(value => value !== id) })} className="text-red-600">Remove</button></li> })}</ul><p className="mt-1 text-xs text-gray-500">Any student may be assigned by an administrator.</p></div>
+                    <div><div className="flex items-end gap-2"><SearchSelect className="min-w-0 flex-1" label="Add co-teacher" value={editCoTeacherToAdd} placeholder="Search co-teachers…" options={teachers.filter(teacher => teacher.id !== editTeacherId && !(editFormData.coTeacherIds || []).includes(teacher.id)).map(teacher => ({ value: teacher.id, label: `${teacher.firstName} ${teacher.lastName} (${teacher.email})` }))} onChange={setEditCoTeacherToAdd} /><button type="button" disabled={!editCoTeacherToAdd} onClick={() => { setEditFormData({ ...editFormData, coTeacherIds: [...(editFormData.coTeacherIds || []), editCoTeacherToAdd] }); setEditCoTeacherToAdd('') }} className="rounded bg-blue-600 px-3 py-2 text-white disabled:opacity-50">Add</button></div><ul className="mt-2 space-y-1">{(editFormData.coTeacherIds || []).map(id => { const teacher = teachers.find(item => item.id === id); return <li key={id} className="flex justify-between rounded border px-3 py-2 text-sm"><span>{teacher ? `${teacher.firstName} ${teacher.lastName}` : id}</span><button type="button" onClick={() => setEditFormData({ ...editFormData, coTeacherIds: (editFormData.coTeacherIds || []).filter(value => value !== id) })} className="text-red-600">Remove</button></li> })}</ul></div>
+                    <div><div className="flex items-end gap-2"><SearchSelect className="min-w-0 flex-1" label="Add student teacher" value={editStudentTeacherToAdd} placeholder="Search students…" options={children.filter(child => !(editFormData.studentTeacherChildIds || []).includes(child.id)).map(child => ({ value: child.id, label: `${child.firstName} ${child.lastName} (Grade ${child.grade})` }))} onChange={setEditStudentTeacherToAdd} /><button type="button" disabled={!editStudentTeacherToAdd} onClick={() => { setEditFormData({ ...editFormData, studentTeacherChildIds: [...(editFormData.studentTeacherChildIds || []), editStudentTeacherToAdd] }); setEditStudentTeacherToAdd('') }} className="rounded bg-blue-600 px-3 py-2 text-white disabled:opacity-50">Add</button></div><ul className="mt-2 space-y-1">{(editFormData.studentTeacherChildIds || []).map(id => { const child = children.find(item => item.id === id); return <li key={id} className="flex justify-between rounded border px-3 py-2 text-sm"><span>{child ? `${child.firstName} ${child.lastName}` : id}</span><button type="button" onClick={() => setEditFormData({ ...editFormData, studentTeacherChildIds: (editFormData.studentTeacherChildIds || []).filter(value => value !== id) })} className="text-red-600">Remove</button></li> })}</ul><p className="mt-1 text-xs text-gray-500">Any student may be assigned by an administrator.</p></div>
                   </div>
 
                   <div>
