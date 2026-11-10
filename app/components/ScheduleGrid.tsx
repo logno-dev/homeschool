@@ -30,7 +30,19 @@ const PERIODS = [
   { id: 'second', name: 'Second Hour' },
   { id: 'lunch', name: 'Lunch' },
   { id: 'third', name: 'Third Hour' }
-]
+] as const
+
+const POOL_PERIODS = [
+  ...PERIODS,
+  { id: 'any', name: 'Any Hour' }
+] as const
+
+type PoolPeriod = typeof POOL_PERIODS[number]['id']
+
+const normalizePreferredPeriod = (preferredPeriod: string | null | undefined): PoolPeriod => {
+  const normalized = preferredPeriod?.trim().toLowerCase()
+  return POOL_PERIODS.some(period => period.id === normalized) ? normalized as PoolPeriod : 'any'
+}
 
 const previewDescription = (description: string) => description.length > 100 ? `${description.slice(0, 100).trimEnd()}...` : description
 
@@ -561,6 +573,14 @@ export default function ScheduleGrid({
   }
 
   const unscheduledClasses = getUnscheduledClasses()
+  const unscheduledClassesByPeriod = POOL_PERIODS.reduce<Record<PoolPeriod, typeof unscheduledClasses>>((groups, period) => {
+    groups[period.id] = []
+    return groups
+  }, {} as Record<PoolPeriod, typeof unscheduledClasses>)
+
+  unscheduledClasses.forEach((classRequest) => {
+    unscheduledClassesByPeriod[normalizePreferredPeriod(classRequest.preferredPeriod)].push(classRequest)
+  })
 
   return (
     <>
@@ -688,43 +708,72 @@ export default function ScheduleGrid({
             </div>
           )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 min-h-[100px]">
-          {unscheduledClasses.map((classRequest) => (
-            <ClassDetailsPopover key={`pool-${classRequest.id}`} classRequest={classRequest} isDragging={isDragging}>
-              <div
-                draggable={!isMobile && scheduleStatus !== 'submitted'}
-                onDragStart={(e) => handleDragStart(e, classRequest)}
-                onDragEnd={handleDragEnd}
-                onClick={isMobile ? (e) => {
-                  e.stopPropagation()
-                  handleClassSelect(classRequest)
-                } : undefined}
-                className={`bg-blue-50 border rounded-md p-3 transition-all min-h-[44px] ${
-                  scheduleStatus === 'submitted'
-                    ? 'cursor-not-allowed opacity-60 border-blue-200' 
-                    : selectedClass?.id === classRequest.id && !selectedFromSlot
-                      ? 'border-blue-500 bg-blue-100 ring-2 ring-blue-300 cursor-pointer'
-                      : isMobile 
-                        ? 'cursor-pointer hover:bg-blue-100 border-blue-200 active:bg-blue-200'
-                        : 'cursor-move hover:bg-blue-100 border-blue-200'
-                }`}
-              >
-                <h4 className="font-medium text-blue-900">{classRequest.className}</h4>
-                <p className="text-sm text-blue-700">Grade: {classRequest.gradeRange}</p>
-                {classRequest.coTeacher && (
-                  <p className="text-sm text-blue-700">Co-teacher: {classRequest.coTeacher}</p>
-                )}
-              </div>
-            </ClassDetailsPopover>
-          ))}
-           {unscheduledClasses.length === 0 && (
-             <div className="col-span-full text-center text-gray-500 py-8">
-               {hoveredDropZone === 'pool' && draggedFromSlot ? 'Drop here to remove from schedule' : 
-                isDragging && draggedFromSlot ? 'Drop here to remove from schedule' :
-                isMobile && selectedClass && selectedFromSlot ? 'Tap here to remove from schedule' :
-                'All approved classes have been scheduled'}
-             </div>
-           )}        </div>
+        {unscheduledClasses.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5 min-h-[100px]">
+            {POOL_PERIODS.map((period) => {
+              const periodClasses = unscheduledClassesByPeriod[period.id]
+              const isFlexible = period.id === 'any'
+
+              return (
+                <section
+                  key={period.id}
+                  className={`rounded-lg border p-3 ${isFlexible ? 'border-amber-200 bg-amber-50/50' : 'border-gray-200 bg-gray-50/60'}`}
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <h4 className={`text-sm font-semibold ${isFlexible ? 'text-amber-900' : 'text-gray-800'}`}>
+                      {period.name}
+                    </h4>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${isFlexible ? 'bg-amber-100 text-amber-800' : 'bg-white text-gray-600'}`}>
+                      {periodClasses.length}
+                    </span>
+                  </div>
+                  <div className="space-y-3">
+                    {periodClasses.map((classRequest) => (
+                      <ClassDetailsPopover key={`pool-${classRequest.id}`} classRequest={classRequest} isDragging={isDragging}>
+                        <div
+                          draggable={!isMobile && scheduleStatus !== 'submitted'}
+                          onDragStart={(e) => handleDragStart(e, classRequest)}
+                          onDragEnd={handleDragEnd}
+                          onClick={isMobile ? (e) => {
+                            e.stopPropagation()
+                            handleClassSelect(classRequest)
+                          } : undefined}
+                          className={`bg-blue-50 border rounded-md p-3 transition-all min-h-[44px] ${
+                            scheduleStatus === 'submitted'
+                              ? 'cursor-not-allowed opacity-60 border-blue-200'
+                              : selectedClass?.id === classRequest.id && !selectedFromSlot
+                                ? 'border-blue-500 bg-blue-100 ring-2 ring-blue-300 cursor-pointer'
+                                : isMobile
+                                  ? 'cursor-pointer hover:bg-blue-100 border-blue-200 active:bg-blue-200'
+                                  : 'cursor-move hover:bg-blue-100 border-blue-200'
+                          }`}
+                        >
+                          <h5 className="font-medium text-blue-900">{classRequest.className}</h5>
+                          <p className="text-sm text-blue-700">Grade: {classRequest.gradeRange}</p>
+                          {classRequest.coTeacher && (
+                            <p className="text-sm text-blue-700">Co-teacher: {classRequest.coTeacher}</p>
+                          )}
+                        </div>
+                      </ClassDetailsPopover>
+                    ))}
+                    {periodClasses.length === 0 && (
+                      <div className={`rounded-md border border-dashed px-3 py-5 text-center text-xs ${isFlexible ? 'border-amber-200 text-amber-700' : 'border-gray-200 text-gray-500'}`}>
+                        No unscheduled classes
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="min-h-[100px] py-8 text-center text-gray-500">
+            {hoveredDropZone === 'pool' && draggedFromSlot ? 'Drop here to remove from schedule' :
+              isDragging && draggedFromSlot ? 'Drop here to remove from schedule' :
+              isMobile && selectedClass && selectedFromSlot ? 'Tap here to remove from schedule' :
+              'All approved classes have been scheduled'}
+          </div>
+        )}
       </div>
 
       {/* Schedule Grid */}
